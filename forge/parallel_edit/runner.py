@@ -1,0 +1,179 @@
+"""Run candidate edits in parallel jj workspaces, one per model."""
+
+from __future__ import annotations
+
+import asyncio
+import time
+from pathlib import Path
+
+from agents.parallel_edit.config import settings
+from agents.parallel_edit.models import EditRun
+from agents.parallel_edit.workspaces import (
+    JJError,
+    collect_diff,
+    create_workspace,
+    forget_workspace,
+    workspace_destination,
+)
+
+_TAIL_CHARS = 2000
+
+
+def _tail(data: bytes, limit: int = _TAIL_CHARS) -> str:
+    decoded = data.decode("utf-8", errors="replace")
+    return decoded[-limit:] if len(decoded) > limit else decoded
+
+
+async def _run_claude(
+    *, prompt: str, model: str, workspace: Path, timeout: float
+) -> tuple[int | None, bytes, bytes, str | None]:
+    """Invoke `claude -p` in workspace. Returns (returncode, stdout, stderr, error_message)."""
+    cmd = [
+        settings.claude_binary,
+        "-p",
+        prompt,
+        "--model",
+        model,
+        "--permission-mode",
+        settings.permission_mode,
+        "--output-format",
+        settings.output_format,
+    ]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=workspace,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except FileNotFoundError as e:
+        return None, b"", b"", f"claude binary not found: {e}"
+
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        return proc.returncode, stdout, stderr, None
+    except TimeoutError:
+        proc.kill()
+        try:
+            stdout, stderr = await proc.communicate()
+        except Exception:
+            stdout, stderr = b"", b""
+        return None, stdout, stderr, f"Timed out after {timeout:.1f}s"
+
+
+async def run_candidate(
+    *,
+    prompt: str,
+    model: str,
+    label: str,
+    repo: Path,
+    base_rev: str,
+    timeout: float | None = None,
+) -> EditRun:
+    """Provision a workspace, run claude in it, and return an EditRun with its diff."""
+    workspace = workspace_destination(repo, label)
+    try:
+        create_workspace(repo, workspace, base_rev=base_rev)
+    except JJError as e:
+        return EditRun(
+            label=label,
+            model=model,
+            workspace_path=workspace,
+            status="error",
+            error_message=f"workspace setup failed: {e}",
+        )
+
+    start = time.monotonic()
+    effective_timeout = timeout if timeout is not None else settings.per_run_timeout_seconds
+    returncode, stdout, stderr, timeout_msg = await _run_claude(
+        prompt=prompt, model=model, workspace=workspace, timeout=effective_timeout
+    )
+    latency_ms = int((time.monotonic() - start) * 1000)
+
+    stdout_tail = _tail(stdout)
+    stderr_tail = _tail(stderr)
+
+    if timeout_msg is not None:
+        return EditRun(
+            label=label,
+            model=model,
+            workspace_path=workspace,
+            status="timeout",
+            latency_ms=latency_ms,
+            stdout_tail=stdout_tail,
+            stderr_tail=stderr_tail,
+            error_message=timeout_msg,
+        )
+
+    if returncode != 0:
+        return EditRun(
+            label=label,
+            model=model,
+            workspace_path=workspace,
+            status="error",
+            latency_ms=latency_ms,
+            returncode=returncode,
+            stdout_tail=stdout_tail,
+            stderr_tail=stderr_tail,
+            error_message=f"claude exited with code {returncode}",
+        )
+
+    try:
+        diff_text, diff_stat = collect_diff(workspace, base_rev)
+    except JJError as e:
+        return EditRun(
+            label=label,
+            model=model,
+            workspace_path=workspace,
+            status="error",
+            latency_ms=latency_ms,
+            returncode=returncode,
+            stdout_tail=stdout_tail,
+            stderr_tail=stderr_tail,
+            error_message=f"diff collection failed: {e}",
+        )
+
+    status = "no_changes" if not diff_text.strip() else "ok"
+    return EditRun(
+        label=label,
+        model=model,
+        workspace_path=workspace,
+        status=status,
+        diff_text=diff_text,
+        diff_stat=diff_stat,
+        latency_ms=latency_ms,
+        returncode=returncode,
+        stdout_tail=stdout_tail,
+        stderr_tail=stderr_tail,
+    )
+
+
+async def run_all(
+    *,
+    prompt: str,
+    models_by_label: dict[str, str],
+    repo: Path,
+    base_rev: str,
+) -> list[EditRun]:
+    """Run every (label, model) candidate concurrently. Workspaces persist for caller cleanup."""
+    coros = [
+        run_candidate(prompt=prompt, model=model, label=label, repo=repo, base_rev=base_rev)
+        for label, model in models_by_label.items()
+    ]
+    return await asyncio.gather(*coros)
+
+
+def cleanup_runs_selective(repo: Path, runs: list[EditRun]) -> list[Path]:
+    """Cleanup based on settings; return paths kept on disk for the human to inspect."""
+    kept: list[Path] = []
+    for run in runs:
+        succeeded = run.status in ("ok", "no_changes")
+        should_clean = settings.cleanup_on_success if succeeded else settings.cleanup_on_failure
+        if should_clean and run.workspace_path.exists():
+            try:
+                forget_workspace(repo, run.workspace_path)
+            except Exception:
+                kept.append(run.workspace_path)
+        elif run.workspace_path.exists():
+            kept.append(run.workspace_path)
+    return kept
