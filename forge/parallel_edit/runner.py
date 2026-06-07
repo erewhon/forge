@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from agents.parallel_edit.config import settings
-from agents.parallel_edit.models import EditRun
+from agents.parallel_edit.models import DiffStat, EditRun
 from agents.parallel_edit.workspaces import (
     JJError,
     collect_diff,
@@ -22,6 +22,19 @@ _TAIL_CHARS = 2000
 def _tail(data: bytes, limit: int = _TAIL_CHARS) -> str:
     decoded = data.decode("utf-8", errors="replace")
     return decoded[-limit:] if len(decoded) > limit else decoded
+
+
+def _partial_diff(workspace: Path, base_rev: str) -> tuple[str, DiffStat]:
+    """Best-effort diff capture for non-success exits (timeout / nonzero return).
+
+    A thorough-but-slow candidate that gets killed at the timeout, or one that exits nonzero
+    after writing real edits, has still produced work on disk. Capture it so the judge can
+    weigh it instead of discarding it. Returns ("", DiffStat()) if the diff can't be read.
+    """
+    try:
+        return collect_diff(workspace, base_rev)
+    except JJError:
+        return "", DiffStat()
 
 
 async def _run_claude(
@@ -94,11 +107,14 @@ async def run_candidate(
     stderr_tail = _tail(stderr)
 
     if timeout_msg is not None:
+        diff_text, diff_stat = _partial_diff(workspace, base_rev)
         return EditRun(
             label=label,
             model=model,
             workspace_path=workspace,
             status="timeout",
+            diff_text=diff_text,
+            diff_stat=diff_stat,
             latency_ms=latency_ms,
             stdout_tail=stdout_tail,
             stderr_tail=stderr_tail,
@@ -106,11 +122,14 @@ async def run_candidate(
         )
 
     if returncode != 0:
+        diff_text, diff_stat = _partial_diff(workspace, base_rev)
         return EditRun(
             label=label,
             model=model,
             workspace_path=workspace,
             status="error",
+            diff_text=diff_text,
+            diff_stat=diff_stat,
             latency_ms=latency_ms,
             returncode=returncode,
             stdout_tail=stdout_tail,

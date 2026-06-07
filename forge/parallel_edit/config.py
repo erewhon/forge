@@ -39,6 +39,14 @@ class ParallelEditSettings(BaseSettings):
     judge_openai_model: str = "coder"
     judge_openai_max_tokens: int = 8192
 
+    # Judge resilience: the judge runs through the ensemble harness's failover Pool.
+    # The primary is judge_backend/judge_*_model above; these router models are appended
+    # after it and only used if the primary fails (pulled / auth / timeout). All failover
+    # members go through the router because it always has a key — so even an Anthropic
+    # primary degrades to a reachable open model rather than aborting the run.
+    judge_failover_models: list[str] = ["qwen3.6-plus"]
+    judge_timeout_seconds: float = 120.0
+
     # Workspace management
     workspace_base_dir: Path | None = None  # default: repo's parent dir
     workspace_name_prefix: str = "pe"

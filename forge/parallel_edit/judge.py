@@ -1,12 +1,15 @@
-"""Single-LLM judge that compares two candidate diffs and produces a structured verdict."""
+"""Judge that compares candidate diffs and produces a structured verdict.
+
+The judge runs through the shared ensemble harness's failover ``Pool``: an ordered set of
+interchangeable LLM executors. The primary is whatever ``judge_backend`` selects; if it is
+pulled, rate-limited, or times out, the Pool fails over to the configured router models so
+the comparison still happens. This is parallel_edit's first consumption of the harness.
+"""
 
 from __future__ import annotations
 
 import json
 import re
-
-import anthropic
-import openai
 
 from agents.parallel_edit.config import settings
 from agents.parallel_edit.models import (
@@ -16,6 +19,59 @@ from agents.parallel_edit.models import (
     JudgeVerdict,
 )
 from agents.parallel_edit.prompts import JUDGE_SYSTEM_PROMPT
+from agents.shared.ensemble import ApiExecutor, Pool, Prompt
+
+
+def _build_judge_pool() -> Pool:
+    """Assemble the judge failover pool: configured primary, then router failover models.
+
+    Deduplicates by label so a primary that coincides with a failover entry isn't tried twice.
+    """
+    executors: list[ApiExecutor] = []
+    seen: set[str] = set()
+
+    def add(executor: ApiExecutor) -> None:
+        if executor.label not in seen:
+            seen.add(executor.label)
+            executors.append(executor)
+
+    if settings.judge_backend == "anthropic":
+        add(
+            ApiExecutor(
+                label=f"anthropic:{settings.judge_anthropic_model}",
+                kind="anthropic",
+                model=settings.judge_anthropic_model,
+            )
+        )
+    else:
+        add(
+            ApiExecutor(
+                label=f"router:{settings.judge_openai_model}",
+                kind="openai",
+                model=settings.judge_openai_model,
+                base_url=settings.judge_openai_base_url,
+                api_key=settings.judge_openai_api_key,
+            )
+        )
+
+    for model in settings.judge_failover_models:
+        add(
+            ApiExecutor(
+                label=f"router:{model}",
+                kind="openai",
+                model=model,
+                base_url=settings.judge_openai_base_url,
+                api_key=settings.judge_openai_api_key,
+            )
+        )
+
+    return Pool(role="judge", executors=executors)
+
+
+def _judge_max_tokens() -> int:
+    if settings.judge_backend == "anthropic":
+        return settings.judge_anthropic_max_tokens
+    return settings.judge_openai_max_tokens
 
 
 def _extract_json(text: str) -> dict:
@@ -36,63 +92,31 @@ def _extract_json(text: str) -> dict:
     return {}
 
 
-async def _complete_anthropic(system: str, user: str) -> str:
-    client = anthropic.AsyncAnthropic()
-    response = await client.messages.create(
-        model=settings.judge_anthropic_model,
-        max_tokens=settings.judge_anthropic_max_tokens,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    )
-    for block in response.content:
-        if block.type == "text":
-            return block.text
-    return ""
-
-
-async def _complete_openai(system: str, user: str) -> str:
-    client = openai.AsyncOpenAI(
-        base_url=settings.judge_openai_base_url, api_key=settings.judge_openai_api_key
-    )
-    response = await client.chat.completions.create(
-        model=settings.judge_openai_model,
-        max_tokens=settings.judge_openai_max_tokens,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-    )
-    return response.choices[0].message.content or ""
-
-
-def _judge_model_name() -> str:
-    if settings.judge_backend == "anthropic":
-        return settings.judge_anthropic_model
-    return settings.judge_openai_model
-
-
-async def _complete(system: str, user: str) -> str:
-    if settings.judge_backend == "anthropic":
-        return await _complete_anthropic(system, user)
-    return await _complete_openai(system, user)
-
-
 def _truncate(text: str, limit: int) -> tuple[str, bool]:
     if len(text) <= limit:
         return text, False
     return text[:limit], True
 
 
+def _status_note(run: EditRun) -> str:
+    """Honest flag so the judge weighs completeness fairly for cut-off candidates."""
+    if run.status == "timeout":
+        return " (NOTE: cut off by a timeout — its diff is what it had written when killed)"
+    if run.status == "error":
+        return " (NOTE: candidate exited with an error — its diff may be incomplete)"
+    return ""
+
+
 def _format_candidate(run: EditRun, *, limit: int) -> str:
     diff, truncated = _truncate(run.diff_text, limit)
     truncated_note = " (DIFF TRUNCATED to fit context)" if truncated else ""
     stat = run.diff_stat
-    if run.status == "no_changes":
+    if not run.diff_text.strip():
         body = "(No changes — this candidate produced no diff against the base.)"
     else:
         body = f"```diff\n{diff}\n```"
     return (
-        f"## Candidate {run.label} — model: {run.model}\n"
+        f"## Candidate {run.label} — model: {run.model}{_status_note(run)}\n"
         f"Diff stat: {stat.files_changed} files, "
         f"+{stat.insertions} / -{stat.deletions}{truncated_note}\n\n"
         f"{body}"
@@ -156,28 +180,44 @@ def _parse_verdict(data: dict, run_labels: list[str]) -> JudgeVerdict | None:
 async def judge_runs(
     *, prompt: str, runs: list[EditRun]
 ) -> tuple[JudgeVerdict | None, str, str | None]:
-    """Compare two candidate runs. Returns (verdict, judge_model, error_message).
+    """Compare candidate runs via the failover judge pool. Returns (verdict, judge_model, error).
 
-    Verdict is None when the judge could not produce a usable comparison
-    (e.g. < 2 candidates with diffs, LLM error, or unparseable response).
+    ``judge_model`` is the label of whichever pool member actually answered (after any
+    failover), so the report records who judged, not just who was asked first. Verdict is
+    None when the judge could not produce a usable comparison (< 2 candidates with diffs,
+    the whole pool exhausted, or an unparseable response).
     """
-    judge_model = _judge_model_name()
-    eligible = [r for r in runs if r.status in ("ok", "no_changes")]
+    pool = _build_judge_pool()
+    primary_label = pool.executors[0].label if pool.executors else "judge"
+
+    # A candidate is comparable if it produced a diff (even a cut-off timeout) or cleanly
+    # made no changes — not only if it exited successfully. Discarding a thorough-but-slow
+    # candidate's on-disk work is exactly the flaw the first live run surfaced.
+    eligible = [r for r in runs if r.diff_text.strip() or r.status == "no_changes"]
     if len(eligible) < 2:
         return (
             None,
-            judge_model,
-            f"need at least 2 successful candidates, got {len(eligible)}",
+            primary_label,
+            f"need at least 2 candidates with comparable output, got {len(eligible)}",
         )
 
     user_message = _build_user_message(prompt, eligible)
+    judge_prompt = Prompt(
+        system=JUDGE_SYSTEM_PROMPT,
+        user=user_message,
+        max_tokens=_judge_max_tokens(),
+    )
 
-    try:
-        response_text = await _complete(JUDGE_SYSTEM_PROMPT, user_message)
-    except Exception as e:
-        return None, judge_model, f"judge call failed: {type(e).__name__}: {e}"
+    result = await pool.run(judge_prompt, timeout=settings.judge_timeout_seconds)
+    judge_model = result.executor
+    if not result.ok:
+        return (
+            None,
+            judge_model,
+            f"judge pool exhausted ({result.attempts} attempts): {result.error}",
+        )
 
-    data = _extract_json(response_text)
+    data = _extract_json(result.output)
     if not data:
         return None, judge_model, "judge response was not valid JSON"
 
