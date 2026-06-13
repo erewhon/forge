@@ -9,6 +9,7 @@ state so callers can degrade gracefully instead of aborting when some members fa
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from agents.shared.ensemble.executor import Executor
@@ -31,7 +32,20 @@ class Pool:
     max_attempts_per_executor: int = 2  # bounded retries on TRANSIENT before failing over
     retry_backoff_s: float = 0.5
 
-    async def run(self, prompt: Prompt, *, timeout: float) -> ExecResult:
+    async def run(
+        self,
+        prompt: Prompt,
+        *,
+        timeout: float,
+        validate: Callable[[str], bool] | None = None,
+    ) -> ExecResult:
+        """Try executors with failover; return the first result that succeeds (and validates).
+
+        ``validate`` guards against the failure mode endpoint failover can't see: a call that
+        succeeds at the transport layer but returns an unusable payload (e.g. a judge that emits
+        malformed JSON). Output that fails validation is demoted to a TRANSIENT failure, so the
+        same model is retried and then failed over — exactly like a 5xx — until output is usable.
+        """
         last: ExecResult | None = None
         total_attempts = 0
 
@@ -41,7 +55,12 @@ class Pool:
                 result = await executor.run(prompt, timeout=timeout)
                 result.attempts = total_attempts
                 if result.ok:
-                    return result
+                    if validate is None or validate(result.output):
+                        return result
+                    # Transport OK but payload unusable — treat as transient and keep trying.
+                    result.status = ExecStatus.ERROR
+                    result.failure_class = FailureClass.TRANSIENT
+                    result.error = "output failed validation"
                 last = result
                 if result.failure_class == FailureClass.TERMINAL:
                     break  # never coming back — move to the next executor

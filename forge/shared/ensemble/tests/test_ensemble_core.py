@@ -94,6 +94,36 @@ def test_failover_all_dead_returns_last_failure() -> None:
     assert result.executor == "b"
 
 
+def test_validate_demotes_bad_output_and_retries() -> None:
+    # First reply is transport-OK but invalid (e.g. malformed JSON); the second validates.
+    pool = Pool(
+        role="judge",
+        executors=[FakeExecutor("a", [_ok("a", "not json"), _ok("a", "{good}")])],
+        max_attempts_per_executor=2,
+        retry_backoff_s=0,
+    )
+    result = asyncio.run(pool.run(Prompt(user="hi"), timeout=1, validate=lambda t: t == "{good}"))
+    assert result.ok
+    assert result.output == "{good}"
+    assert result.attempts == 2
+
+
+def test_validate_fails_over_to_next_executor() -> None:
+    # Primary always emits invalid output; pool must fail over to a model that validates.
+    pool = Pool(
+        role="judge",
+        executors=[
+            FakeExecutor("a", [_ok("a", "garbage")]),
+            FakeExecutor("b", [_ok("b", "{good}")]),
+        ],
+        max_attempts_per_executor=2,
+        retry_backoff_s=0,
+    )
+    result = asyncio.run(pool.run(Prompt(user="hi"), timeout=1, validate=lambda t: t == "{good}"))
+    assert result.ok
+    assert result.executor == "b"
+
+
 def _single(label: str, ok: bool) -> Pool:
     script = [_ok(label) if ok else _fail(label)]
     return Pool(role="reviewer", executors=[FakeExecutor(label, script)], retry_backoff_s=0)

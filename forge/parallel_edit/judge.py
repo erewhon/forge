@@ -65,7 +65,11 @@ def _build_judge_pool() -> Pool:
             )
         )
 
-    return Pool(role="judge", executors=executors)
+    return Pool(
+        role="judge",
+        executors=executors,
+        max_attempts_per_executor=settings.judge_max_attempts_per_model,
+    )
 
 
 def _judge_max_tokens() -> int:
@@ -208,22 +212,23 @@ async def judge_runs(
         max_tokens=_judge_max_tokens(),
     )
 
-    result = await pool.run(judge_prompt, timeout=settings.judge_timeout_seconds)
+    labels = [r.label for r in eligible]
+
+    def _produces_verdict(text: str) -> bool:
+        return _parse_verdict(_extract_json(text), labels) is not None
+
+    # The pool re-rolls and fails over until the output actually parses into a verdict, so a
+    # model's JSON flakiness no longer aborts the comparison.
+    result = await pool.run(
+        judge_prompt, timeout=settings.judge_timeout_seconds, validate=_produces_verdict
+    )
     judge_model = result.executor
     if not result.ok:
-        return (
-            None,
-            judge_model,
-            f"judge pool exhausted ({result.attempts} attempts): {result.error}",
-        )
+        err = f"no parseable verdict after {result.attempts} attempts ({result.error})"
+        return None, judge_model, err
 
-    data = _extract_json(result.output)
-    if not data:
-        return None, judge_model, "judge response was not valid JSON"
-
-    labels = [r.label for r in eligible]
-    verdict = _parse_verdict(data, labels)
-    if verdict is None:
+    verdict = _parse_verdict(_extract_json(result.output), labels)
+    if verdict is None:  # validator passed, so this is unreachable in practice — defensive only
         return None, judge_model, "judge response did not match expected schema"
 
     return verdict, judge_model, None

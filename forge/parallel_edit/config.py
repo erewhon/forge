@@ -46,6 +46,10 @@ class ParallelEditSettings(BaseSettings):
     # primary degrades to a reachable open model rather than aborting the run.
     judge_failover_models: list[str] = ["qwen3.6-plus"]
     judge_timeout_seconds: float = 120.0
+    # Local judge models are non-deterministic about JSON formatting: a call can succeed yet
+    # return unparseable output. The judge pool validates the verdict parses and treats a failure
+    # as transient, so it re-rolls on the same model this many times before failing over.
+    judge_max_attempts_per_model: int = 3
 
     # Workspace management
     workspace_base_dir: Path | None = None  # default: repo's parent dir
