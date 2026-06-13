@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+from agents.pr_review_ensemble.models import EnsembleResult, ProviderReview
+
+
+def _quorum_header(result: EnsembleResult) -> str:
+    n_ok = len(result.providers_succeeded)
+    n_total = len(result.providers_attempted)
+    state_label = result.quorum_state.upper()
+
+    failed = [r for r in result.reviews if r.status != "ok"]
+    failure_notes = ""
+    if failed:
+        failure_notes = "; ".join(
+            f"{r.provider} {r.status}"
+            + (f" ({r.error_message})" if r.error_message else "")
+            for r in failed
+        )
+
+    line = f"**Reviewed by:** {n_ok}/{n_total} ({state_label})"
+    if failure_notes:
+        line += f" — {failure_notes}"
+    return line
+
+
+def _format_review(r: ProviderReview) -> str:
+    if r.status != "ok":
+        return (
+            f"### {r.provider} ({r.model}) — _{r.status}_\n\n"
+            f"_{r.error_message or 'no detail'}_"
+        )
+    latency = f" — {r.latency_ms} ms" if r.latency_ms is not None else ""
+    return f"### {r.provider} ({r.model}){latency}\n\n{r.response_text}"
+
+
+def render_markdown(result: EnsembleResult) -> str:
+    lines: list[str] = []
+    lines.append(f"# PR Review (advisory ensemble): {result.pr_ref}")
+    lines.append("")
+    lines.append(_quorum_header(result))
+    lines.append(f"**Generated:** {result.timestamp.isoformat()}")
+    lines.append(f"**Diff size:** {result.diff_lines} lines")
+
+    if result.quorum_state == "failed":
+        lines.append("")
+        lines.append(f"## Ensemble run failed quorum (floor={result.quorum_floor})")
+        lines.append("")
+        lines.append(
+            "Fewer reviewers responded successfully than the configured floor. "
+            "No advisory was synthesized. Per-reviewer details below."
+        )
+    else:
+        agg_text = result.aggregated_review or "_(no aggregator output)_"
+        agg_provider = result.aggregator_provider or "unknown"
+        lines.append("")
+        lines.append(f"## Aggregated review (synthesized by {agg_provider})")
+        lines.append("")
+        lines.append(agg_text)
+
+    lines.append("")
+    lines.append("## Raw reviews")
+    lines.append("")
+    for r in result.reviews:
+        lines.append(_format_review(r))
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
