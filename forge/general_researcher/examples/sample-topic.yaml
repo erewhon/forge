@@ -1,0 +1,7 @@
+question: "What is the history of the IETF standards process and how has it evolved?"
+context: "Investigating governance models for technical standards organizations."
+sub_questions:
+  - "When was the IETF formalized and how did it emerge from the Internet Architecture Board?"
+  - "How has the RFC process evolved from informal memos to formal standards-track documents?"
+  - "What's the role of working groups, BOFs, and area directors in modern IETF governance?"
+score_threshold: 7

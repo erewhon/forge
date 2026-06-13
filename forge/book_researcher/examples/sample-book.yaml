@@ -1,0 +1,15 @@
+title: "Sample Research Project"
+description: "A sample book configuration demonstrating the research harness structure."
+chapters:
+  - number: 1
+    title: "Introduction"
+    description: "Overview and thesis statement"
+    research_questions:
+      - "What is the central argument?"
+      - "What existing literature covers this topic?"
+  - number: 2
+    title: "Historical Context"
+    description: "Background and precedents"
+    research_questions:
+      - "What are the key historical events?"
+      - "What were the driving forces?"
