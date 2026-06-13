@@ -50,6 +50,9 @@ class CodeReviewerSettings(BaseSettings):
     # Idempotency
     review_marker: str = "<!-- nightly-code-review -->"
 
+    # Scoring
+    score_alert_threshold: int = 4  # scores at or below this trigger special attention
+
     # Retry: finding the daily note
     find_attempts: int = 3
     find_delay_seconds: int = 60

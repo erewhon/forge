@@ -10,6 +10,7 @@ from agents.code_reviewer.config import settings
 from agents.code_reviewer.models import NightlyReport
 from agents.code_reviewer.renderer import render_blocks
 from agents.shared.models.nous import EditorJsBlock
+from agents.shared.nous_http import nous_headers
 
 
 def _base_url() -> str:
@@ -18,7 +19,7 @@ def _base_url() -> str:
 
 def _get_daily_note(date_str: str) -> dict | None:
     """Fetch today's daily note. Returns None on 404."""
-    r = httpx.get(f"{_base_url()}/daily-notes/{date_str}")
+    r = httpx.get(f"{_base_url()}/daily-notes/{date_str}", headers=nous_headers())
     if r.status_code == 404:
         return None
     r.raise_for_status()
@@ -27,7 +28,7 @@ def _get_daily_note(date_str: str) -> dict | None:
 
 def _get_page(page_id: str) -> dict | None:
     """Fetch a page by ID. Returns None on 404."""
-    r = httpx.get(f"{_base_url()}/pages/{page_id}")
+    r = httpx.get(f"{_base_url()}/pages/{page_id}", headers=nous_headers())
     if r.status_code == 404:
         return None
     r.raise_for_status()
@@ -39,6 +40,7 @@ def _append_blocks(page_id: str, blocks: list[dict]) -> dict:
     r = httpx.post(
         f"{_base_url()}/pages/{page_id}/append",
         json={"blocks": blocks},
+        headers=nous_headers(),
     )
     r.raise_for_status()
     return r.json()["data"]

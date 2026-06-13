@@ -4,7 +4,7 @@ import json
 import re
 
 from agents.code_reviewer.config import settings
-from agents.code_reviewer.models import RepoChanges, RepoReview, ReviewFinding
+from agents.code_reviewer.models import RepoChanges, RepoReview, RepoScores, ReviewFinding
 
 
 def _complete(system: str, user_message: str, max_tokens: int = 4096) -> str:
@@ -75,8 +75,35 @@ Do NOT flag:
 - Test coverage (separate concern)
 - Minor naming preferences
 
+## Scoring
+
+Score each dimension from 1-10 based on the diff:
+
+- **security**: Injection risks, auth gaps, secrets exposure, unsafe deserialization
+- **correctness**: Logic errors, off-by-one, null handling, race conditions
+- **error_handling**: Boundary validation, resource cleanup, graceful degradation
+- **performance**: N+1 queries, blocking in async, unnecessary allocations
+- **overall**: Weighted judgment across all dimensions
+
+Calibration guide:
+- 9-10: Exemplary, actively doing things well
+- 7-8: Solid, no concerns
+- 5-6: Minor issues worth noting
+- 3-4: Significant concerns that should be addressed
+- 1-2: Critical issues requiring immediate attention
+
+Score conservatively. Most routine code should be 7-8. Reserve 9-10 for genuinely \
+impressive patterns. Use 5-6 freely for anything worth a second look.
+
 Return ONLY valid JSON:
 {
+  "scores": {
+    "security": 8,
+    "correctness": 7,
+    "error_handling": 6,
+    "performance": 8,
+    "overall": 7
+  },
   "findings": [
     {
       "severity": "critical|warning|info|positive",
@@ -138,10 +165,20 @@ def review_repo(changes: RepoChanges) -> RepoReview:
 
     summary = data.get("summary", "Review completed (no structured response from LLM).")
 
+    scores: RepoScores | None = None
+    raw_scores = data.get("scores")
+    if isinstance(raw_scores, dict):
+        try:
+            scores = RepoScores(**raw_scores)
+        except Exception:
+            # LLM returned malformed scores — skip gracefully
+            scores = None
+
     return RepoReview(
         repo_name=changes.repo_name,
         findings=findings,
         summary=summary,
+        scores=scores,
     )
 
 
@@ -152,6 +189,14 @@ def generate_overall_summary(reviews: list[RepoReview]) -> str:
 
     parts: list[str] = []
     for review in reviews:
+        score_text = ""
+        if review.scores:
+            s = review.scores
+            score_text = (
+                f"  Scores: security={s.security} correctness={s.correctness} "
+                f"error_handling={s.error_handling} performance={s.performance} "
+                f"overall={s.overall}"
+            )
         findings_text = ""
         if review.findings:
             findings_text = "\n".join(
@@ -160,11 +205,33 @@ def generate_overall_summary(reviews: list[RepoReview]) -> str:
             )
         else:
             findings_text = "  No issues found."
-        parts.append(f"{review.repo_name}:\n  Summary: {review.summary}\n{findings_text}")
+        section = f"{review.repo_name}:\n  Summary: {review.summary}"
+        if score_text:
+            section += f"\n{score_text}"
+        section += f"\n{findings_text}"
+        parts.append(section)
+
+    # Compute aggregate scores for repos that have them
+    scored_reviews = [r for r in reviews if r.scores is not None]
+    aggregate_text = ""
+    if scored_reviews:
+        n = len(scored_reviews)
+        avg = {
+            "security": sum(r.scores.security for r in scored_reviews) / n,
+            "correctness": sum(r.scores.correctness for r in scored_reviews) / n,
+            "error_handling": sum(r.scores.error_handling for r in scored_reviews) / n,
+            "performance": sum(r.scores.performance for r in scored_reviews) / n,
+            "overall": sum(r.scores.overall for r in scored_reviews) / n,
+        }
+        aggregate_text = (
+            f"\n\nAggregate scores across {n} repos: "
+            + ", ".join(f"{k}={v:.1f}" for k, v in avg.items())
+        )
 
     user_message = (
         "Here are the nightly code reviews across all repositories:\n\n"
         + "\n\n".join(parts)
+        + aggregate_text
     )
 
     print("  Generating overall summary...")

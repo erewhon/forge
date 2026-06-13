@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RepoChanges(BaseModel):
@@ -21,10 +21,19 @@ class ReviewFinding(BaseModel):
     description: str
 
 
+class RepoScores(BaseModel):
+    security: int = Field(ge=1, le=10)  # injection, auth, secrets, unsafe deserialization
+    correctness: int = Field(ge=1, le=10)  # logic errors, off-by-one, null handling, race conditions
+    error_handling: int = Field(ge=1, le=10)  # boundary validation, resource cleanup, graceful degradation
+    performance: int = Field(ge=1, le=10)  # N+1 queries, blocking in async, unnecessary allocations
+    overall: int = Field(ge=1, le=10)  # weighted judgment
+
+
 class RepoReview(BaseModel):
     repo_name: str
     findings: list[ReviewFinding]
     summary: str
+    scores: RepoScores | None = None
 
 
 class NightlyReport(BaseModel):
