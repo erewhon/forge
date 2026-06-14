@@ -1,17 +1,19 @@
-"""Run candidate edits in parallel jj workspaces, one per model."""
+"""Run candidate edits in parallel jj workspaces, one per candidate (claude or opencode)."""
 
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from pathlib import Path
 
 from agents.parallel_edit.config import settings
-from agents.parallel_edit.models import DiffStat, EditRun
+from agents.parallel_edit.models import CandidateSpec, DiffStat, EditRun
 from agents.parallel_edit.workspaces import (
     JJError,
     collect_diff,
     create_workspace,
+    ensure_git_marker,
     forget_workspace,
     workspace_destination,
 )
@@ -37,30 +39,56 @@ def _partial_diff(workspace: Path, base_rev: str) -> tuple[str, DiffStat]:
         return "", DiffStat()
 
 
-async def _run_claude(
-    *, prompt: str, model: str, workspace: Path, timeout: float
-) -> tuple[int | None, bytes, bytes, str | None]:
-    """Invoke `claude -p` in workspace. Returns (returncode, stdout, stderr, error_message)."""
-    cmd = [
+def _build_cmd(spec: CandidateSpec, prompt: str) -> list[str]:
+    """Construct the agent CLI invocation for a candidate.
+
+    claude:   ``claude -p PROMPT --model M --permission-mode … --output-format text``
+    opencode: ``opencode run -m M --dangerously-skip-permissions PROMPT`` (M is an opencode
+              model ref such as ``llm/glm-5.1``, routed through the local LLM router).
+
+    Both run with cwd set to the candidate's isolated jj workspace and edit files in place; the
+    diff is collected from the workspace afterward, so neither tool's stdout format matters.
+    """
+    if spec.kind == "opencode":
+        return [
+            settings.opencode_binary,
+            "run",
+            "-m",
+            spec.model,
+            "--dangerously-skip-permissions",
+            prompt,
+        ]
+    return [
         settings.claude_binary,
         "-p",
         prompt,
         "--model",
-        model,
+        spec.model,
         "--permission-mode",
         settings.permission_mode,
         "--output-format",
         settings.output_format,
     ]
+
+
+async def _exec(
+    cmd: list[str], *, workspace: Path, timeout: float
+) -> tuple[int | None, bytes, bytes, str | None]:
+    """Run a candidate CLI in workspace. Returns (returncode, stdout, stderr, error_message)."""
+    # Override PWD too: changing cwd alone leaves the inherited PWD pointing at the parent's
+    # directory, and opencode derives its project root from PWD — so it would otherwise edit
+    # files in the launching process's directory instead of the candidate workspace.
+    env = {**os.environ, "PWD": str(workspace)}
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=workspace,
+            env=env,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
     except FileNotFoundError as e:
-        return None, b"", b"", f"claude binary not found: {e}"
+        return None, b"", b"", f"binary not found ({cmd[0]}): {e}"
 
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
@@ -77,29 +105,32 @@ async def _run_claude(
 async def run_candidate(
     *,
     prompt: str,
-    model: str,
-    label: str,
+    spec: CandidateSpec,
     repo: Path,
     base_rev: str,
     timeout: float | None = None,
 ) -> EditRun:
-    """Provision a workspace, run claude in it, and return an EditRun with its diff."""
-    workspace = workspace_destination(repo, label)
+    """Provision a workspace, run the candidate agent in it, return an EditRun with its diff."""
+    workspace = workspace_destination(repo, spec.label)
     try:
         create_workspace(repo, workspace, base_rev=base_rev)
     except JJError as e:
         return EditRun(
-            label=label,
-            model=model,
+            label=spec.label,
+            model=spec.display,
             workspace_path=workspace,
             status="error",
             error_message=f"workspace setup failed: {e}",
         )
 
+    # opencode finds the project via a .git marker; a jj workspace has only .jj.
+    if spec.kind == "opencode":
+        ensure_git_marker(workspace)
+
     start = time.monotonic()
     effective_timeout = timeout if timeout is not None else settings.per_run_timeout_seconds
-    returncode, stdout, stderr, timeout_msg = await _run_claude(
-        prompt=prompt, model=model, workspace=workspace, timeout=effective_timeout
+    returncode, stdout, stderr, timeout_msg = await _exec(
+        _build_cmd(spec, prompt), workspace=workspace, timeout=effective_timeout
     )
     latency_ms = int((time.monotonic() - start) * 1000)
 
@@ -109,8 +140,8 @@ async def run_candidate(
     if timeout_msg is not None:
         diff_text, diff_stat = _partial_diff(workspace, base_rev)
         return EditRun(
-            label=label,
-            model=model,
+            label=spec.label,
+            model=spec.display,
             workspace_path=workspace,
             status="timeout",
             diff_text=diff_text,
@@ -124,8 +155,8 @@ async def run_candidate(
     if returncode != 0:
         diff_text, diff_stat = _partial_diff(workspace, base_rev)
         return EditRun(
-            label=label,
-            model=model,
+            label=spec.label,
+            model=spec.display,
             workspace_path=workspace,
             status="error",
             diff_text=diff_text,
@@ -134,15 +165,15 @@ async def run_candidate(
             returncode=returncode,
             stdout_tail=stdout_tail,
             stderr_tail=stderr_tail,
-            error_message=f"claude exited with code {returncode}",
+            error_message=f"{spec.kind} exited with code {returncode}",
         )
 
     try:
         diff_text, diff_stat = collect_diff(workspace, base_rev)
     except JJError as e:
         return EditRun(
-            label=label,
-            model=model,
+            label=spec.label,
+            model=spec.display,
             workspace_path=workspace,
             status="error",
             latency_ms=latency_ms,
@@ -154,8 +185,8 @@ async def run_candidate(
 
     status = "no_changes" if not diff_text.strip() else "ok"
     return EditRun(
-        label=label,
-        model=model,
+        label=spec.label,
+        model=spec.display,
         workspace_path=workspace,
         status=status,
         diff_text=diff_text,
@@ -170,14 +201,13 @@ async def run_candidate(
 async def run_all(
     *,
     prompt: str,
-    models_by_label: dict[str, str],
+    candidates: list[CandidateSpec],
     repo: Path,
     base_rev: str,
 ) -> list[EditRun]:
-    """Run every (label, model) candidate concurrently. Workspaces persist for caller cleanup."""
+    """Run every candidate concurrently. Workspaces persist for caller cleanup."""
     coros = [
-        run_candidate(prompt=prompt, model=model, label=label, repo=repo, base_rev=base_rev)
-        for label, model in models_by_label.items()
+        run_candidate(prompt=prompt, spec=spec, repo=repo, base_rev=base_rev) for spec in candidates
     ]
     return await asyncio.gather(*coros)
 

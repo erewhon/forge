@@ -8,14 +8,19 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class ParallelEditSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="PARALLEL_EDIT_")
 
-    # Default candidate models if --models is omitted (comma-separated env override OK)
+    # Default candidates if --models is omitted (comma-separated env override OK). Each entry is
+    # "[kind:]model": a bare value or "claude:<id>" runs `claude -p`; "opencode:<ref>" runs
+    # `opencode run -m <ref>` (an "llm/" prefix is added when the ref has no provider), routing
+    # the open fleet (Kimi, Qwen, GLM, MiniMax, ...) through the local router.
     default_candidate_models: list[str] = [
-        "claude-opus-4-7",
+        "claude-opus-4-8",
         "claude-sonnet-4-6",
     ]
 
     # Candidate invocation
     claude_binary: str = "claude"
+    opencode_binary: str = "opencode"
+    opencode_model_prefix: str = "llm/"  # prepended to an opencode model ref lacking a provider
     per_run_timeout_seconds: float = 1800.0  # 30 min ceiling per candidate
     permission_mode: str = "acceptEdits"
     output_format: str = "text"

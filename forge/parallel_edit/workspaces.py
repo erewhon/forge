@@ -22,6 +22,11 @@ _STAT_SUMMARY_RE = re.compile(
     r"(?:,\s+(\d+)\s+deletions?\(-\))?"
 )
 
+# Paths excluded from every collected diff: tool-generated cruft that isn't part of the
+# candidate's change. opencode's `open-mem` plugin writes a local `.open-mem/` cache into the
+# working directory on every run; without this it would dominate the candidate diff.
+_DIFF_EXCLUDE_PATHS = (".open-mem",)
+
 
 class JJError(RuntimeError):
     """Raised when a jj command fails."""
@@ -70,14 +75,38 @@ def create_workspace(repo: Path, dest: Path, *, base_rev: str) -> None:
     )
 
 
+def ensure_git_marker(workspace: Path) -> None:
+    """Give the workspace a `.git` so tools that detect the project via git (opencode) work.
+
+    A jj workspace contains only `.jj`; opencode walks up looking for a `.git` to establish the
+    project root and otherwise can't see the files. A bare `git init` provides that marker. jj
+    always ignores `.git`, so it never appears in the collected diff.
+    """
+    if (workspace / ".git").exists():
+        return
+    subprocess.run(["git", "init", "-q"], cwd=workspace, capture_output=True, text=True)
+    # Stage the tree so tools that enumerate project files via `git ls-files` (opencode) see
+    # them; a bare `git init` leaves an empty index. jj ignores `.git`, so none of this is in
+    # the collected diff.
+    subprocess.run(["git", "add", "-A"], cwd=workspace, capture_output=True, text=True)
+
+
+def _diff_exclude_fileset() -> list[str]:
+    """A jj fileset arg (or none) that drops tool cruft like opencode's .open-mem cache."""
+    if not _DIFF_EXCLUDE_PATHS:
+        return []
+    return [" & ".join(f'~"{p}"' for p in _DIFF_EXCLUDE_PATHS)]
+
+
 def collect_diff(workspace: Path, base_rev: str) -> tuple[str, DiffStat]:
     """Collect the unified diff and a parsed DiffStat for everything since base_rev."""
+    fileset = _diff_exclude_fileset()
     diff_proc = _run_jj(
-        ["diff", "--from", base_rev, "--git"],
+        ["diff", "--from", base_rev, "--git", *fileset],
         cwd=workspace,
     )
     stat_proc = _run_jj(
-        ["diff", "--from", base_rev, "--stat"],
+        ["diff", "--from", base_rev, "--stat", *fileset],
         cwd=workspace,
     )
     return diff_proc.stdout, _parse_diff_stat(stat_proc.stdout)

@@ -9,6 +9,22 @@ from pydantic import BaseModel
 EditStatus = Literal["ok", "no_changes", "timeout", "error"]
 WinnerLabel = Literal["A", "B", "tie", "both_flawed"]
 FileVerdict = Literal["A better", "B better", "equivalent", "A only", "B only"]
+CandidateKind = Literal["claude", "opencode"]
+
+
+class CandidateSpec(BaseModel):
+    """One candidate to run: which agent CLI (kind) drives which model.
+
+    claude  -> `claude -p` with a Claude model id (e.g. claude-opus-4-8).
+    opencode -> `opencode run -m <model>` where model is an opencode ref such as
+                `llm/glm-5.1`, routed through the local LLM router (the open fleet).
+    `display` is the human-readable label shown in reports (e.g. "opencode:llm/glm-5.1").
+    """
+
+    label: str  # A, B, ...
+    kind: CandidateKind
+    model: str
+    display: str
 
 
 class DiffStat(BaseModel):

@@ -11,7 +11,7 @@ from pathlib import Path
 from agents.parallel_edit.config import settings
 from agents.parallel_edit.judge import judge_runs
 from agents.parallel_edit.logger import log_run
-from agents.parallel_edit.models import ParallelEditResult
+from agents.parallel_edit.models import CandidateSpec, ParallelEditResult
 from agents.parallel_edit.renderer import render_markdown
 from agents.parallel_edit.runner import cleanup_runs_selective, run_all
 from agents.parallel_edit.workspaces import resolve_base_rev
@@ -27,14 +27,36 @@ def _read_prompt(args: argparse.Namespace) -> str:
     raise SystemExit("error: provide --prompt TEXT, --prompt-file PATH, or pipe a prompt via stdin")
 
 
-def _parse_models(raw: str | None) -> list[str]:
-    if raw is None:
-        models = settings.default_candidate_models
+def _parse_one_candidate(raw: str, label: str) -> CandidateSpec:
+    """Parse a "[kind:]model" token into a CandidateSpec.
+
+    Bare value or "claude:<id>" -> claude. "opencode:<ref>" -> opencode, with the configured
+    prefix (default "llm/") added when the ref has no provider segment.
+    """
+    kind, sep, rest = raw.partition(":")
+    if sep and kind in ("claude", "opencode"):
+        model = rest.strip()
     else:
-        models = [m.strip() for m in raw.split(",") if m.strip()]
-    if len(models) != 2:
-        raise SystemExit(f"error: --models must list exactly 2 models, got {len(models)}: {models}")
-    return models
+        kind, model = "claude", raw.strip()
+
+    if kind == "opencode":
+        if "/" not in model:
+            model = f"{settings.opencode_model_prefix}{model}"
+        display = f"opencode:{model}"
+    else:
+        display = model
+    return CandidateSpec(label=label, kind=kind, model=model, display=display)
+
+
+def _parse_candidates(raw: str | None) -> list[CandidateSpec]:
+    tokens = settings.default_candidate_models if raw is None else raw.split(",")
+    tokens = [t.strip() for t in tokens if t.strip()]
+    if len(tokens) != 2:
+        raise SystemExit(
+            f"error: --models must list exactly 2 candidates, got {len(tokens)}: {tokens}"
+        )
+    labels = ["A", "B"]
+    return [_parse_one_candidate(tok, label) for label, tok in zip(labels, tokens, strict=True)]
 
 
 async def _run(args: argparse.Namespace) -> int:
@@ -42,7 +64,7 @@ async def _run(args: argparse.Namespace) -> int:
     if not prompt.strip():
         raise SystemExit("error: prompt is empty")
 
-    models = _parse_models(args.models)
+    candidates = _parse_candidates(args.models)
     repo = Path(args.repo).resolve()
     if not (repo / ".jj").exists():
         raise SystemExit(f"error: {repo} is not a jj repo (no .jj directory)")
@@ -52,17 +74,14 @@ async def _run(args: argparse.Namespace) -> int:
         settings.cleanup_on_failure = False
 
     base_rev = resolve_base_rev(repo, args.base)
-    labels = ["A", "B"]
-    models_by_label = dict(zip(labels, models, strict=True))
 
     print(
-        f"Parallel edit @ {repo} (base {base_rev[:12]}): A={models[0]} vs B={models[1]}",
+        f"Parallel edit @ {repo} (base {base_rev[:12]}): "
+        f"A={candidates[0].display} vs B={candidates[1].display}",
         file=sys.stderr,
     )
 
-    runs = await run_all(
-        prompt=prompt, models_by_label=models_by_label, repo=repo, base_rev=base_rev
-    )
+    runs = await run_all(prompt=prompt, candidates=candidates, repo=repo, base_rev=base_rev)
 
     for run in runs:
         line = f"  {run.label} ({run.model}): {run.status}"
@@ -129,8 +148,9 @@ def main() -> None:
     parser.add_argument(
         "--models",
         default=None,
-        help="Comma-separated model IDs (exactly 2). "
-        "Defaults to PARALLEL_EDIT_DEFAULT_CANDIDATE_MODELS.",
+        help="Two comma-separated candidates as '[kind:]model'. Bare or 'claude:<id>' runs "
+        "claude -p; 'opencode:<ref>' runs opencode against the router (e.g. "
+        "'claude-opus-4-8,opencode:glm-5.1'). Defaults to PARALLEL_EDIT_DEFAULT_CANDIDATE_MODELS.",
     )
     parser.add_argument("--repo", default=".", help="Path to the jj repo to edit (default: cwd)")
     parser.add_argument(
