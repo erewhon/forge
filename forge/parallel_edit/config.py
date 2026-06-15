@@ -25,6 +25,43 @@ class ParallelEditSettings(BaseSettings):
     permission_mode: str = "acceptEdits"
     output_format: str = "text"
 
+    # Sandbox (Ephemeral Candidate Sandboxes): when enabled, each candidate CLI
+    # runs inside an ephemeral `gaol run-once` sandbox with its jj workspace
+    # bind-mounted writable (plus opencode config/auth), instead of loose on the
+    # host. The sandbox is created, exec'd, and destroyed per candidate (no
+    # residue), with per-sandbox resource caps so concurrent fan-out is safe.
+    # Off by default.
+    sandbox: bool = False
+    # Per-kind sandboxing: candidate kinds listed here run LOOSE on the host even when `sandbox`
+    # is enabled. `claude` is trusted and authenticates via the host's OAuth (which isn't mounted
+    # into the sandbox), so it stays on the host; the open-fleet kinds (opencode → router models)
+    # are the ones isolated. Empty = sandbox every kind.
+    sandbox_exempt_kinds: list[str] = ["claude"]
+    gaol_binary: str = "gaol"
+    sandbox_runtime: str = "incus"
+    # Toolchain golden image built by gaol's scripts/build-candidate-image.sh
+    # (a local Incus alias). Has opencode/claude/node/uv/ripgrep/fd/git so a real
+    # candidate runs; cold-start is a ~1s ZFS clone. Override with a stock image
+    # (e.g. "images:debian/trixie") when the toolchain isn't needed.
+    sandbox_image: str = "gaol-candidate-base"
+    # $HOME inside the sandbox. The candidate runs as the host workspace owner's
+    # uid, which maps to this image's `dev` user; opencode reads its config here.
+    sandbox_home: str = "/home/dev"
+    # Per-sandbox resource caps so concurrent fan-out can't exhaust the host
+    # (→ gaol run-once --memory/--cpus → Incus limits.*). None = uncapped.
+    sandbox_memory: str | None = "4GiB"
+    sandbox_cpus: int | None = 2
+    # Mount the host's opencode config + a PER-CANDIDATE copy of its auth into
+    # the sandbox so `opencode run -m llm/…` resolves the router. Per-candidate
+    # state (a fresh opencode.db, only auth.json seeded) avoids the shared-sqlite
+    # corruption hazard when many candidates run concurrently.
+    sandbox_mount_opencode: bool = True
+    # Wall-clock headroom over the per-run timeout for sandbox provision +
+    # teardown; the asyncio backstop fires this much later than run-once's own
+    # --timeout (which does the deterministic in-sandbox kill + reap, since a
+    # SIGKILL to the gaol process would bypass its teardown guard).
+    sandbox_grace_seconds: float = 120.0
+
     # Judge LLM backend: "openai" (local LLM router) or "anthropic".
     # Defaults to the router because this environment authenticates Claude through
     # Claude Code's OAuth (no ANTHROPIC_API_KEY for the raw SDK): candidates run via

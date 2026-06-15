@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import os
+import shutil
+import tempfile
 import time
 from pathlib import Path
 
@@ -53,6 +56,12 @@ def _build_cmd(spec: CandidateSpec, prompt: str) -> list[str]:
         return [
             settings.opencode_binary,
             "run",
+            # --pure disables external opencode plugins (open-mem, TTS hooks). Without it the
+            # open-mem plugin injects an auto-context block into AGENTS.md, a note into .gitignore,
+            # and a .open-mem/ cache on every run — cruft that pollutes the candidate diff and gets
+            # mis-scored as the model's scope sprawl. The `llm/` provider is from auth.json (not a
+            # plugin), so it still resolves under --pure.
+            "--pure",
             "-m",
             spec.model,
             "--dangerously-skip-permissions",
@@ -69,6 +78,91 @@ def _build_cmd(spec: CandidateSpec, prompt: str) -> list[str]:
         "--output-format",
         settings.output_format,
     ]
+
+
+def _opencode_mounts() -> tuple[list[tuple[str, str]], Path | None]:
+    """Mounts that let ``opencode run -m llm/…`` reach the router inside the sandbox.
+
+    - Host ``~/.config/opencode`` is mounted shared (read-mostly: provider/router config).
+    - A fresh PER-CANDIDATE ``~/.local/share/opencode`` is created seeded with only the host's
+      ``auth.json``, then mounted — so each candidate gets its own ``opencode.db`` and concurrent
+      candidates don't corrupt the host's shared WAL sqlite. Returns ``(mounts, state_dir)``; the
+      caller removes ``state_dir`` after the run (None if opencode isn't set up on the host).
+    """
+    mounts: list[tuple[str, str]] = []
+    home = settings.sandbox_home
+    host_cfg = Path.home() / ".config" / "opencode"
+    if host_cfg.is_dir():
+        mounts.append((str(host_cfg), f"{home}/.config/opencode"))
+    state: Path | None = None
+    host_auth = Path.home() / ".local" / "share" / "opencode" / "auth.json"
+    if host_auth.is_file():
+        state = Path(tempfile.mkdtemp(prefix="pe-oc-"))
+        shutil.copy2(host_auth, state / "auth.json")
+        mounts.append((str(state), f"{home}/.local/share/opencode"))
+    return mounts, state
+
+
+def _wrap_sandbox(
+    cmd: list[str],
+    workspace: Path,
+    timeout: float,
+    extra_mounts: list[tuple[str, str]] | None = None,
+) -> list[str]:
+    """Wrap a candidate CLI argv to run inside an ephemeral ``gaol run-once`` sandbox.
+
+    The jj workspace is bind-mounted writable at the *same* path inside the sandbox so cwd/PWD
+    semantics (opencode derives its project root from PWD) are identical to the host path. The
+    command runs as the host workspace owner, so edits persist to the workspace owned correctly.
+    ``extra_mounts`` (e.g. the opencode config/auth) are added after the workspace; per-sandbox
+    resource caps (``sandbox_memory``/``sandbox_cpus``) keep concurrent fan-out from exhausting the
+    host. ``HOME`` is set so opencode finds its mounted config.
+
+    run-once's own ``--timeout`` does the deterministic in-sandbox kill + teardown; a SIGKILL from
+    the asyncio backstop would bypass that guard, so the backstop is set ``sandbox_grace_seconds``
+    beyond this value by the caller. No ``--json``: run-once streams the inner command's
+    stdout/stderr through and propagates its exit code, which is exactly what ``_exec`` consumes.
+    """
+    ws = str(workspace)
+    args = [
+        settings.gaol_binary,
+        "run-once",
+        "--runtime",
+        settings.sandbox_runtime,
+        "--image",
+        settings.sandbox_image,
+        "--mount",
+        f"{ws}:{ws}",
+    ]
+    for host, container in extra_mounts or []:
+        args += ["--mount", f"{host}:{container}"]
+    if settings.sandbox_memory:
+        args += ["--memory", settings.sandbox_memory]
+    if settings.sandbox_cpus:
+        args += ["--cpus", str(settings.sandbox_cpus)]
+    args += [
+        "--workdir",
+        ws,
+        "--env",
+        f"PWD={ws}",
+        "--env",
+        f"HOME={settings.sandbox_home}",
+        "--timeout",
+        str(max(1, math.ceil(timeout))),
+        "--",
+        *cmd,
+    ]
+    return args
+
+
+def _should_sandbox(spec: CandidateSpec) -> bool:
+    """Per-kind sandboxing: only untrusted candidate kinds run inside a gaol sandbox.
+
+    ``claude`` is trusted and authenticates via the host's OAuth (which isn't mounted into the
+    sandbox), so it runs loose on the host even when ``sandbox`` is enabled; the open-fleet kinds
+    (opencode → router models) are the ones isolated. Controlled by ``sandbox_exempt_kinds``.
+    """
+    return settings.sandbox and spec.kind not in settings.sandbox_exempt_kinds
 
 
 async def _exec(
@@ -129,9 +223,29 @@ async def run_candidate(
 
     start = time.monotonic()
     effective_timeout = timeout if timeout is not None else settings.per_run_timeout_seconds
+    candidate_cmd = _build_cmd(spec, prompt)
+    oc_state: Path | None = None
+    sandboxed = _should_sandbox(spec)
+    if sandboxed:
+        extra_mounts: list[tuple[str, str]] = []
+        if settings.sandbox_mount_opencode and spec.kind == "opencode":
+            extra_mounts, oc_state = _opencode_mounts()
+        exec_cmd = _wrap_sandbox(candidate_cmd, workspace, effective_timeout, extra_mounts)
+        exec_timeout = effective_timeout + settings.sandbox_grace_seconds
+    else:
+        exec_cmd = candidate_cmd
+        exec_timeout = effective_timeout
     returncode, stdout, stderr, timeout_msg = await _exec(
-        _build_cmd(spec, prompt), workspace=workspace, timeout=effective_timeout
+        exec_cmd, workspace=workspace, timeout=exec_timeout
     )
+    # The ephemeral sandbox is gone once _exec returns; drop the per-candidate opencode state.
+    if oc_state is not None:
+        shutil.rmtree(oc_state, ignore_errors=True)
+    # run-once kills an over-budget candidate internally and exits 124; surface that as a timeout
+    # (with partial diff) rather than a generic nonzero error, matching the host-path semantics.
+    if sandboxed and timeout_msg is None and returncode == 124:
+        returncode = None
+        timeout_msg = f"sandbox timed out after {effective_timeout:.0f}s"
     latency_ms = int((time.monotonic() - start) * 1000)
 
     stdout_tail = _tail(stdout)
