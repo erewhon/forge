@@ -11,10 +11,18 @@ class ParallelEditSettings(BaseSettings):
     # Default candidates if --models is omitted (comma-separated env override OK). Each entry is
     # "[kind:]model": a bare value or "claude:<id>" runs `claude -p`; "opencode:<ref>" runs
     # `opencode run -m <ref>` (an "llm/" prefix is added when the ref has no provider), routing
-    # the open fleet (Kimi, Qwen, GLM, MiniMax, ...) through the local router.
+    # the open fleet (Kimi, GLM, DeepSeek, ...) through the local router.
+    #
+    # The default is a known-good open-fleet shortlist: all three are free (router-hosted) and
+    # verified to complete inside opencode's agentic tool-loop under concurrent fan-out. This also
+    # tracks the pricing direction — `claude -p` is heading toward metered, the open fleet isn't —
+    # so routine fan-out defaults to open models; add a `claude-…`/`opencode:…` candidate explicitly
+    # via --models when a frontier or cross-vendor comparison is wanted. (MiniMax is omitted: it's
+    # healthy for plain completions but errors inside opencode's tool-loop. See 2026-06-17 log.)
     default_candidate_models: list[str] = [
-        "claude-opus-4-8",
-        "claude-sonnet-4-6",
+        "opencode:glm-5.1",
+        "opencode:kimi",
+        "opencode:deepseek",
     ]
 
     # Candidate invocation

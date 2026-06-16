@@ -7,9 +7,9 @@ from typing import Literal
 from pydantic import BaseModel
 
 EditStatus = Literal["ok", "no_changes", "timeout", "error"]
-WinnerLabel = Literal["A", "B", "tie", "both_flawed"]
-FileVerdict = Literal["A better", "B better", "equivalent", "A only", "B only"]
 CandidateKind = Literal["claude", "opencode"]
+# winner is one of the candidate labels (A, B, C, ...), "tie", or "all_flawed" — validated
+# against the actual run labels at parse time rather than pinned to a fixed pairwise Literal.
 
 
 class CandidateSpec(BaseModel):
@@ -57,13 +57,13 @@ class DimensionScores(BaseModel):
 
 class FileComparison(BaseModel):
     file: str
-    verdict: FileVerdict
+    best: str  # candidate label that handled this file best, or "equivalent"
     note: str
 
 
 class JudgeVerdict(BaseModel):
-    winner: WinnerLabel
-    scores: dict[str, DimensionScores]  # keyed by run label, e.g. {"A": ..., "B": ...}
+    winner: str  # a candidate label (A, B, C, ...), "tie", or "all_flawed"
+    scores: dict[str, DimensionScores]  # keyed by run label, e.g. {"A": ..., "B": ..., "C": ...}
     per_file_notes: list[FileComparison]
     summary: str
     recommendation: str

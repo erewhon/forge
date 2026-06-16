@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import string
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -48,14 +49,18 @@ def _parse_one_candidate(raw: str, label: str) -> CandidateSpec:
     return CandidateSpec(label=label, kind=kind, model=model, display=display)
 
 
+_MAX_CANDIDATES = len(string.ascii_uppercase)  # labels A..Z
+
+
 def _parse_candidates(raw: str | None) -> list[CandidateSpec]:
     tokens = settings.default_candidate_models if raw is None else raw.split(",")
     tokens = [t.strip() for t in tokens if t.strip()]
-    if len(tokens) != 2:
+    if not 2 <= len(tokens) <= _MAX_CANDIDATES:
         raise SystemExit(
-            f"error: --models must list exactly 2 candidates, got {len(tokens)}: {tokens}"
+            f"error: --models must list between 2 and {_MAX_CANDIDATES} candidates, "
+            f"got {len(tokens)}: {tokens}"
         )
-    labels = ["A", "B"]
+    labels = list(string.ascii_uppercase[: len(tokens)])
     return [_parse_one_candidate(tok, label) for label, tok in zip(labels, tokens, strict=True)]
 
 
@@ -75,9 +80,9 @@ async def _run(args: argparse.Namespace) -> int:
 
     base_rev = resolve_base_rev(repo, args.base)
 
+    roster = " vs ".join(f"{c.label}={c.display}" for c in candidates)
     print(
-        f"Parallel edit @ {repo} (base {base_rev[:12]}): "
-        f"A={candidates[0].display} vs B={candidates[1].display}",
+        f"Parallel edit @ {repo} (base {base_rev[:12]}): {roster}",
         file=sys.stderr,
     )
 
@@ -141,16 +146,17 @@ async def _run(args: argparse.Namespace) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run the same prompt against a jj repo with two models, then compare.",
+        description="Run the same prompt against a jj repo with N models (2–26), then compare.",
     )
     parser.add_argument("--prompt", default=None, help="The prompt text (inline)")
     parser.add_argument("--prompt-file", default=None, help="Path to a file containing the prompt")
     parser.add_argument(
         "--models",
         default=None,
-        help="Two comma-separated candidates as '[kind:]model'. Bare or 'claude:<id>' runs "
+        help="2–26 comma-separated candidates as '[kind:]model'. Bare or 'claude:<id>' runs "
         "claude -p; 'opencode:<ref>' runs opencode against the router (e.g. "
-        "'claude-opus-4-8,opencode:glm-5.1'). Defaults to PARALLEL_EDIT_DEFAULT_CANDIDATE_MODELS.",
+        "'claude-opus-4-8,opencode:glm-5.1,opencode:qwen3.6-plus'). Defaults to "
+        "PARALLEL_EDIT_DEFAULT_CANDIDATE_MODELS.",
     )
     parser.add_argument("--repo", default=".", help="Path to the jj repo to edit (default: cwd)")
     parser.add_argument(

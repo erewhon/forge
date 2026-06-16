@@ -18,7 +18,7 @@ from agents.parallel_edit.models import (
     FileComparison,
     JudgeVerdict,
 )
-from agents.parallel_edit.prompts import JUDGE_SYSTEM_PROMPT
+from agents.parallel_edit.prompts import build_judge_system_prompt
 from agents.shared.ensemble import ApiExecutor, Pool, Prompt
 
 
@@ -141,13 +141,27 @@ def _build_user_message(prompt: str, runs: list[EditRun]) -> str:
     return "\n".join(parts)
 
 
+def _legacy_verdict_to_best(verdict: str) -> str:
+    """Map a legacy pairwise per-file verdict ("A better", "B only", ...) to a `best` label."""
+    verdict = verdict.strip()
+    if verdict == "equivalent":
+        return "equivalent"
+    # "A better" / "B better" / "A only" / "B only" -> the leading label token.
+    head = verdict.split(" ", 1)[0]
+    return head or "equivalent"
+
+
 def _parse_verdict(data: dict, run_labels: list[str]) -> JudgeVerdict | None:
     """Best-effort parse. Returns None if the response is too malformed to use."""
     if not isinstance(data, dict):
         return None
 
     winner_raw = str(data.get("winner", "")).strip()
-    if winner_raw not in ("A", "B", "tie", "both_flawed"):
+    # "both_flawed" is the legacy pairwise spelling — normalize it so older judge models
+    # (or cached prompts) that still emit it don't get rejected.
+    if winner_raw == "both_flawed":
+        winner_raw = "all_flawed"
+    if winner_raw not in set(run_labels) | {"tie", "all_flawed"}:
         return None
 
     scores_raw = data.get("scores") or {}
@@ -167,8 +181,17 @@ def _parse_verdict(data: dict, run_labels: list[str]) -> JudgeVerdict | None:
     for entry in data.get("per_file_notes", []) or []:
         if not isinstance(entry, dict):
             continue
+        best = entry.get("best")
+        if best is None and "verdict" in entry:
+            best = _legacy_verdict_to_best(str(entry.get("verdict", "")))
         try:
-            per_file_notes.append(FileComparison(**entry))
+            per_file_notes.append(
+                FileComparison(
+                    file=str(entry.get("file", "")).strip(),
+                    best=str(best or "equivalent").strip(),
+                    note=str(entry.get("note", "")).strip(),
+                )
+            )
         except Exception:
             continue
 
@@ -205,14 +228,14 @@ async def judge_runs(
             f"need at least 2 candidates with comparable output, got {len(eligible)}",
         )
 
+    labels = [r.label for r in eligible]
+
     user_message = _build_user_message(prompt, eligible)
     judge_prompt = Prompt(
-        system=JUDGE_SYSTEM_PROMPT,
+        system=build_judge_system_prompt(labels),
         user=user_message,
         max_tokens=_judge_max_tokens(),
     )
-
-    labels = [r.label for r in eligible]
 
     def _produces_verdict(text: str) -> bool:
         return _parse_verdict(_extract_json(text), labels) is not None

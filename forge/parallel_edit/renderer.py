@@ -73,11 +73,11 @@ def _format_verdict(verdict: JudgeVerdict, judge_model: str) -> str:
     if verdict.per_file_notes:
         lines.append("### Per-file comparison")
         lines.append("")
-        lines.append("| File | Verdict | Note |")
+        lines.append("| File | Best | Note |")
         lines.append("|---|---|---|")
         for note in verdict.per_file_notes:
             cell = note.note.replace("|", "\\|").replace("\n", " ")
-            lines.append(f"| `{note.file}` | {note.verdict} | {cell} |")
+            lines.append(f"| `{note.file}` | {note.best} | {cell} |")
         lines.append("")
     if verdict.recommendation:
         lines.append("### Recommendation")

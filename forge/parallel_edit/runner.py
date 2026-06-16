@@ -103,6 +103,27 @@ def _opencode_mounts() -> tuple[list[tuple[str, str]], Path | None]:
     return mounts, state
 
 
+def _opencode_host_state() -> tuple[dict[str, str], Path | None]:
+    """Per-candidate opencode data dir for LOOSE (non-sandboxed) host runs.
+
+    Concurrent ``opencode run`` processes share ``~/.local/share/opencode/opencode.db`` and collide
+    ("database is locked") under fan-out. Point each candidate at its own ``XDG_DATA_HOME`` seeded
+    with only the host's ``auth.json`` (which the ``llm/`` provider needs), so every opencode
+    process gets a private ``opencode.db``. Config (``~/.config/opencode``: provider/router setup)
+    is left on the host path, so ``XDG_CONFIG_HOME`` is deliberately not overridden. Returns
+    ``(env_overrides, state_dir)``; the caller removes ``state_dir`` after the run. Returns
+    ``({}, None)`` when opencode auth isn't set up on the host (then env is left untouched).
+    """
+    host_auth = Path.home() / ".local" / "share" / "opencode" / "auth.json"
+    if not host_auth.is_file():
+        return {}, None
+    state = Path(tempfile.mkdtemp(prefix="pe-oc-host-"))
+    data_dir = state / "opencode"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(host_auth, data_dir / "auth.json")
+    return {"XDG_DATA_HOME": str(state)}, state
+
+
 def _wrap_sandbox(
     cmd: list[str],
     workspace: Path,
@@ -166,13 +187,19 @@ def _should_sandbox(spec: CandidateSpec) -> bool:
 
 
 async def _exec(
-    cmd: list[str], *, workspace: Path, timeout: float
+    cmd: list[str],
+    *,
+    workspace: Path,
+    timeout: float,
+    env_extra: dict[str, str] | None = None,
 ) -> tuple[int | None, bytes, bytes, str | None]:
     """Run a candidate CLI in workspace. Returns (returncode, stdout, stderr, error_message)."""
     # Override PWD too: changing cwd alone leaves the inherited PWD pointing at the parent's
     # directory, and opencode derives its project root from PWD — so it would otherwise edit
     # files in the launching process's directory instead of the candidate workspace.
     env = {**os.environ, "PWD": str(workspace)}
+    if env_extra:
+        env.update(env_extra)
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -225,6 +252,7 @@ async def run_candidate(
     effective_timeout = timeout if timeout is not None else settings.per_run_timeout_seconds
     candidate_cmd = _build_cmd(spec, prompt)
     oc_state: Path | None = None
+    host_env: dict[str, str] = {}
     sandboxed = _should_sandbox(spec)
     if sandboxed:
         extra_mounts: list[tuple[str, str]] = []
@@ -235,10 +263,15 @@ async def run_candidate(
     else:
         exec_cmd = candidate_cmd
         exec_timeout = effective_timeout
+        # Loose host fan-out: give each opencode candidate a private data dir so concurrent
+        # processes don't collide on the shared opencode.db ("database is locked").
+        if spec.kind == "opencode":
+            host_env, oc_state = _opencode_host_state()
     returncode, stdout, stderr, timeout_msg = await _exec(
-        exec_cmd, workspace=workspace, timeout=exec_timeout
+        exec_cmd, workspace=workspace, timeout=exec_timeout, env_extra=host_env
     )
-    # The ephemeral sandbox is gone once _exec returns; drop the per-candidate opencode state.
+    # Drop the per-candidate opencode state (sandbox mount seed, or the loose-host private data
+    # dir) now that the process has exited — neither outlives the run.
     if oc_state is not None:
         shutil.rmtree(oc_state, ignore_errors=True)
     # run-once kills an over-budget candidate internally and exits 124; surface that as a timeout
