@@ -32,6 +32,14 @@ class GeneralResearcherSettings(BaseSettings):
     verifier_panel_models: list[str] = ["coder", "qwen3.6-plus", "glm-5.1"]
     verifier_panel_floor: int = 2  # min members that must respond+parse, else degrade
 
+    # Synthesizer ensemble (research panel followup #2): instead of one model writing the final
+    # answer, generate a candidate synthesis from each of these models, judge-pick the most
+    # coherent, then graft in the unique key_sources / open_questions the runners-up surfaced. Runs
+    # through the router. Floor 1 means a single parseable candidate is enough; 0 candidates falls
+    # back to a single-model synthesis so the run always produces an answer.
+    synthesizer_panel_models: list[str] = ["coder", "qwen3.6-plus", "glm-5.1"]
+    synthesizer_panel_floor: int = 1
+
     always_deepen: bool = False
 
     def llm_cfg(self) -> LLMConfig:
