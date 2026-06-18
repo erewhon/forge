@@ -144,7 +144,7 @@ async def _run(args: argparse.Namespace) -> int:
     return 2 if failed_runs else 0
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run the same prompt against a jj repo with N models (2–26), then compare.",
     )
@@ -173,15 +173,15 @@ def main() -> None:
         help="Keep all candidate workspaces on disk after the run",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
-        sys.exit(asyncio.run(_run(args)))
+        return asyncio.run(_run(args))
     except KeyboardInterrupt:
         # Best-effort: don't leave workspaces around if the user ctrl-c's
         # (cleanup is the caller's problem at this point — we don't know which runs exist)
         print("\nInterrupted.", file=sys.stderr)
-        sys.exit(130)
+        return 130
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

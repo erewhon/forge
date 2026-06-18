@@ -90,7 +90,7 @@ async def _run(args: argparse.Namespace) -> int:
     return await _run_review(diff_text, pr_ref, args)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="PR Review Ensemble (advisory)")
     parser.add_argument(
         "--pass",
@@ -119,10 +119,10 @@ def main() -> None:
         default=None,
         help="Path to write the advisory markdown (default: stdout)",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
-    sys.exit(asyncio.run(_run(args)))
+    return asyncio.run(_run(args))
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

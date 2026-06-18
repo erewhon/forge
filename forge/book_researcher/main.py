@@ -132,7 +132,9 @@ def run(config_path: str, *, max_sprints: int | None = None, dry_run: bool = Fal
         # a. Plan
         print("--- Planning ---")
         contract = create_sprint(
-            book_config, existing_knowledge, sprint_number,
+            book_config,
+            existing_knowledge,
+            sprint_number,
             follow_up_feedback=follow_up_feedback,
         )
         print(f"  Target: Chapter {contract.chapter}")
@@ -166,7 +168,10 @@ def run(config_path: str, *, max_sprints: int | None = None, dry_run: bool = Fal
             # Update knowledge index
             existing_knowledge = _scan_existing_knowledge()
         else:
-            print(f"  FAILED (score: {result.scores.overall}/10, threshold: {settings.score_threshold})")
+            print(
+                f"  FAILED (score: {result.scores.overall}/10, "
+                f"threshold: {settings.score_threshold})"
+            )
             follow_up_feedback = (
                 f"Previous sprint {contract.sprint_id} scored {result.scores.overall}/10.\n"
                 f"Feedback: {result.feedback}\n"
@@ -191,7 +196,7 @@ def print_summary(config_path: str) -> None:
     print(summary)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Book research harness using generator-evaluator sprint cycles"
     )
@@ -212,13 +217,14 @@ def main() -> None:
         action="store_true",
         help="Just print current knowledge summary and exit",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.summary:
         print_summary(args.config)
     else:
         run(args.config, max_sprints=args.max_sprints, dry_run=args.dry_run)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

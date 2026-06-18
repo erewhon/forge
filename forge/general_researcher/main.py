@@ -88,10 +88,9 @@ def _count_existing_sprints(topic_dir: Path) -> int:
     sprints_dir = topic_dir / "sprints"
     if not sprints_dir.exists():
         return 0
-    return len([
-        p for p in sprints_dir.glob("sprint-*.json")
-        if not p.name.endswith("-review.json")
-    ])
+    return len(
+        [p for p in sprints_dir.glob("sprint-*.json") if not p.name.endswith("-review.json")]
+    )
 
 
 def run(
@@ -109,9 +108,9 @@ def run(
     findings_dir.mkdir(exist_ok=True)
 
     # Persist the topic config so re-runs are deterministic
-    (topic_dir / "topic.yaml").write_text(yaml.safe_dump(
-        topic.model_dump(exclude_none=True), sort_keys=False
-    ))
+    (topic_dir / "topic.yaml").write_text(
+        yaml.safe_dump(topic.model_dump(exclude_none=True), sort_keys=False)
+    )
 
     print(f"Topic: {topic.question}")
     print(f"Directory: {topic_dir}")
@@ -138,7 +137,10 @@ def run(
         print("--- Planning ---")
         summary = render_findings_summary(all_findings, max_chars=2000)
         contract = create_sprint(
-            topic, summary, sprint_number, follow_up_feedback=follow_up_feedback,
+            topic,
+            summary,
+            sprint_number,
+            follow_up_feedback=follow_up_feedback,
         )
         contract_path = sprints_dir / f"sprint-{contract.sprint_id}.json"
         contract_path.write_text(contract.model_dump_json(indent=2))
@@ -156,7 +158,8 @@ def run(
         # Research
         print("--- Researching ---")
         prior_context = render_findings_context(
-            all_findings, max_chars=settings.max_findings_tokens * 4,
+            all_findings,
+            max_chars=settings.max_findings_tokens * 4,
         )
         findings = execute_sprint(contract, prior_context=prior_context)
         (findings_dir / f"sprint-{contract.sprint_id}.json").write_text(
@@ -184,13 +187,17 @@ def run(
             passed_any = True
             follow_up_feedback = None
             if not always_deepen:
-                print(f"PASSED with {result.scores.overall}/10. "
-                      f"Stopping (use --always-deepen to keep going).")
+                print(
+                    f"PASSED with {result.scores.overall}/10. "
+                    f"Stopping (use --always-deepen to keep going)."
+                )
                 break
             print(f"PASSED with {result.scores.overall}/10. Continuing (--always-deepen).")
         else:
-            print(f"FAILED ({result.scores.overall}/10 < threshold). "
-                  f"Folding feedback into next sprint.")
+            print(
+                f"FAILED ({result.scores.overall}/10 < threshold). "
+                f"Folding feedback into next sprint."
+            )
             follow_up_feedback = (
                 f"Previous sprint scored {result.scores.overall}/10.\n"
                 f"Feedback: {result.feedback}\n"
@@ -239,7 +246,7 @@ def print_summary(topic: TopicConfig) -> None:
         print("Synthesis: not yet produced")
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Iterative research harness using plan->research->verify sprint cycles"
     )
@@ -247,17 +254,25 @@ def main() -> None:
         "topic",
         help="Research question (string) OR path to a topic YAML/JSON file",
     )
-    parser.add_argument("--max-sprints", type=int, default=None,
-                        help=f"Cap on sprints per run (default: {settings.max_sprints_per_run})")
-    parser.add_argument("--always-deepen", action="store_true",
-                        help="Keep running sprints even after one passes")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Plan sprints without executing research/verification/synthesis")
-    parser.add_argument("--summary", action="store_true",
-                        help="Print existing research status and exit")
-    parser.add_argument("--slug", default=None,
-                        help="Override the auto-derived directory slug")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--max-sprints",
+        type=int,
+        default=None,
+        help=f"Cap on sprints per run (default: {settings.max_sprints_per_run})",
+    )
+    parser.add_argument(
+        "--always-deepen", action="store_true", help="Keep running sprints even after one passes"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Plan sprints without executing research/verification/synthesis",
+    )
+    parser.add_argument(
+        "--summary", action="store_true", help="Print existing research status and exit"
+    )
+    parser.add_argument("--slug", default=None, help="Override the auto-derived directory slug")
+    args = parser.parse_args(argv)
 
     topic = _load_topic_config(args.topic)
     if args.slug:
@@ -265,7 +280,7 @@ def main() -> None:
 
     if args.summary:
         print_summary(topic)
-        return
+        return 0
 
     run(
         topic,
@@ -273,7 +288,8 @@ def main() -> None:
         always_deepen=args.always_deepen or settings.always_deepen,
         dry_run=args.dry_run,
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
