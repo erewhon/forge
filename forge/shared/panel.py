@@ -18,8 +18,10 @@ Two shapes:
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+
+from pydantic import BaseModel, ValidationError
 
 from agents.shared.ensemble import ApiExecutor, ExecResult, Executor, Pool, Prompt
 from agents.shared.llm import extract_json
@@ -140,3 +142,83 @@ def run_panel(
     return run_member_panel(
         members=members, user=user, floor=floor, max_tokens=max_tokens, timeout=timeout
     )
+
+
+# --- single-pool structured output --------------------------------------------------------------
+# A panel is N structured calls aggregated; this is the one-pool primitive underneath. It runs a
+# failover Pool and returns a *validated Pydantic model*, turning a caller's hand-rolled
+# extract_json + .get() into a typed payload — the schema itself acts as Pool.run's validator.
+
+
+@dataclass
+class StructuredResult[T: BaseModel]:
+    """The outcome of a :func:`structured` call: the validated model in ``value``, or ``None`` if
+    the pool was exhausted without a parseable, schema-valid response. ``result`` is the underlying
+    ExecResult (label, attempts, error) for logging and fallback messaging."""
+
+    value: T | None
+    result: ExecResult
+
+    @property
+    def ok(self) -> bool:
+        return self.value is not None
+
+    @property
+    def error(self) -> str | None:
+        return self.result.error
+
+
+def _parse_model[T: BaseModel](
+    schema: type[T], text: str, predicate: Callable[[T], bool] | None
+) -> T | None:
+    """extract → validate against ``schema`` → optional semantic ``predicate``. None on any miss."""
+    data = extract_json(text)
+    if not data:
+        return None
+    try:
+        model = schema.model_validate(data)
+    except ValidationError:
+        return None
+    if predicate is not None and not predicate(model):
+        return None
+    return model
+
+
+async def _structured[T: BaseModel](
+    pool: Pool,
+    schema: type[T],
+    prompt: Prompt,
+    *,
+    predicate: Callable[[T], bool] | None,
+    timeout: float,
+) -> StructuredResult[T]:
+    result = await pool.run(
+        prompt,
+        timeout=timeout,
+        validate=lambda text: _parse_model(schema, text, predicate) is not None,
+    )
+    value = _parse_model(schema, result.output, predicate) if result.ok else None
+    return StructuredResult(value=value, result=result)
+
+
+def structured[T: BaseModel](
+    *,
+    pool: Pool,
+    schema: type[T],
+    system: str,
+    user: str,
+    max_tokens: int = 4096,
+    timeout: float = 120.0,
+    predicate: Callable[[T], bool] | None = None,
+) -> StructuredResult[T]:
+    """Run a failover ``Pool`` and parse its output into a validated ``schema`` instance.
+
+    The schema (plus an optional ``predicate`` for semantic checks a schema can't express, e.g. "the
+    index is in range") *is* the validator: output that doesn't extract + validate is demoted to a
+    transient failure inside :meth:`Pool.run`, so the same model is retried and then failed over —
+    exactly like a 5xx — until it yields a usable payload. Returns a :class:`StructuredResult` whose
+    ``value`` is the parsed model, or ``None`` if the whole pool was exhausted. Synchronous (wraps
+    the async harness in ``asyncio.run``) to match ``run_panel`` and the synchronous agent loops.
+    """
+    prompt = Prompt(system=system, user=user, max_tokens=max_tokens)
+    return asyncio.run(_structured(pool, schema, prompt, predicate=predicate, timeout=timeout))

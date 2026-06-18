@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import json
 
-from agents.shared.ensemble import ExecResult, ExecStatus, FailureClass, Prompt
+from pydantic import BaseModel
+
+from agents.shared.ensemble import ExecResult, ExecStatus, FailureClass, Pool, Prompt
 from agents.shared.panel import (
     PanelMember,
     build_lens_members,
     run_member_panel,
     run_panel,
+    structured,
 )
 
 
@@ -127,3 +130,65 @@ def test_build_lens_members_empty_models_is_empty():
         [("x", "y")], [], base_url="http://x/v1", api_key="k", base_system="BASE"
     )
     assert members == []
+
+
+# --- single-pool structured output (structured + StructuredResult) ---
+
+
+class _Pick(BaseModel):
+    winner: int
+    note: str = ""
+
+
+def _pool(*execs, backoff: float = 0.0) -> Pool:
+    return Pool(role="t", executors=list(execs), retry_backoff_s=backoff)
+
+
+def test_structured_parses_into_model():
+    res = structured(
+        pool=_pool(FakeExec("a", output=_j({"winner": 0, "note": "x"}))),
+        schema=_Pick,
+        system="s",
+        user="u",
+    )
+    assert res.ok
+    assert res.value == _Pick(winner=0, note="x")
+
+
+def test_structured_fails_over_on_unparseable_output():
+    # First executor's output never validates → demoted to transient, retried, then failed over.
+    res = structured(
+        pool=_pool(FakeExec("a", output="not json"), FakeExec("b", output=_j({"winner": 2}))),
+        schema=_Pick,
+        system="s",
+        user="u",
+    )
+    assert res.ok
+    assert res.value is not None
+    assert res.value.winner == 2
+
+
+def test_structured_none_when_pool_exhausted():
+    res = structured(
+        pool=_pool(FakeExec("a", output="not json")), schema=_Pick, system="s", user="u"
+    )
+    assert not res.ok
+    assert res.value is None
+    assert res.error is not None  # carries the underlying failure for the caller to log
+
+
+def test_structured_predicate_rejects_then_fails_over():
+    # winner=9 fails the in-range predicate (schema alone can't express it) → fail over to winner=1.
+    res = structured(
+        pool=_pool(
+            FakeExec("a", output=_j({"winner": 9})),
+            FakeExec("b", output=_j({"winner": 1})),
+        ),
+        schema=_Pick,
+        system="s",
+        user="u",
+        predicate=lambda p: p.winner < 2,
+    )
+    assert res.ok
+    assert res.value is not None
+    assert res.value.winner == 1

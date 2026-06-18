@@ -10,6 +10,8 @@ from agents.general_researcher.models import (
     VerificationResult,
     VerificationScores,
 )
+from agents.shared.ensemble import ExecResult, ExecStatus, FailureClass
+from agents.shared.panel import StructuredResult
 
 
 def _topic() -> TopicConfig:
@@ -43,13 +45,12 @@ def _verifications(passed: bool = True) -> list[VerificationResult]:
     ]
 
 
-def _cand(answer: str, sources: list[str], open_qs: list[str], confidence: str = "medium") -> dict:
-    return {
-        "answer": answer,
-        "key_sources": sources,
-        "confidence": confidence,
-        "open_questions": open_qs,
-    }
+def _cand(
+    answer: str, sources: list[str], open_qs: list[str], confidence: str = "medium"
+) -> synthesizer._Candidate:
+    return synthesizer._Candidate(
+        answer=answer, key_sources=sources, confidence=confidence, open_questions=open_qs
+    )
 
 
 def test_judge_pick_and_graft(monkeypatch):
@@ -90,28 +91,48 @@ def test_single_candidate_skips_judge(monkeypatch):
     assert synth.key_sources == ["src"]
 
 
+def test_candidate_normalizes_messy_confidence_and_lists():
+    # A model returns capitalized confidence and a bare-string source — the model coerces both.
+    c = synthesizer._Candidate.model_validate(
+        {"answer": "a", "key_sources": "lone source", "confidence": "HIGH", "open_questions": None}
+    )
+    assert c.confidence == "high"
+    assert c.key_sources == ["lone source"]
+    assert c.open_questions == []
+
+
 def test_no_candidates_falls_back_to_single(monkeypatch):
     monkeypatch.setattr(synthesizer, "_generate_candidates", lambda _u: ([], []))
-    monkeypatch.setattr(
-        synthesizer,
-        "complete",
-        lambda *a, **k: (
-            '{"answer": "fallback answer", "key_sources": ["f"], '
-            '"confidence": "low", "open_questions": []}'
-        ),
-    )
+
+    def _fake_structured(**_kwargs):
+        return StructuredResult(
+            value=synthesizer._Candidate(
+                answer="fallback answer", key_sources=["f"], confidence="low", open_questions=[]
+            ),
+            result=ExecResult(executor="synth-fallback", status=ExecStatus.OK, output="{...}"),
+        )
+
+    monkeypatch.setattr(synthesizer, "structured", _fake_structured)
     synth = synthesizer.synthesize(_topic(), _findings(), _verifications())
     assert synth.answer == "fallback answer"
     assert synth.key_sources == ["f"]
 
 
-def test_fallback_hard_default_when_complete_raises(monkeypatch):
+def test_fallback_hard_default_when_structured_fails(monkeypatch):
     monkeypatch.setattr(synthesizer, "_generate_candidates", lambda _u: ([], []))
 
-    def _boom(*a, **k):
-        raise RuntimeError("router down")
+    def _fail_structured(**_kwargs):
+        return StructuredResult(
+            value=None,
+            result=ExecResult(
+                executor="synth-fallback",
+                status=ExecStatus.ERROR,
+                error="router down",
+                failure_class=FailureClass.TERMINAL,
+            ),
+        )
 
-    monkeypatch.setattr(synthesizer, "complete", _boom)
+    monkeypatch.setattr(synthesizer, "structured", _fail_structured)
     synth = synthesizer.synthesize(_topic(), _findings(), _verifications(passed=False))
     assert "Synthesis failed" in synth.answer
     assert synth.open_questions == ["Did X cause Y?"]  # falls back to the topic question

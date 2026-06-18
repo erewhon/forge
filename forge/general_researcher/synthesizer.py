@@ -6,11 +6,16 @@ unique ``key_sources`` and ``open_questions`` the runners-up surfaced. The outpu
 clean narrative voice (no re-blended prose) but loses none of the panel's coverage. Falls back to a
 single-model synthesis when no candidate parses, so a run always produces an answer. ``synthesize``
 keeps its signature and ``Synthesis`` output, so the main loop is unchanged.
+
+Every model boundary goes through the harness's ``structured()`` primitive, so candidates, the
+judge's verdict, and the fallback are all *validated Pydantic models* — no hand-rolled JSON parsing.
 """
 
 from __future__ import annotations
 
-import asyncio
+from typing import Literal
+
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from agents.general_researcher.config import settings
 from agents.general_researcher.models import (
@@ -19,11 +24,44 @@ from agents.general_researcher.models import (
     TopicConfig,
     VerificationResult,
 )
-from agents.shared.ensemble import Pool, Prompt
-from agents.shared.llm import complete, extract_json
-from agents.shared.panel import build_router_executors, run_panel
+from agents.shared.ensemble import Pool
+from agents.shared.panel import build_router_executors, run_panel, structured
 
 _JUDGE_CANDIDATE_CHARS = 6000  # bound each candidate answer in the judge's context
+
+
+class _Candidate(BaseModel):
+    """One model's structured synthesis — the shape every panel member and the fallback return."""
+
+    answer: str = ""
+    key_sources: list[str] = Field(default_factory=list)
+    confidence: Literal["high", "medium", "low"] = "low"
+    open_questions: list[str] = Field(default_factory=list)
+
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def _normalize_confidence(cls, v: object) -> str:
+        s = str(v).strip().lower()
+        return s if s in ("high", "medium", "low") else "low"
+
+    @field_validator("key_sources", "open_questions", mode="before")
+    @classmethod
+    def _as_str_list(cls, v: object) -> list[str]:
+        if v is None:
+            return []
+        if isinstance(v, str):
+            return [v]
+        if isinstance(v, list):
+            return [str(x) for x in v]
+        return []
+
+
+class _Verdict(BaseModel):
+    """The judge's pick among the candidates."""
+
+    winner: int
+    rationale: str = ""
+
 
 _SYSTEM_PROMPT = """\
 You combine the findings from multiple research sprints into a single \
@@ -124,8 +162,21 @@ def _build_user_message(
     return user_msg
 
 
-def _generate_candidates(user_msg: str) -> tuple[list[dict], list[str]]:
-    """Fan the synthesis prompt across the panel; return parsed candidate dicts + their labels."""
+def _panel_pool() -> Pool:
+    """A failover pool over the synthesizer panel models — used by the judge and (single-model) the
+    fallback shares the same router endpoint."""
+    return Pool(
+        role="synth-judge",
+        executors=build_router_executors(
+            settings.synthesizer_panel_models,
+            base_url=settings.openai_base_url,
+            api_key=settings.openai_api_key,
+        ),
+    )
+
+
+def _generate_candidates(user_msg: str) -> tuple[list[_Candidate], list[str]]:
+    """Fan the synthesis prompt across the panel; return validated candidates + their labels."""
     executors = build_router_executors(
         settings.synthesizer_panel_models,
         base_url=settings.openai_base_url,
@@ -138,13 +189,21 @@ def _generate_candidates(user_msg: str) -> tuple[list[dict], list[str]]:
         floor=settings.synthesizer_panel_floor,
         max_tokens=8192,
     )
-    return panel.responses, panel.member_labels
+    candidates: list[_Candidate] = []
+    labels: list[str] = []
+    for resp, label in zip(panel.responses, panel.member_labels):
+        try:
+            candidates.append(_Candidate.model_validate(resp))
+            labels.append(label)
+        except ValidationError:
+            continue  # a member that parsed to JSON but not to our shape is dropped
+    return candidates, labels
 
 
-def _build_judge_user(question: str, candidates: list[dict]) -> str:
+def _build_judge_user(question: str, candidates: list[_Candidate]) -> str:
     parts = [f"Research question: {question}", ""]
     for i, c in enumerate(candidates):
-        answer = str(c.get("answer", "")).strip() or "(empty)"
+        answer = c.answer.strip() or "(empty)"
         if len(answer) > _JUDGE_CANDIDATE_CHARS:
             answer = answer[:_JUDGE_CANDIDATE_CHARS] + "\n\n[... candidate truncated ...]"
         parts.append(f"## Candidate {i}\n\n{answer}\n")
@@ -152,72 +211,63 @@ def _build_judge_user(question: str, candidates: list[dict]) -> str:
     return "\n".join(parts)
 
 
-def _judge_candidates(question: str, candidates: list[dict]) -> tuple[int, str]:
+def _judge_candidates(question: str, candidates: list[_Candidate]) -> tuple[int, str]:
     """Pick the strongest candidate via a failover judge pool. Defaults to index 0 on failure."""
-    executors = build_router_executors(
-        settings.synthesizer_panel_models,
-        base_url=settings.openai_base_url,
-        api_key=settings.openai_api_key,
-    )
-    pool = Pool(role="synth-judge", executors=executors)
-    prompt = Prompt(
+    verdict = structured(
+        pool=_panel_pool(),
+        schema=_Verdict,
         system=_JUDGE_SYSTEM_PROMPT,
         user=_build_judge_user(question, candidates),
         max_tokens=512,
+        timeout=120.0,
+        predicate=lambda v: 0 <= v.winner < len(candidates),
     )
-
-    def _valid(text: str) -> bool:
-        data = extract_json(text)
-        winner = data.get("winner")
-        try:
-            return 0 <= int(winner) < len(candidates)  # type: ignore[arg-type]
-        except (TypeError, ValueError):
-            return False
-
-    result = asyncio.run(pool.run(prompt, timeout=120.0, validate=_valid))
-    if not result.ok:
-        return 0, f"judge unavailable ({result.error}); defaulted to candidate 0"
-    data = extract_json(result.output)
-    return int(data["winner"]), str(data.get("rationale", "")).strip()
+    v = verdict.value
+    if v is None:
+        return 0, f"judge unavailable ({verdict.error}); defaulted to candidate 0"
+    return v.winner, v.rationale.strip()
 
 
-def _graft(candidates: list[dict], winner_idx: int) -> dict:
+def _graft(candidates: list[_Candidate], winner_idx: int) -> _Candidate:
     """Winner's prose + confidence, but key_sources / open_questions unioned across the panel
     (winner's first) so nothing a runner-up surfaced is lost."""
     winner = candidates[winner_idx]
     ordered = [winner] + [c for i, c in enumerate(candidates) if i != winner_idx]
-    key_sources = _dedupe([s for c in ordered for s in (c.get("key_sources") or [])])
-    open_questions = _dedupe([q for c in ordered for q in (c.get("open_questions") or [])])
-    return {
-        "answer": str(winner.get("answer", "")).strip() or "No synthesis produced.",
-        "key_sources": key_sources,
-        "confidence": winner.get("confidence", "low"),
-        "open_questions": open_questions,
-    }
+    return _Candidate(
+        answer=winner.answer.strip(),
+        key_sources=_dedupe([s for c in ordered for s in c.key_sources]),
+        confidence=winner.confidence,
+        open_questions=_dedupe([q for c in ordered for q in c.open_questions]),
+    )
 
 
-def _single_synthesis(user_msg: str, question: str) -> dict:
-    """Fallback: one direct model call when the ensemble produced no parseable candidate."""
+def _single_synthesis(user_msg: str, question: str) -> _Candidate:
+    """Fallback: one direct router call when the ensemble produced no parseable candidate."""
     print("  Synthesizer ensemble produced no candidate — falling back to single-model synthesis.")
-    try:
-        response_text = complete(
-            settings.llm_cfg(),
-            system=_SYSTEM_PROMPT,
-            user_message=user_msg,
-            model=settings.synthesis_model,
-            max_tokens=8192,
-        )
-        data = extract_json(response_text)
-        if data:
-            return data
-    except Exception as e:  # noqa: BLE001 — synthesis must always return something usable
-        print(f"  WARNING: fallback synthesis call failed: {e}")
-    return {
-        "answer": "Synthesis failed. Raw findings remain in the sprint files.",
-        "key_sources": [],
-        "confidence": "low",
-        "open_questions": [question],
-    }
+    pool = Pool(
+        role="synth-fallback",
+        executors=build_router_executors(
+            [settings.synthesis_model],
+            base_url=settings.openai_base_url,
+            api_key=settings.openai_api_key,
+        ),
+    )
+    res = structured(
+        pool=pool,
+        schema=_Candidate,
+        system=_SYSTEM_PROMPT,
+        user=user_msg,
+        max_tokens=8192,
+    )
+    if res.value is not None:
+        return res.value
+    print(f"  WARNING: fallback synthesis call failed: {res.error}")
+    return _Candidate(
+        answer="Synthesis failed. Raw findings remain in the sprint files.",
+        key_sources=[],
+        confidence="low",
+        open_questions=[question],
+    )
 
 
 def synthesize(
@@ -235,22 +285,22 @@ def synthesize(
     candidates, labels = _generate_candidates(user_msg)
 
     if not candidates:
-        data = _single_synthesis(user_msg, topic.question)
+        final = _single_synthesis(user_msg, topic.question)
     elif len(candidates) == 1:
         print(f"  Single candidate ({labels[0]}) — no judging needed.")
-        data = _graft(candidates, 0)
+        final = _graft(candidates, 0)
     else:
         winner_idx, rationale = _judge_candidates(topic.question, candidates)
         winner_label = labels[winner_idx] if winner_idx < len(labels) else f"#{winner_idx}"
         print(f"  Judge picked {winner_label} of {len(candidates)} candidates: {rationale}")
-        data = _graft(candidates, winner_idx)
+        final = _graft(candidates, winner_idx)
 
     return Synthesis(
         question=topic.question,
-        answer=data.get("answer", "No synthesis produced."),
-        key_sources=data.get("key_sources", []),
-        confidence=data.get("confidence", "low"),
-        open_questions=data.get("open_questions", []),
+        answer=final.answer.strip() or "No synthesis produced.",
+        key_sources=final.key_sources,
+        confidence=final.confidence,
+        open_questions=final.open_questions,
         sprint_count=sprint_count,
         best_score=best_score,
         incomplete=incomplete,
