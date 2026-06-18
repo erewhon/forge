@@ -1,52 +1,96 @@
+"""Orchestrate the ensemble: fan a diff across reviewer pools, then synthesize.
+
+Consumer #2 of the shared ensemble harness (parallel_edit's judge was #1). The runner reduces to:
+build pools → ``fanout`` (resilient, quorum-aware) → ``AggregateCombiner`` → map to EnsembleResult.
+The per-provider timeout/error capture, TRANSIENT-retry/TERMINAL-failover, quorum accounting, and
+aggregator rotation + concat fallback all live in the harness now.
+"""
+
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime
 
-from agents.pr_review_ensemble.aggregator import aggregate_reviews
+from agents.pr_review_ensemble.aggregator import build_aggregator
 from agents.pr_review_ensemble.config import settings
-from agents.pr_review_ensemble.models import EnsembleResult, ProviderName, ProviderReview
+from agents.pr_review_ensemble.models import (
+    EnsembleResult,
+    ProviderReview,
+    ProviderStatus,
+    QuorumState,
+)
 from agents.pr_review_ensemble.prompts import REVIEW_SYSTEM_PROMPT
-from agents.pr_review_ensemble.providers import all_providers, call_provider
+from agents.pr_review_ensemble.providers import ReviewerSlot, build_reviewer_slots
+from agents.shared.ensemble import Combiner, ExecResult, ExecStatus, Prompt
+from agents.shared.ensemble import QuorumState as HarnessQuorumState
+from agents.shared.ensemble.pool import fanout
+
+_STATUS_MAP: dict[ExecStatus, ProviderStatus] = {
+    ExecStatus.OK: "ok",
+    ExecStatus.TIMEOUT: "timeout",
+    ExecStatus.ERROR: "error",
+    ExecStatus.SKIPPED: "skipped",
+}
+_QUORUM_MAP: dict[HarnessQuorumState, QuorumState] = {
+    HarnessQuorumState.FULL: "full",
+    HarnessQuorumState.DEGRADED: "degraded",
+    HarnessQuorumState.FAILED: "failed",
+}
 
 
-async def run_ensemble(*, diff_text: str, pr_ref: str) -> EnsembleResult:
+def _to_provider_review(slot: ReviewerSlot, res: ExecResult) -> ProviderReview:
+    return ProviderReview(
+        provider=slot.provider,
+        model=slot.model,
+        status=_STATUS_MAP[res.status],
+        response_text=res.output,
+        latency_ms=res.latency_ms,
+        error_message=res.error,
+    )
+
+
+async def run_ensemble(
+    *,
+    diff_text: str,
+    pr_ref: str,
+    slots: list[ReviewerSlot] | None = None,
+    aggregator: Combiner | None = None,
+) -> EnsembleResult:
+    """Run every reviewer concurrently, then synthesize if quorum is met.
+
+    ``slots`` / ``aggregator`` are injectable for testing; production builds them from config.
+    """
+    if slots is None:
+        slots = build_reviewer_slots()
+
     diff_lines = diff_text.count("\n") + 1
-    user_message = (
-        f"Pull request: {pr_ref}\n"
-        f"Diff size: {diff_lines} lines\n\n"
-        f"Diff:\n{diff_text}"
-    )
     timestamp = datetime.now(UTC)
-
-    providers_attempted: list[ProviderName] = all_providers()
-    coros = [
-        call_provider(p, system_prompt=REVIEW_SYSTEM_PROMPT, user_message=user_message)
-        for p in providers_attempted
-    ]
-    reviews: list[ProviderReview] = await asyncio.gather(*coros)
-
-    successful = [r for r in reviews if r.status == "ok"]
-    providers_succeeded: list[ProviderName] = [r.provider for r in successful]
-
-    if len(successful) < settings.quorum_floor:
-        return EnsembleResult(
-            pr_ref=pr_ref,
-            timestamp=timestamp,
-            diff_lines=diff_lines,
-            reviews=reviews,
-            aggregated_review=None,
-            aggregator_provider=None,
-            quorum_state="failed",
-            quorum_floor=settings.quorum_floor,
-            providers_attempted=providers_attempted,
-            providers_succeeded=providers_succeeded,
-        )
-
-    quorum_state = "full" if len(successful) == len(providers_attempted) else "degraded"
-    aggregated_review, aggregator_provider = await aggregate_reviews(
-        successful_reviews=successful, pr_ref=pr_ref
+    user_message = f"Pull request: {pr_ref}\nDiff size: {diff_lines} lines\n\nDiff:\n{diff_text}"
+    prompt = Prompt(
+        system=REVIEW_SYSTEM_PROMPT, user=user_message, max_tokens=settings.review_max_tokens
     )
+
+    fan = await fanout(
+        "review",
+        [s.pool for s in slots],
+        prompt,
+        timeout=settings.per_provider_timeout_seconds,
+        quorum_floor=settings.quorum_floor,
+    )
+    # fanout preserves pool order, so results line up with slots positionally.
+    reviews = [_to_provider_review(s, r) for s, r in zip(slots, fan.results, strict=True)]
+    succeeded = [r for r in reviews if r.status == "ok"]
+
+    aggregated_review: str | None = None
+    aggregator_provider: str | None = None
+    aggregator_used_fallback = False
+    if fan.quorum_state != HarnessQuorumState.FAILED:
+        combiner = aggregator or build_aggregator(
+            slots, pr_ref=pr_ref, n_reviews=len(fan.succeeded)
+        )
+        combined = await combiner.combine(fan.succeeded)
+        aggregated_review = combined.text
+        aggregator_provider = combined.combiner
+        aggregator_used_fallback = combined.used_fallback
 
     return EnsembleResult(
         pr_ref=pr_ref,
@@ -55,8 +99,9 @@ async def run_ensemble(*, diff_text: str, pr_ref: str) -> EnsembleResult:
         reviews=reviews,
         aggregated_review=aggregated_review,
         aggregator_provider=aggregator_provider,
-        quorum_state=quorum_state,
-        quorum_floor=settings.quorum_floor,
-        providers_attempted=providers_attempted,
-        providers_succeeded=providers_succeeded,
+        aggregator_used_fallback=aggregator_used_fallback,
+        quorum_state=_QUORUM_MAP[fan.quorum_state],
+        quorum_floor=fan.quorum_floor,
+        providers_attempted=[s.provider for s in slots],
+        providers_succeeded=[r.provider for r in succeeded],
     )

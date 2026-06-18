@@ -21,6 +21,7 @@ def log_run(result: EnsembleResult, *, log_path: Path | None = None) -> Path:
         "providers_attempted": result.providers_attempted,
         "providers_succeeded": result.providers_succeeded,
         "aggregator_provider": result.aggregator_provider,
+        "aggregator_used_fallback": result.aggregator_used_fallback,
         "per_provider": [
             {
                 "provider": r.provider,

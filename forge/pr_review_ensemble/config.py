@@ -27,11 +27,18 @@ class PRReviewEnsembleSettings(BaseSettings):
     opencode_zen_model: str = "kimi-k2.6"
     opencode_zen_max_tokens: int = 4096
 
-    # Aggregator: which provider synthesizes the final advisory
+    # Aggregator: preferred synthesizer, tried first. The aggregator runs through a failover
+    # Pool whose rotation is [preferred, then anthropic -> opencode_zen -> local]; if every
+    # member is down, AggregateCombiner falls back to deterministic concatenation. "local" is
+    # the structural break-glass (always reachable), so it sits last in the rotation.
     aggregator_provider: str = "anthropic"
+    aggregator_max_tokens: int = 4096
 
     # Runner
     per_provider_timeout_seconds: float = 120.0
+    review_max_tokens: int = (
+        4096  # max_tokens for each reviewer's pass (Prompt-level in the harness)
+    )
     quorum_floor: int = 2
 
     # Logging

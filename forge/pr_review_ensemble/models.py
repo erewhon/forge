@@ -25,7 +25,10 @@ class EnsembleResult(BaseModel):
     diff_lines: int
     reviews: list[ProviderReview]
     aggregated_review: str | None
-    aggregator_provider: ProviderName | None
+    # The executor label that actually synthesized (e.g. "anthropic:claude-sonnet-4-6") or
+    # "fallback:concat" — a label, not just a provider name, since the aggregator rotates.
+    aggregator_provider: str | None
+    aggregator_used_fallback: bool = False
     quorum_state: QuorumState
     quorum_floor: int
     providers_attempted: list[ProviderName]

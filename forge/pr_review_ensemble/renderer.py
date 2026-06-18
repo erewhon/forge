@@ -12,8 +12,7 @@ def _quorum_header(result: EnsembleResult) -> str:
     failure_notes = ""
     if failed:
         failure_notes = "; ".join(
-            f"{r.provider} {r.status}"
-            + (f" ({r.error_message})" if r.error_message else "")
+            f"{r.provider} {r.status}" + (f" ({r.error_message})" if r.error_message else "")
             for r in failed
         )
 
@@ -25,10 +24,7 @@ def _quorum_header(result: EnsembleResult) -> str:
 
 def _format_review(r: ProviderReview) -> str:
     if r.status != "ok":
-        return (
-            f"### {r.provider} ({r.model}) — _{r.status}_\n\n"
-            f"_{r.error_message or 'no detail'}_"
-        )
+        return f"### {r.provider} ({r.model}) — _{r.status}_\n\n_{r.error_message or 'no detail'}_"
     latency = f" — {r.latency_ms} ms" if r.latency_ms is not None else ""
     return f"### {r.provider} ({r.model}){latency}\n\n{r.response_text}"
 
@@ -52,8 +48,12 @@ def render_markdown(result: EnsembleResult) -> str:
     else:
         agg_text = result.aggregated_review or "_(no aggregator output)_"
         agg_provider = result.aggregator_provider or "unknown"
+        synth_label = agg_provider
+        if result.aggregator_used_fallback:
+            # every synthesizer was down — the body is raw reviews concatenated, not a synthesis
+            synth_label = f"{agg_provider} — all synthesizers down, showing raw reviews"
         lines.append("")
-        lines.append(f"## Aggregated review (synthesized by {agg_provider})")
+        lines.append(f"## Aggregated review (synthesized by {synth_label})")
         lines.append("")
         lines.append(agg_text)
 
