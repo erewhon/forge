@@ -1,6 +1,16 @@
+"""Adversarial verification panel (ensemble harness consumer #3).
+
+The lone verifier became a panel: N diverse router models each adversarially scrutinize the sprint
+findings — score the five dimensions AND list concrete challenges (refutations / gaps). Scores are
+median-aggregated across the panel (robust to a single lenient or harsh model), and the union of
+challenges drives the next sprint's plan. ``verify_sprint`` keeps its signature and
+``VerificationResult`` output, so the plan→research→verify→synthesize loop is unchanged.
+"""
+
 from __future__ import annotations
 
 import math
+import statistics
 
 from agents.general_researcher.config import settings
 from agents.general_researcher.models import (
@@ -10,26 +20,34 @@ from agents.general_researcher.models import (
     VerificationResult,
     VerificationScores,
 )
-from agents.shared.llm import complete, extract_json
+from agents.shared.panel import build_router_executors, run_panel
+
+_DIMENSIONS = (
+    "source_diversity",
+    "claim_verification",
+    "counter_narrative",
+    "depth",
+    "actionability",
+)
+_MAX_CHALLENGES = 12
 
 _SYSTEM_PROMPT = """\
-You evaluate research findings against the topic and the sprint's success \
-criteria, scoring each dimension from 1-10:
+You are an ADVERSARIAL research verifier on a panel of independent reviewers. Do NOT rubber-stamp \
+— actively try to break the findings. Hunt for unsupported or overstated claims, missing \
+counter-evidence, cherry-picked or single-sourced assertions, vague "studies show" attributions, \
+and gaps the research glosses over. Assume a motivated skeptic is reading.
 
-- **source_diversity**: Multiple perspectives represented? Different source \
-types (primary sources, journalism, academic, official records)?
-- **claim_verification**: Are claims well-sourced? Hedged when uncertain? \
-Watch for claims with no citation or vague "studies show" attributions.
-- **counter_narrative**: Are opposing or alternative interpretations \
-addressed? Are biases identified?
-- **depth**: Beyond surface-level? Specific dates, figures, named sources, \
-mechanisms — not just generalities?
-- **actionability**: Does this give a reader enough to actually use the \
-answer, or does it leave them needing to do their own research?
+Score each dimension 1-10 (be rigorous; 7+ means genuinely solid, 5 is mediocre, below 5 has \
+substantial problems):
+- **source_diversity**: Multiple perspectives and source types (primary, journalism, academic, \
+official)?
+- **claim_verification**: Claims well-sourced and hedged when uncertain? Or uncited / vague?
+- **counter_narrative**: Opposing/alternative interpretations addressed? Biases identified?
+- **depth**: Specific dates, figures, named sources, mechanisms — not generalities?
+- **actionability**: Enough for a reader to use the answer, or do they still need to research?
 
-Be rigorous. 7+ means genuinely good research that addresses the topic \
-well. 5 is mediocre — has something but with significant gaps. Below 5 \
-means substantial problems.
+Then list CHALLENGES: specific, concrete refutations or gaps a follow-up sprint must address — \
+each one actionable (what is wrong / unsupported / missing, and what to verify).
 
 Return ONLY valid JSON:
 {
@@ -38,8 +56,9 @@ Return ONLY valid JSON:
   "counter_narrative": <1-10>,
   "depth": <1-10>,
   "actionability": <1-10>,
-  "feedback": "specific feedback on strengths and weaknesses",
-  "follow_up_questions": ["question 1 to address gaps", ...]
+  "challenges": ["specific challenge 1", "..."],
+  "feedback": "one-paragraph adversarial assessment",
+  "follow_up_questions": ["question to close a gap", "..."]
 }
 """
 
@@ -53,8 +72,81 @@ def _compute_overall(scores: VerificationScores) -> int:
         + scores.depth * 1.5
         + scores.actionability * 1.0
     )
-    total_weight = 6.0
-    return int(math.floor(weighted_sum / total_weight + 0.5))
+    return int(math.floor(weighted_sum / 6.0 + 0.5))
+
+
+def _clamp(value: object) -> int:
+    try:
+        return max(1, min(10, int(value)))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 5
+
+
+def _median_dim(responses: list[dict], dim: str) -> int:
+    vals = [_clamp(r.get(dim, 5)) for r in responses]
+    return int(round(statistics.median(vals))) if vals else 5
+
+
+def _dedupe(items: list[str], cap: int) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in items:
+        text = str(item).strip()
+        key = text.lower()
+        if text and key not in seen:
+            seen.add(key)
+            out.append(text)
+        if len(out) >= cap:
+            break
+    return out
+
+
+def _build_user_message(
+    topic: TopicConfig, contract: SprintContract, findings: SprintFindings
+) -> str:
+    findings_text = []
+    for f in findings.findings:
+        findings_text.append(
+            f"**Q: {f.question}**\n"
+            f"A: {f.answer}\n"
+            f"Sources: {', '.join(f.sources) if f.sources else 'None cited'}\n"
+            f"Confidence: {f.confidence}\n"
+        )
+    findings_summary = "\n---\n".join(findings_text)
+    max_chars = settings.max_findings_tokens * 4
+    if len(findings_summary) > max_chars:
+        findings_summary = findings_summary[:max_chars] + "\n\n[... truncated ...]"
+
+    criteria_text = "\n".join(f"- {c}" for c in contract.success_criteria) or "(none specified)"
+    msg = f"Topic: {topic.question}\n"
+    if topic.context:
+        msg += f"Context: {topic.context}\n"
+    msg += (
+        f"\nSprint {contract.sprint_id} success criteria:\n{criteria_text}\n\n"
+        "Questions investigated:\n"
+        + "\n".join(f"- {q}" for q in contract.questions)
+        + f"\n\nFindings:\n{findings_summary}\n\n"
+        "Adversarially score each dimension and list concrete challenges."
+    )
+    return msg
+
+
+def _fallback(contract: SprintContract, reason: str) -> VerificationResult:
+    scores = VerificationScores(
+        source_diversity=3,
+        claim_verification=3,
+        counter_narrative=3,
+        depth=3,
+        actionability=3,
+        overall=3,
+    )
+    return VerificationResult(
+        sprint_id=contract.sprint_id,
+        scores=scores,
+        passed=False,
+        feedback=f"Adversarial panel produced no usable verdict: {reason}",
+        follow_up_questions=contract.questions,
+    )
 
 
 def verify_sprint(
@@ -62,72 +154,56 @@ def verify_sprint(
     contract: SprintContract,
     findings: SprintFindings,
 ) -> VerificationResult:
-    findings_text = []
-    for f in findings.findings:
-        entry = (
-            f"**Q: {f.question}**\n"
-            f"A: {f.answer}\n"
-            f"Sources: {', '.join(f.sources) if f.sources else 'None cited'}\n"
-            f"Confidence: {f.confidence}\n"
-        )
-        findings_text.append(entry)
-
-    findings_summary = "\n---\n".join(findings_text)
-    max_chars = settings.max_findings_tokens * 4
-    if len(findings_summary) > max_chars:
-        findings_summary = findings_summary[:max_chars] + "\n\n[... truncated ...]"
-
-    criteria_text = "\n".join(f"- {c}" for c in contract.success_criteria) or "(none specified)"
+    user_msg = _build_user_message(topic, contract, findings)
     threshold = topic.score_threshold or settings.score_threshold
 
-    user_msg = (
-        f"Topic: {topic.question}\n"
+    executors = build_router_executors(
+        settings.verifier_panel_models,
+        base_url=settings.openai_base_url,
+        api_key=settings.openai_api_key,
     )
-    if topic.context:
-        user_msg += f"Context: {topic.context}\n"
-    user_msg += (
-        f"\nSprint {contract.sprint_id} success criteria:\n{criteria_text}\n\n"
-        f"Questions investigated:\n"
-        + "\n".join(f"- {q}" for q in contract.questions)
-        + f"\n\nFindings:\n{findings_summary}\n\n"
-        f"Score each dimension and provide specific feedback."
-    )
-
-    print(f"  Verifying sprint {contract.sprint_id}...")
+    print(f"  Verifying sprint {contract.sprint_id} (panel of {len(executors)})...")
     try:
-        response_text = complete(
-            settings.llm_cfg(),
+        panel = run_panel(
+            executors=executors,
             system=_SYSTEM_PROMPT,
-            user_message=user_msg,
-            model=settings.synthesis_model,
+            user=user_msg,
+            floor=settings.verifier_panel_floor,
         )
-        data = extract_json(response_text)
-    except Exception as e:
-        print(f"  WARNING: LLM call failed for verifier: {e}")
-        data = {
-            "source_diversity": 3,
-            "claim_verification": 3,
-            "counter_narrative": 3,
-            "depth": 3,
-            "actionability": 3,
-            "feedback": f"Verification failed due to LLM error: {e}",
-            "follow_up_questions": contract.questions,
-        }
+    except Exception as e:  # noqa: BLE001 — verification must never crash the sprint loop
+        return _fallback(contract, f"panel error: {e}")
+
+    if not panel.responses:
+        return _fallback(contract, "no member returned parseable scores")
 
     scores = VerificationScores(
-        source_diversity=max(1, min(10, data.get("source_diversity", 5))),
-        claim_verification=max(1, min(10, data.get("claim_verification", 5))),
-        counter_narrative=max(1, min(10, data.get("counter_narrative", 5))),
-        depth=max(1, min(10, data.get("depth", 5))),
-        actionability=max(1, min(10, data.get("actionability", 5))),
+        source_diversity=_median_dim(panel.responses, "source_diversity"),
+        claim_verification=_median_dim(panel.responses, "claim_verification"),
+        counter_narrative=_median_dim(panel.responses, "counter_narrative"),
+        depth=_median_dim(panel.responses, "depth"),
+        actionability=_median_dim(panel.responses, "actionability"),
         overall=0,
     )
     scores.overall = _compute_overall(scores)
+
+    challenges = _dedupe(
+        [c for r in panel.responses for c in (r.get("challenges") or [])], _MAX_CHALLENGES
+    )
+    # The next sprint must address the panel's refutations: challenges first, then any extra Qs.
+    follow_ups = _dedupe(
+        challenges + [q for r in panel.responses for q in (r.get("follow_up_questions") or [])],
+        _MAX_CHALLENGES,
+    )
+
+    degraded = "" if panel.quorum_met else " (below floor — degraded)"
+    feedback = f"Adversarial panel: {len(panel.responses)}/{panel.attempted} verifiers{degraded}."
+    if challenges:
+        feedback += " Top concerns: " + " | ".join(challenges[:4])
 
     return VerificationResult(
         sprint_id=contract.sprint_id,
         scores=scores,
         passed=scores.overall >= threshold,
-        feedback=data.get("feedback", "No feedback available."),
-        follow_up_questions=data.get("follow_up_questions", []),
+        feedback=feedback,
+        follow_up_questions=follow_ups,
     )

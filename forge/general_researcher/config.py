@@ -24,6 +24,14 @@ class GeneralResearcherSettings(BaseSettings):
     score_threshold: int = 7
     max_findings_tokens: int = 4000
 
+    # Adversarial verification panel: instead of one verifier, fan out these diverse router models
+    # (harness consumer #3) — each scores + challenges adversarially, then scores are median-
+    # aggregated (robust to a lenient/harsh outlier) and the challenges drive the next sprint. The
+    # panel always runs through the router (which has a key and hosts the diverse models), even when
+    # llm_backend="anthropic".
+    verifier_panel_models: list[str] = ["coder", "qwen3.6-plus", "glm-5.1"]
+    verifier_panel_floor: int = 2  # min members that must respond+parse, else degrade
+
     always_deepen: bool = False
 
     def llm_cfg(self) -> LLMConfig:
