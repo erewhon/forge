@@ -46,6 +46,9 @@ REGISTRY: list[AgentCommand] = [
         name="edit",
         summary="Run one prompt against a jj repo with N models, then compare.",
         module="agents.parallel_edit.main",
+        # Not exposed over MCP: it mutates a real jj repo and spawns model subprocesses whose
+        # stdout would escape the server's capture and corrupt the MCP stdio protocol. CLI-only.
+        exposes_mcp=False,
     ),
     AgentCommand(
         name="review",
