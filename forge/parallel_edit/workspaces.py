@@ -22,10 +22,20 @@ _STAT_SUMMARY_RE = re.compile(
     r"(?:,\s+(\d+)\s+deletions?\(-\))?"
 )
 
-# Paths excluded from every collected diff: tool-generated cruft that isn't part of the
-# candidate's change. opencode's `open-mem` plugin writes a local `.open-mem/` cache into the
-# working directory on every run; without this it would dominate the candidate diff.
-_DIFF_EXCLUDE_PATHS = (".open-mem",)
+# jj fileset terms excluded from every collected diff: tool-/run-generated cruft that isn't part
+# of the candidate's actual change, so the judge scores the real edit and not the noise. Each term
+# is negated and ANDed in `_diff_exclude_fileset()`.
+#   - ".open-mem": opencode's open-mem plugin writes a local cache dir at the working-dir root on
+#     every run (belt-and-braces alongside the global gitignore; `--pure` also disables the plugin).
+#   - __pycache__ / *.pyc: Python bytecode a candidate generates by running or importing its own
+#     code. In a repo without a matching `.gitignore` it leaks into the diff and gets mis-scored as
+#     scope sprawl (observed live: a candidate penalized for a committed `.pyc`). The globs match at
+#     any depth.
+_DIFF_EXCLUDE_FILESETS = (
+    '".open-mem"',
+    'glob:"**/__pycache__/**"',
+    'glob:"**/*.pyc"',
+)
 
 
 class JJError(RuntimeError):
@@ -92,10 +102,10 @@ def ensure_git_marker(workspace: Path) -> None:
 
 
 def _diff_exclude_fileset() -> list[str]:
-    """A jj fileset arg (or none) that drops tool cruft like opencode's .open-mem cache."""
-    if not _DIFF_EXCLUDE_PATHS:
+    """A jj fileset arg (or none) dropping run cruft (open-mem cache, bytecode) from diffs."""
+    if not _DIFF_EXCLUDE_FILESETS:
         return []
-    return [" & ".join(f'~"{p}"' for p in _DIFF_EXCLUDE_PATHS)]
+    return [" & ".join(f"~{term}" for term in _DIFF_EXCLUDE_FILESETS)]
 
 
 def collect_diff(workspace: Path, base_rev: str) -> tuple[str, DiffStat]:
