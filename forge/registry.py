@@ -59,6 +59,13 @@ REGISTRY: list[AgentCommand] = [
     # edits + commits repos (like `edit`); the others write to Nous / files and are human-run, not
     # the sort of thing to call mid-task. Typed MCP wrappers can be added later if any prove useful.
     AgentCommand(
+        name="audit",
+        summary="Adversarial multi-model code audit (discover → dedup → verify) of files/dirs.",
+        module="agents.code_audit_ensemble.main",
+        # Read-only LLM analysis; an MCP wrapper is plausible later, but CLI-only for the MVP.
+        exposes_mcp=False,
+    ),
+    AgentCommand(
         name="code-review",
         summary="Nightly code review of recent commits.",
         module="agents.code_reviewer.main",

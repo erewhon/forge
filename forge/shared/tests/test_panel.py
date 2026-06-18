@@ -8,8 +8,10 @@ from pydantic import BaseModel
 
 from agents.shared.ensemble import ExecResult, ExecStatus, FailureClass, Pool, Prompt
 from agents.shared.panel import (
+    Finder,
     PanelMember,
     build_lens_members,
+    discover,
     run_member_panel,
     run_panel,
     structured,
@@ -259,3 +261,28 @@ def test_verify_each_drops_unusable_members_before_aggregate():
     )
     # the junk member is dropped; only 1 usable response, below the floor of 2 → degraded
     assert out[0].verdict == {"usable": 1, "quorum": False}
+
+
+# --- typed multi-finder discovery (discover) ---
+
+
+class _FItem(BaseModel):
+    title: str
+
+
+class _FEnv(BaseModel):
+    findings: list[_FItem] = []
+
+
+def test_discover_returns_one_envelope_per_finder():
+    finders = [Finder(label=f"f{i}", system="S", user="u") for i in range(3)]
+    pool = _pool(FakeExec("m", output=_j({"findings": [{"title": "x"}]})))
+    out = discover(finders, pool=pool, schema=_FEnv, concurrency=2)
+    assert len(out) == 3  # one envelope per finder
+    assert all(e.findings[0].title == "x" for e in out)
+
+
+def test_discover_drops_finders_with_no_usable_output():
+    finders = [Finder(label="f", system="S", user="u")]
+    pool = _pool(FakeExec("m", output="junk"), backoff=0)
+    assert discover(finders, pool=pool, schema=_FEnv, concurrency=1) == []

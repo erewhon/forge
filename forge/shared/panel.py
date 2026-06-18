@@ -292,3 +292,66 @@ def verify_each[I, V](
             timeout=timeout,
         )
     )
+
+
+# --- typed multi-finder discovery ---------------------------------------------------------------
+# discover fans out blind *finders* (each its own system+user prompt, sharing a failover pool) and
+# returns each finder's validated envelope — the find stage of the discover→dedup→verify recipe.
+
+
+@dataclass
+class Finder:
+    """One discovery seat: a labelled (system, user) prompt run through the shared finder pool."""
+
+    label: str
+    system: str
+    user: str
+
+
+async def _discover[E: BaseModel](
+    finders: Sequence[Finder],
+    *,
+    pool: Pool,
+    schema: type[E],
+    concurrency: int,
+    max_tokens: int,
+    timeout: float,
+) -> list[E]:
+    async def _one(finder: Finder) -> E | None:
+        res = await _structured(
+            pool,
+            schema,
+            Prompt(system=finder.system, user=finder.user, max_tokens=max_tokens),
+            predicate=None,
+            timeout=timeout,
+        )
+        return res.value
+
+    results = await map_items(finders, _one, concurrency=concurrency)
+    return [r for r in results if r is not None]
+
+
+def discover[E: BaseModel](
+    finders: Sequence[Finder],
+    *,
+    pool: Pool,
+    schema: type[E],
+    concurrency: int = 4,
+    max_tokens: int = 4096,
+    timeout: float = 120.0,
+) -> list[E]:
+    """Fan out blind finders (each its own prompt, all through the shared failover ``pool``) and
+    return the validated envelope from each finder that produced one — bounded to ``concurrency`` in
+    flight. The find stage of the discover→dedup→verify recipe; the caller flattens the envelopes'
+    finding lists. A finder that produced nothing usable is simply absent from the result.
+    """
+    return asyncio.run(
+        _discover(
+            finders,
+            pool=pool,
+            schema=schema,
+            concurrency=concurrency,
+            max_tokens=max_tokens,
+            timeout=timeout,
+        )
+    )
