@@ -13,6 +13,7 @@ from agents.shared.panel import (
     run_member_panel,
     run_panel,
     structured,
+    verify_each,
 )
 
 
@@ -192,3 +193,69 @@ def test_structured_predicate_rejects_then_fails_over():
     assert res.ok
     assert res.value is not None
     assert res.value.winner == 1
+
+
+# --- per-item adversarial verification (verify_each) ---
+
+
+class _EchoUserExec:
+    """Echoes back the user prompt it was handed (plus a fixed score), so a test can assert each
+    item ran its own make_user message through the panel."""
+
+    def __init__(self, label: str, score: int) -> None:
+        self.label = label
+        self._score = score
+
+    async def run(self, prompt: Prompt, *, timeout: float) -> ExecResult:
+        return ExecResult(
+            executor=self.label,
+            status=ExecStatus.OK,
+            output=_j({"user": prompt.user, "score": self._score}),
+            failure_class=FailureClass.NONE,
+            latency_ms=1,
+        )
+
+
+def test_verify_each_runs_a_panel_per_item_and_aggregates():
+    members = [
+        PanelMember(executor=_EchoUserExec("a", 1), system="LENS-A", label="m/a"),
+        PanelMember(executor=_EchoUserExec("b", 3), system="LENS-B", label="m/b"),
+    ]
+    items = ["finding-1", "finding-2"]
+
+    def aggregate(item, panel):
+        return {
+            "item": item,
+            "total": sum(r["score"] for r in panel.responses),
+            "seen_user": panel.responses[0]["user"],
+        }
+
+    verdicts = verify_each(
+        items,
+        members=members,
+        make_user=lambda i: f"verify: {i}",
+        aggregate=aggregate,
+        floor=2,
+        concurrency=2,
+    )
+    assert [v.item for v in verdicts] == items  # order preserved
+    assert all(v.panel.quorum_met for v in verdicts)
+    assert [v.verdict["total"] for v in verdicts] == [4, 4]  # 1 + 3 from the two members
+    # each item's OWN make_user message reached its panel
+    assert [v.verdict["seen_user"] for v in verdicts] == ["verify: finding-1", "verify: finding-2"]
+
+
+def test_verify_each_drops_unusable_members_before_aggregate():
+    members = [
+        PanelMember(executor=FakeExec("a", output=_j({"score": 5})), system="A", label="m/a"),
+        PanelMember(executor=FakeExec("b", output="junk"), system="B", label="m/b"),  # unparseable
+    ]
+
+    def aggregate(_item, panel):
+        return {"usable": len(panel.responses), "quorum": panel.quorum_met}
+
+    out = verify_each(
+        ["x"], members=members, make_user=lambda i: i, aggregate=aggregate, floor=2, concurrency=1
+    )
+    # the junk member is dropped; only 1 usable response, below the floor of 2 → degraded
+    assert out[0].verdict == {"usable": 1, "quorum": False}

@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ValidationError
 
-from agents.shared.ensemble import ApiExecutor, ExecResult, Executor, Pool, Prompt
+from agents.shared.ensemble import ApiExecutor, ExecResult, Executor, Pool, Prompt, map_items
 from agents.shared.llm import extract_json
 
 
@@ -222,3 +222,73 @@ def structured[T: BaseModel](
     """
     prompt = Prompt(system=system, user=user, max_tokens=max_tokens)
     return asyncio.run(_structured(pool, schema, prompt, predicate=predicate, timeout=timeout))
+
+
+# --- per-item adversarial verification ----------------------------------------------------------
+# verify_each maps a skeptic *panel* over a runtime-discovered list — each item gets its own
+# perspective-diverse panel — then an aggregate/vote turns each panel into a verdict. This is the
+# discover→verify-each half of the dynamic-workflow recipe; `aggregate` is the vote (count "real"
+# votes → confirmed/tentative/rejected, median scores, etc.). Its first production consumer is the
+# next ensemble agent (testing/refactoring); for now it stands on tests + a smoke.
+
+
+@dataclass
+class ItemVerdict[I, V]:
+    """One item paired with the skeptic panel that judged it and the verdict the panel voted to."""
+
+    item: I
+    panel: PanelResult
+    verdict: V
+
+
+async def _verify_each[I, V](
+    items: Sequence[I],
+    *,
+    members: Sequence[PanelMember],
+    make_user: Callable[[I], str],
+    aggregate: Callable[[I, PanelResult], V],
+    floor: int,
+    concurrency: int,
+    max_tokens: int,
+    timeout: float,
+) -> list[ItemVerdict[I, V]]:
+    async def _one(item: I) -> ItemVerdict[I, V]:
+        panel = await _run_member_panel(
+            members, make_user(item), floor=floor, max_tokens=max_tokens, timeout=timeout
+        )
+        return ItemVerdict(item=item, panel=panel, verdict=aggregate(item, panel))
+
+    return await map_items(items, _one, concurrency=concurrency)
+
+
+def verify_each[I, V](
+    items: Sequence[I],
+    *,
+    members: Sequence[PanelMember],
+    make_user: Callable[[I], str],
+    aggregate: Callable[[I, PanelResult], V],
+    floor: int = 1,
+    concurrency: int = 4,
+    max_tokens: int = 4096,
+    timeout: float = 120.0,
+) -> list[ItemVerdict[I, V]]:
+    """Run the skeptic ``members`` panel over each item independently — at most ``concurrency``
+    items in flight — then ``aggregate`` each panel into a verdict.
+
+    The same ``members`` are reused across items (executors are stateless); ``make_user`` builds
+    each item's prompt and ``aggregate`` is the vote. Results stay aligned to ``items``. Synchronous
+    (wraps ``asyncio.run``) to match ``run_panel``. Each item fans out to ``len(members)`` calls, so
+    the live call count is up to ``concurrency × len(members)`` — size ``concurrency`` accordingly.
+    """
+    return asyncio.run(
+        _verify_each(
+            items,
+            members=members,
+            make_user=make_user,
+            aggregate=aggregate,
+            floor=floor,
+            concurrency=concurrency,
+            max_tokens=max_tokens,
+            timeout=timeout,
+        )
+    )

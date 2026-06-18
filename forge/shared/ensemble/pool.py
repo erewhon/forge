@@ -9,7 +9,7 @@ state so callers can degrade gracefully instead of aborting when some members fa
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 
 from agents.shared.ensemble.executor import Executor
@@ -103,3 +103,26 @@ async def fanout(
         quorum_state=state,
         quorum_floor=quorum_floor,
     )
+
+
+async def map_items[I, R](
+    items: Sequence[I],
+    fn: Callable[[I], Awaitable[R]],
+    *,
+    concurrency: int,
+) -> list[R]:
+    """Map an async ``fn`` over ``items`` with at most ``concurrency`` in flight; results stay
+    aligned to input order.
+
+    This is the bounded fan-out under map-reduce passes (summarize each chunk) and per-item
+    verification (run a skeptic panel per finding) — the boilerplate ``Semaphore`` + ``gather`` that
+    consumers kept re-rolling. ``fn`` owns its own error handling (return an error-encoded result so
+    one bad item doesn't sink the batch); a raised exception propagates out of the gather.
+    """
+    sem = asyncio.Semaphore(max(1, concurrency))
+
+    async def _one(item: I) -> R:
+        async with sem:
+            return await fn(item)
+
+    return list(await asyncio.gather(*(_one(item) for item in items)))

@@ -13,7 +13,7 @@ from agents.shared.ensemble.models import (
     Prompt,
     QuorumState,
 )
-from agents.shared.ensemble.pool import Pool, fanout
+from agents.shared.ensemble.pool import Pool, fanout, map_items
 
 
 class FakeExecutor:
@@ -177,3 +177,38 @@ def test_aggregate_combiner_falls_back_to_concat() -> None:
     assert out.used_fallback
     assert "first review" in out.text
     assert "second review" in out.text
+
+
+# --- map_items (bounded-concurrency fan-out over a runtime work-list) ---
+
+
+def test_map_items_preserves_order() -> None:
+    async def double(x: int) -> int:
+        return x * 2
+
+    out = asyncio.run(map_items([1, 2, 3, 4], double, concurrency=2))
+    assert out == [2, 4, 6, 8]
+
+
+def test_map_items_empty_is_empty() -> None:
+    async def boom(_x: int) -> int:  # must never be called
+        raise AssertionError("fn should not run for empty input")
+
+    assert asyncio.run(map_items([], boom, concurrency=4)) == []
+
+
+def test_map_items_bounds_concurrency() -> None:
+    inflight = 0
+    max_inflight = 0
+
+    async def tracked(x: int) -> int:
+        nonlocal inflight, max_inflight
+        inflight += 1
+        max_inflight = max(max_inflight, inflight)
+        await asyncio.sleep(0.01)  # hold the slot so overlap is observable
+        inflight -= 1
+        return x
+
+    out = asyncio.run(map_items(list(range(6)), tracked, concurrency=2))
+    assert out == list(range(6))
+    assert max_inflight <= 2  # the semaphore never let more than `concurrency` run at once

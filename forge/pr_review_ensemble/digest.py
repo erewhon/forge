@@ -12,7 +12,6 @@ Size guard:
 
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime
 
 from agents.pr_review_ensemble.config import settings
@@ -24,7 +23,7 @@ from agents.pr_review_ensemble.prompts import (
     DIGEST_SYSTEM_PROMPT,
 )
 from agents.pr_review_ensemble.providers import ReviewerSlot, build_reviewer_slots, rotation_pool
-from agents.shared.ensemble import Pool, Prompt
+from agents.shared.ensemble import Pool, Prompt, map_items
 
 
 def build_digest_pool(slots: list[ReviewerSlot]) -> Pool:
@@ -45,16 +44,13 @@ async def _single_pass(diff_text: str, pr_ref: str, pool: Pool, base: DigestResu
     return base.model_copy(update={"digest": result.output, "model": result.executor})
 
 
-async def _summarize_chunk(
-    chunk: DiffChunk, pool: Pool, sem: asyncio.Semaphore
-) -> tuple[str, bool]:
+async def _summarize_chunk(chunk: DiffChunk, pool: Pool) -> tuple[str, bool]:
     """Map one chunk to a per-file summary. Returns (markdown_section, ok)."""
-    async with sem:
-        user = f"Files in this slice: {_chunk_label(chunk)}\n\n{chunk.text}"
-        prompt = Prompt(
-            system=DIGEST_MAP_SYSTEM_PROMPT, user=user, max_tokens=settings.digest_map_max_tokens
-        )
-        result = await pool.run(prompt, timeout=settings.per_provider_timeout_seconds)
+    user = f"Files in this slice: {_chunk_label(chunk)}\n\n{chunk.text}"
+    prompt = Prompt(
+        system=DIGEST_MAP_SYSTEM_PROMPT, user=user, max_tokens=settings.digest_map_max_tokens
+    )
+    result = await pool.run(prompt, timeout=settings.per_provider_timeout_seconds)
     head = f"### {_chunk_label(chunk)}"
     if result.ok:
         return f"{head}\n\n{result.output}", True
@@ -67,8 +63,9 @@ async def _map_reduce(diff_text: str, pr_ref: str, pool: Pool, base: DigestResul
     chunks = chunks[: settings.digest_max_chunks]
     fields = {"strategy": "map_reduce", "chunks": len(chunks), "chunks_dropped": dropped}
 
-    sem = asyncio.Semaphore(settings.digest_map_concurrency)
-    mapped = await asyncio.gather(*(_summarize_chunk(c, pool, sem) for c in chunks))
+    mapped = await map_items(
+        chunks, lambda c: _summarize_chunk(c, pool), concurrency=settings.digest_map_concurrency
+    )
     summaries = [section for section, _ in mapped]
     if not any(ok for _, ok in mapped):
         return base.model_copy(

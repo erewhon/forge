@@ -18,7 +18,7 @@ from agents.shared.ensemble.models import (
     Prompt,
     QuorumState,
 )
-from agents.shared.ensemble.pool import Pool, fanout
+from agents.shared.ensemble.pool import Pool, fanout, map_items
 
 __all__ = [
     "AggregateCombiner",
@@ -35,4 +35,5 @@ __all__ = [
     "QuorumState",
     "classify",
     "fanout",
+    "map_items",
 ]
