@@ -31,6 +31,13 @@ class BookResearcherSettings(BaseSettings):
     score_threshold: int = 7  # minimum score (1-10) to accept findings
     max_findings_tokens: int = 4000  # truncate findings context for verifier
 
+    # Adversarial verification panel (ensemble harness consumer #3): instead of one verifier, fan
+    # out these diverse router models — each scores + challenges adversarially; scores are median-
+    # aggregated (robust to a lenient/harsh outlier) and the challenges drive the next sprint. The
+    # panel always runs through the router, even when llm_backend="anthropic".
+    verifier_panel_models: list[str] = ["coder", "qwen3.6-plus", "glm-5.1"]
+    verifier_panel_floor: int = 2  # min members that must respond+parse, else degrade
+
     @property
     def sprints_dir(self) -> Path:
         return self.project_dir / "sprints"
