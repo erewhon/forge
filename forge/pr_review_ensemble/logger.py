@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 
 from agents.pr_review_ensemble.config import settings
-from agents.pr_review_ensemble.models import DigestResult, EnsembleResult
+from agents.pr_review_ensemble.models import DigestResult, EnsembleResult, SupplyChainResult
 
 
 def log_run(result: EnsembleResult, *, log_path: Path | None = None) -> Path:
@@ -34,6 +35,33 @@ def log_run(result: EnsembleResult, *, log_path: Path | None = None) -> Path:
             }
             for r in result.reviews
         ],
+    }
+
+    with target.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record) + "\n")
+
+    return target
+
+
+def log_supply_chain(result: SupplyChainResult, *, log_path: Path | None = None) -> Path:
+    """Append one JSONL record for a supply-chain audit (shares the log via `pass`)."""
+    target = log_path or settings.log_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    scan = result.scan
+    ens = result.ensemble
+    record = {
+        "pass": "supply-chain",
+        "timestamp": result.timestamp.isoformat(),
+        "pr_ref": result.pr_ref,
+        "full_diff_lines": scan.full_diff_lines,
+        "signal_count": len(scan.signals),
+        "signal_categories": dict(Counter(s.category for s in scan.signals)),
+        "relevant_files": scan.relevant_files,
+        "audited": ens is not None,
+        "quorum_state": ens.quorum_state if ens else "clear",
+        "providers_succeeded": ens.providers_succeeded if ens else [],
+        "aggregator_provider": ens.aggregator_provider if ens else None,
     }
 
     with target.open("a", encoding="utf-8") as fh:

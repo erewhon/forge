@@ -15,23 +15,30 @@ from agents.shared.ensemble import AggregateCombiner
 
 
 def build_aggregator(
-    slots: list[ReviewerSlot], *, pr_ref: str, n_reviews: int
+    slots: list[ReviewerSlot],
+    *,
+    pr_ref: str,
+    n_reviews: int,
+    system: str = AGGREGATOR_SYSTEM_PROMPT,
+    noun: str = "reviews",
 ) -> AggregateCombiner:
     """Assemble the aggregator over the *active* providers, in rotation order.
 
     Reuses each active slot's executor (ApiExecutor is stateless), so the aggregator rotates over
     the same models that reviewed. Inactive (skipped) providers are excluded from the rotation.
+    ``system``/``noun`` let other passes (e.g. the supply-chain audit) reuse this with their own
+    synthesis prompt.
     """
     pool = rotation_pool(slots, role="aggregator", preferred=settings.aggregator_provider)
 
     header = (
         f"Pull request: {pr_ref}\n"
-        f"Number of independent reviews: {n_reviews}\n\n"
-        "Synthesize these independent reviews into one advisory:"
+        f"Number of independent {noun}: {n_reviews}\n\n"
+        f"Synthesize these independent {noun} into one advisory:"
     )
     return AggregateCombiner(
         pool=pool,
-        system=AGGREGATOR_SYSTEM_PROMPT,
+        system=system,
         header=header,
         timeout=settings.per_provider_timeout_seconds,
         max_tokens=settings.aggregator_max_tokens,

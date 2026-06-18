@@ -18,7 +18,7 @@ from agents.pr_review_ensemble.models import (
     ProviderStatus,
     QuorumState,
 )
-from agents.pr_review_ensemble.prompts import REVIEW_SYSTEM_PROMPT
+from agents.pr_review_ensemble.prompts import AGGREGATOR_SYSTEM_PROMPT, REVIEW_SYSTEM_PROMPT
 from agents.pr_review_ensemble.providers import ReviewerSlot, build_reviewer_slots
 from agents.shared.ensemble import Combiner, ExecResult, ExecStatus, Prompt
 from agents.shared.ensemble import QuorumState as HarnessQuorumState
@@ -54,20 +54,27 @@ async def run_ensemble(
     pr_ref: str,
     slots: list[ReviewerSlot] | None = None,
     aggregator: Combiner | None = None,
+    system_prompt: str = REVIEW_SYSTEM_PROMPT,
+    aggregator_system: str = AGGREGATOR_SYSTEM_PROMPT,
+    aggregator_noun: str = "reviews",
+    user_preamble: str = "",
 ) -> EnsembleResult:
     """Run every reviewer concurrently, then synthesize if quorum is met.
 
-    ``slots`` / ``aggregator`` are injectable for testing; production builds them from config.
+    ``system_prompt`` / ``aggregator_system`` / ``user_preamble`` let other passes reuse the
+    fan-out machinery with their own lens (e.g. the supply-chain audit). ``slots`` / ``aggregator``
+    are injectable for testing; production builds them from config.
     """
     if slots is None:
         slots = build_reviewer_slots()
 
     diff_lines = diff_text.count("\n") + 1
     timestamp = datetime.now(UTC)
-    user_message = f"Pull request: {pr_ref}\nDiff size: {diff_lines} lines\n\nDiff:\n{diff_text}"
-    prompt = Prompt(
-        system=REVIEW_SYSTEM_PROMPT, user=user_message, max_tokens=settings.review_max_tokens
+    user_message = (
+        f"{user_preamble}Pull request: {pr_ref}\n"
+        f"Diff size: {diff_lines} lines\n\nDiff:\n{diff_text}"
     )
+    prompt = Prompt(system=system_prompt, user=user_message, max_tokens=settings.review_max_tokens)
 
     fan = await fanout(
         "review",
@@ -85,7 +92,11 @@ async def run_ensemble(
     aggregator_used_fallback = False
     if fan.quorum_state != HarnessQuorumState.FAILED:
         combiner = aggregator or build_aggregator(
-            slots, pr_ref=pr_ref, n_reviews=len(fan.succeeded)
+            slots,
+            pr_ref=pr_ref,
+            n_reviews=len(fan.succeeded),
+            system=aggregator_system,
+            noun=aggregator_noun,
         )
         combined = await combiner.combine(fan.succeeded)
         aggregated_review = combined.text

@@ -8,9 +8,10 @@ import sys
 from pathlib import Path
 
 from agents.pr_review_ensemble.digest import run_digest
-from agents.pr_review_ensemble.logger import log_digest, log_run
-from agents.pr_review_ensemble.renderer import render_digest, render_markdown
+from agents.pr_review_ensemble.logger import log_digest, log_run, log_supply_chain
+from agents.pr_review_ensemble.renderer import render_digest, render_markdown, render_supply_chain
 from agents.pr_review_ensemble.runner import run_ensemble
+from agents.pr_review_ensemble.supply_chain import run_supply_chain_audit
 
 
 def _read_diff(args: argparse.Namespace) -> str:
@@ -58,6 +59,24 @@ async def _run_digest(diff_text: str, pr_ref: str, args: argparse.Namespace) -> 
     return 2
 
 
+async def _run_supply_chain(diff_text: str, pr_ref: str, args: argparse.Namespace) -> int:
+    print(f"Running supply-chain audit on {pr_ref}...", file=sys.stderr)
+    result = await run_supply_chain_audit(diff_text=diff_text, pr_ref=pr_ref)
+    _emit(render_supply_chain(result), args, label="Supply-chain audit")
+    print(f"Run logged to {log_supply_chain(result)}", file=sys.stderr)
+    scan = result.scan
+    print(
+        f"Pre-scan: {len(scan.signals)} signal(s) in {len(scan.relevant_files)} file(s)",
+        file=sys.stderr,
+    )
+    if result.ensemble is None:
+        print("Verdict: CLEAR (no supply-chain surface)", file=sys.stderr)
+        return 0
+    if result.ensemble.quorum_state == "failed":
+        return 2
+    return 0
+
+
 async def _run(args: argparse.Namespace) -> int:
     diff_text = _read_diff(args)
     if not diff_text.strip():
@@ -66,6 +85,8 @@ async def _run(args: argparse.Namespace) -> int:
     pr_ref = args.pr_ref or "(unspecified)"
     if args.pass_ == "digest":
         return await _run_digest(diff_text, pr_ref, args)
+    if args.pass_ == "supply-chain":
+        return await _run_supply_chain(diff_text, pr_ref, args)
     return await _run_review(diff_text, pr_ref, args)
 
 
@@ -74,10 +95,11 @@ def main() -> None:
     parser.add_argument(
         "--pass",
         dest="pass_",
-        choices=["review", "digest"],
+        choices=["review", "digest", "supply-chain"],
         default="review",
-        help="Which lens to run: 'review' (fan-out + synthesize advisory) or 'digest' "
-        "(single resilient navigational digest of a large PR). Default: review.",
+        help="Which lens to run: 'review' (fan-out + synthesize advisory), 'digest' (navigational "
+        "digest of a large PR), or 'supply-chain' (deterministic pre-scan + focused audit of "
+        "dependency/hook/CI/obfuscation changes). Default: review.",
     )
     parser.add_argument(
         "--diff-file",

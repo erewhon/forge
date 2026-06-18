@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from agents.pr_review_ensemble.models import DigestResult, EnsembleResult, ProviderReview
+from agents.pr_review_ensemble.models import (
+    DigestResult,
+    EnsembleResult,
+    ProviderReview,
+    SupplyChainResult,
+)
 
 
 def _quorum_header(result: EnsembleResult) -> str:
@@ -89,5 +94,70 @@ def render_digest(result: DigestResult) -> str:
         lines.append("## Digest failed")
         lines.append("")
         lines.append(f"_{result.error or 'unknown error'}_")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _cell(text: str) -> str:
+    return text.replace("|", "\\|").replace("\n", " ")
+
+
+def render_supply_chain(result: SupplyChainResult) -> str:
+    scan = result.scan
+    lines: list[str] = []
+    lines.append(f"# Supply-Chain Audit: {result.pr_ref}")
+    lines.append("")
+    lines.append(f"**Generated:** {result.timestamp.isoformat()}")
+    lines.append(
+        f"**Pre-scan:** {len(scan.signals)} signal(s) across {len(scan.relevant_files)} file(s) "
+        f"of a {scan.full_diff_lines}-line diff"
+    )
+    lines.append("")
+
+    if not scan.has_signals:
+        lines.append("## Verdict: CLEAR (deterministic)")
+        lines.append("")
+        lines.append(
+            "The pre-scan found no supply-chain-relevant changes (no dependency/lockfile, install "
+            "or build hook, CI, binary, or obfuscation/network/secret patterns). No model audit "
+            "was run. For whole-diff scrutiny, run `--pass review`."
+        )
+        return "\n".join(lines).rstrip() + "\n"
+
+    lines.append("## Pre-scan signals")
+    lines.append("")
+    lines.append("| File | Category | Evidence |")
+    lines.append("|---|---|---|")
+    for s in scan.signals:
+        note = f" — {s.note}" if s.note else ""
+        lines.append(f"| `{s.file}` | {s.category} | {_cell(s.evidence)}{_cell(note)} |")
+    lines.append("")
+
+    ensemble = result.ensemble
+    if ensemble is None:
+        return "\n".join(lines).rstrip() + "\n"
+
+    n_ok = len(ensemble.providers_succeeded)
+    n_total = len(ensemble.providers_attempted)
+    lines.append(f"**Audited by:** {n_ok}/{n_total} ({ensemble.quorum_state.upper()})")
+    lines.append("")
+    if ensemble.quorum_state == "failed":
+        lines.append("## Audit failed quorum")
+        lines.append("")
+        lines.append(
+            "Too few auditors responded to synthesize a verdict; the pre-scan signals above stand. "
+            "Per-auditor details below."
+        )
+    else:
+        lines.append(f"## Synthesized audit (by {ensemble.aggregator_provider or 'unknown'})")
+        lines.append("")
+        lines.append(ensemble.aggregated_review or "_(no synthesis output)_")
+    lines.append("")
+
+    lines.append("## Raw audits")
+    lines.append("")
+    for r in ensemble.reviews:
+        lines.append(_format_review(r))
+        lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"

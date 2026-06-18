@@ -21,7 +21,7 @@ class DiffChunk:
     text: str = ""
 
 
-def _file_segments(diff_text: str) -> list[DiffChunk]:
+def file_segments(diff_text: str) -> list[DiffChunk]:
     """Split the diff at each `diff --git` header. Text before the first header (rare) is kept."""
     starts = [m.start() for m in _FILE_RE.finditer(diff_text)]
     if not starts:
@@ -85,7 +85,7 @@ def _pack(units: list[DiffChunk], chunk_chars: int) -> list[DiffChunk]:
 def split_diff(diff_text: str, *, chunk_chars: int) -> list[DiffChunk]:
     """Split a unified diff into chunks no larger than ~chunk_chars, preserving file structure."""
     units: list[DiffChunk] = []
-    for seg in _file_segments(diff_text):
+    for seg in file_segments(diff_text):
         if len(seg.text) <= chunk_chars:
             units.append(seg)
         else:
