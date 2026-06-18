@@ -41,12 +41,17 @@ class PRReviewEnsembleSettings(BaseSettings):
     )
     quorum_floor: int = 2
 
-    # Digest pass (single resilient pass, no fan-out). The MVP is single-shot: if the diff exceeds
-    # the budget it fails loudly rather than silently truncating — the chunked/map-reduce path is
-    # the planned follow-on. ~400k chars is roughly 100k input tokens, comfortably inside a
-    # large-context model with room for the digest itself.
+    # Digest pass (single resilient pass, no fan-out). Size-guarded hybrid: a diff at/under
+    # digest_max_diff_chars is digested in one shot; a larger one falls back to map-reduce —
+    # split into per-file chunks, summarize each, then synthesize the digest from the summaries.
+    # ~400k chars is roughly 100k input tokens, comfortably inside a large-context model.
     digest_max_diff_chars: int = 400_000
-    digest_max_tokens: int = 8192
+    digest_max_tokens: int = 8192  # output budget for the single-pass / reduce digest
+    # Map-reduce knobs (used only when the diff is over budget).
+    digest_chunk_chars: int = 100_000  # target size of each map chunk (file diffs are packed to it)
+    digest_map_max_tokens: int = 2048  # output budget for each per-chunk summary
+    digest_map_concurrency: int = 6  # max concurrent map calls against the router
+    digest_max_chunks: int = 40  # hard cap on chunks; extras are dropped with a logged note
 
     # Logging
     log_path: Path = Path(__file__).parent / "logs" / "runs.jsonl"

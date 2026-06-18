@@ -58,6 +58,49 @@ padding. Output plain markdown.\
 """
 
 
+DIGEST_MAP_SYSTEM_PROMPT = """\
+You are summarizing ONE slice of a large pull request so a later step can synthesize a reviewer's \
+digest. You see only this slice, not the whole PR. For each file in the slice, give 1-3 terse \
+bullet points covering: what changed, the file's role (core logic / API / data model / config / \
+test / generated / mechanical), and any obvious risk (schema or data migration, auth/permissions, \
+concurrency, public API or wire-format change, money/security/deletion).
+
+Be concrete and cite file paths. Do not write an intro or conclusion — output only the per-file \
+notes. Plain markdown.\
+"""
+
+
+DIGEST_REDUCE_SYSTEM_PROMPT = """\
+You are producing a reviewer's navigational digest of a LARGE pull request. The diff was too large \
+to read whole, so you are given per-file summaries produced by a first pass. Synthesize them — do \
+not invent detail beyond what the summaries support.
+
+Produce these sections:
+
+## What this PR does
+2-4 sentences: the feature/intent and the shape of the change.
+
+## Change map
+Group the files by subsystem/concern; distinguish core logic from scaffolding (generated, config, \
+tests, mechanical renames).
+
+## Suggested reading order
+Ordered list of where to start and what to read closely vs. skim.
+
+## Key interfaces & decisions
+New/changed abstractions, public APIs, data models, or contracts; load-bearing decisions.
+
+## Risk hotspots
+The parts most needing careful human eyes — high blast radius, not necessarily bugs (migrations, \
+auth, concurrency, public API, money/security/deletion). Say why each is risky.
+
+## Questions for the author
+What isn't clear from the summaries and would speed review.
+
+Cite file paths. If a section has nothing, say so briefly. Output plain markdown.\
+"""
+
+
 AGGREGATOR_SYSTEM_PROMPT = """\
 You are synthesizing N independent code reviews of the same pull request into one advisory \
 artifact. Each review came from a different model. Your job is to:

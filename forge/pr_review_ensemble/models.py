@@ -19,17 +19,21 @@ class ProviderReview(BaseModel):
     error_message: str | None = None
 
 
+DigestStrategy = Literal["single", "map_reduce"]
+
+
 class DigestResult(BaseModel):
-    """One single-pass digest run. ``digest`` is None when the pass failed or the diff was too
-    large for the single-shot MVP (``oversize=True`` — chunked path pending)."""
+    """One digest run. ``digest`` is None only when the pass could not produce anything usable."""
 
     pr_ref: str
     timestamp: datetime
     diff_lines: int
     diff_chars: int
     digest: str | None = None
-    model: str | None = None  # executor label that produced the digest (after any failover)
-    oversize: bool = False  # diff exceeded digest_max_diff_chars; not attempted single-shot
+    model: str | None = None  # executor label that produced the digest (or "fallback:concat")
+    strategy: DigestStrategy = "single"  # "single" (fit in context) or "map_reduce" (chunked)
+    chunks: int = 0  # number of map chunks (0 for single-pass)
+    chunks_dropped: int = 0  # chunks beyond digest_max_chunks that were not summarized
     error: str | None = None
 
 
