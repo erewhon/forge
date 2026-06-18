@@ -1,4 +1,4 @@
-"""Tests for the book_researcher adversarial verification panel (run_panel mocked, no network)."""
+"""Tests for the book_researcher verification panel (run_member_panel mocked, no network)."""
 
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ def test_median_aggregation_and_pass(monkeypatch, tmp_path):
         _score(9, 7, 8, 9, 7, challenges=["c-b"]),
         _score(7, 9, 8, 7, 9, challenges=["c-a"]),
     ]
-    monkeypatch.setattr(verifier, "run_panel", lambda **kw: _panel(resp))
+    monkeypatch.setattr(verifier, "run_member_panel", lambda **kw: _panel(resp))
     res = verifier.verify_sprint(_contract(), _findings())
 
     assert res.scores.source_diversity == 8
@@ -82,7 +82,7 @@ def test_median_robust_to_lone_lenient_grader(monkeypatch, tmp_path):
         _score(4, 4, 4, 4, 4, challenges=["thin sourcing"]),
         _score(4, 4, 4, 4, 4, challenges=["thin sourcing"]),
     ]
-    monkeypatch.setattr(verifier, "run_panel", lambda **kw: _panel(resp))
+    monkeypatch.setattr(verifier, "run_member_panel", lambda **kw: _panel(resp))
     res = verifier.verify_sprint(_contract(), _findings())
     assert res.scores.depth == 4
     assert not res.passed
@@ -91,7 +91,7 @@ def test_median_robust_to_lone_lenient_grader(monkeypatch, tmp_path):
 
 def test_no_responses_falls_back(monkeypatch, tmp_path):
     _use_tmp(monkeypatch, tmp_path)
-    monkeypatch.setattr(verifier, "run_panel", lambda **kw: _panel([], quorum=False))
+    monkeypatch.setattr(verifier, "run_member_panel", lambda **kw: _panel([], quorum=False))
     res = verifier.verify_sprint(_contract(), _findings())
     assert not res.passed
     assert res.scores.overall == 3
@@ -104,7 +104,7 @@ def test_panel_error_falls_back(monkeypatch, tmp_path):
     def boom(**kw):
         raise RuntimeError("router down")
 
-    monkeypatch.setattr(verifier, "run_panel", boom)
+    monkeypatch.setattr(verifier, "run_member_panel", boom)
     res = verifier.verify_sprint(_contract(), _findings())
     assert not res.passed
     assert "router down" in res.feedback

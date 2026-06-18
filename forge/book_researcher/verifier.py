@@ -1,10 +1,12 @@
 """Adversarial verification panel for the book researcher (ensemble harness consumer #3).
 
-The lone verifier became a panel: N diverse router models each adversarially scrutinize the sprint
-findings — score the five dimensions AND list concrete challenges (refutations / gaps). Scores are
-median-aggregated across the panel (robust to a single lenient or harsh model), and the union of
-challenges drives the next sprint's plan. ``verify_sprint`` keeps its signature, its
-``VerificationResult`` output, and its on-disk review write, so the chapter loop is unchanged.
+The lone verifier became a *perspective-diverse* panel: each member gets a distinct lens (source
+quality, claim verification, counter-narrative, depth, actionability) so the union of their
+challenges covers orthogonal failure modes rather than redundantly flagging the same obvious gap.
+Every lens still scores all five dimensions, so scores stay median-aggregated across the panel
+(robust to a single lenient or harsh model). The union of challenges drives the next sprint's plan.
+``verify_sprint`` keeps its signature, its ``VerificationResult`` output, and its on-disk review
+write, so the chapter loop is unchanged.
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ from agents.book_researcher.models import (
     VerificationResult,
     VerificationScores,
 )
-from agents.shared.panel import build_router_executors, run_panel
+from agents.shared.panel import build_lens_members, run_member_panel
 
 _MAX_CHALLENGES = 12
 
@@ -55,6 +57,43 @@ Return ONLY valid JSON:
   "follow_up_questions": ["question to close a gap", "..."]
 }
 """
+
+# Perspective-diverse lenses: each panel member hunts ONE failure mode hardest (while still scoring
+# all five dimensions, so the median aggregation stays robust). The union of their challenges then
+# covers orthogonal gaps instead of every model redundantly flagging the same obvious one.
+_LENSES: tuple[tuple[str, str], ...] = (
+    (
+        "source-quality",
+        "YOUR LENS: SOURCE QUALITY. Scrutinise sourcing above all — are claims backed by diverse, "
+        "credible sources (books, papers, primary documents, reputable journalism), or do they "
+        "lean on a single source, vague 'studies show' attributions, or nothing? Aim your "
+        "challenges at sourcing gaps a fact-checked book cannot ship with.",
+    ),
+    (
+        "claim-verification",
+        "YOUR LENS: CLAIM VERIFICATION. Treat every factual assertion as guilty until sourced — "
+        "flag overstated, uncited, or internally inconsistent claims, and anywhere confidence "
+        "outruns the evidence. Aim your challenges at unverified claims.",
+    ),
+    (
+        "counter-narrative",
+        "YOUR LENS: COUNTER-NARRATIVE DEVIL'S ADVOCATE. Argue the other side — what opposing "
+        "interpretation, disconfirming evidence, received-wisdom trope, or selection bias does "
+        "the research accept uncritically? Aim your challenges at the missing counter-case.",
+    ),
+    (
+        "depth",
+        "YOUR LENS: DEPTH AND SPECIFICITY. Reward concrete dates, figures, named people and "
+        "places, anecdotes, and mechanisms; punish generalities a reader has heard before. Aim "
+        "your challenges at where the research stays shallow.",
+    ),
+    (
+        "actionability",
+        "YOUR LENS: DRAFTABILITY. Judge whether a writer could actually draft a chapter section "
+        "from this as-is, or whether key research must still be done first. Aim your challenges at "
+        "what blocks drafting.",
+    ),
+)
 
 
 def _compute_overall(scores: VerificationScores) -> int:
@@ -140,16 +179,20 @@ def _fallback(contract: SprintContract, reason: str) -> VerificationResult:
 
 def _verify(contract: SprintContract, findings: SprintFindings) -> VerificationResult:
     user_msg = _build_user_message(contract, findings)
-    executors = build_router_executors(
+    members = build_lens_members(
+        _LENSES,
         settings.verifier_panel_models,
         base_url=settings.openai_base_url,
         api_key=settings.openai_api_key,
+        base_system=_SYSTEM_PROMPT,
     )
-    print(f"  Verifying sprint {contract.sprint_id} (panel of {len(executors)})...")
+    print(
+        f"  Verifying sprint {contract.sprint_id} "
+        f"(perspective-diverse panel, {len(members)} lenses)..."
+    )
     try:
-        panel = run_panel(
-            executors=executors,
-            system=_SYSTEM_PROMPT,
+        panel = run_member_panel(
+            members=members,
             user=user_msg,
             floor=settings.verifier_panel_floor,
         )
@@ -178,7 +221,9 @@ def _verify(contract: SprintContract, findings: SprintFindings) -> VerificationR
     )
 
     degraded = "" if panel.quorum_met else " (below floor — degraded)"
-    feedback = f"Adversarial panel: {len(panel.responses)}/{panel.attempted} verifiers{degraded}."
+    feedback = (
+        f"Perspective-diverse panel: {len(panel.responses)}/{panel.attempted} lenses{degraded}."
+    )
     if challenges:
         feedback += " Top concerns: " + " | ".join(challenges[:4])
 

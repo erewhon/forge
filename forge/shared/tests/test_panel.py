@@ -5,7 +5,12 @@ from __future__ import annotations
 import json
 
 from agents.shared.ensemble import ExecResult, ExecStatus, FailureClass, Prompt
-from agents.shared.panel import run_panel
+from agents.shared.panel import (
+    PanelMember,
+    build_lens_members,
+    run_member_panel,
+    run_panel,
+)
 
 
 class FakeExec:
@@ -63,3 +68,62 @@ def test_extracts_json_from_code_fence():
     execs = [FakeExec("a", output="```json\n" + _j({"x": 9}) + "\n```")]
     res = run_panel(executors=execs, system="s", user="u", floor=1)
     assert res.responses == [{"x": 9}]
+
+
+# --- perspective-diverse path (run_member_panel + build_lens_members) ---
+
+
+class CapturingExec:
+    """A fake that echoes the system prompt it was handed, so we can assert each member ran its
+    own lens system prompt rather than a shared one."""
+
+    def __init__(self, label: str) -> None:
+        self.label = label
+        self.seen_system: str | None = None
+
+    async def run(self, prompt: Prompt, *, timeout: float) -> ExecResult:
+        self.seen_system = prompt.system
+        return ExecResult(
+            executor=self.label,
+            status=ExecStatus.OK,
+            output=_j({"lens": prompt.system}),
+            failure_class=FailureClass.NONE,
+            latency_ms=1,
+        )
+
+
+def test_member_panel_runs_each_members_own_system_prompt():
+    members = [
+        PanelMember(executor=CapturingExec("a"), system="LENS-A", label="m/a"),
+        PanelMember(executor=CapturingExec("b"), system="LENS-B", label="m/b"),
+    ]
+    res = run_member_panel(members=members, user="u", floor=2)
+    assert res.attempted == 2
+    assert res.member_labels == ["m/a", "m/b"]  # member labels, not executor labels
+    assert {r["lens"] for r in res.responses} == {"LENS-A", "LENS-B"}
+    assert res.quorum_met
+
+
+def test_build_lens_members_round_robins_models_and_prepends_base():
+    lenses = [
+        ("source", "look at sources"),
+        ("depth", "look at depth"),
+        ("claims", "look at claims"),
+    ]
+    members = build_lens_members(
+        lenses, ["m1", "m2"], base_url="http://x/v1", api_key="k", base_system="BASE"
+    )
+    assert len(members) == 3
+    # models cycle m1, m2, m1
+    assert [m.executor.model for m in members] == ["m1", "m2", "m1"]
+    # label encodes model + lens name; system is base + the lens directive
+    assert members[0].label == "m1/source"
+    assert members[0].system == "BASE\n\nlook at sources"
+    assert members[2].label == "m1/claims"
+
+
+def test_build_lens_members_empty_models_is_empty():
+    members = build_lens_members(
+        [("x", "y")], [], base_url="http://x/v1", api_key="k", base_system="BASE"
+    )
+    assert members == []

@@ -1,4 +1,4 @@
-"""Tests for the adversarial verification panel (run_panel mocked — no network)."""
+"""Tests for the adversarial verification panel (run_member_panel mocked — no network)."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ def test_median_aggregation_and_pass(monkeypatch):
         _score(9, 7, 8, 9, 7, challenges=["c-b"]),
         _score(7, 9, 8, 7, 9, challenges=["c-a"], follow_up_questions=["f2"]),
     ]
-    monkeypatch.setattr(verifier, "run_panel", lambda **kw: _panel(resp))
+    monkeypatch.setattr(verifier, "run_member_panel", lambda **kw: _panel(resp))
     res = verifier.verify_sprint(_topic(), _contract(), _findings())
 
     assert res.scores.source_diversity == 8  # median(8, 9, 7)
@@ -74,7 +74,7 @@ def test_median_is_robust_to_a_lone_lenient_grader(monkeypatch):
         _score(4, 4, 4, 4, 4, challenges=["thin sourcing"]),
         _score(4, 4, 4, 4, 4, challenges=["thin sourcing"]),
     ]
-    monkeypatch.setattr(verifier, "run_panel", lambda **kw: _panel(resp))
+    monkeypatch.setattr(verifier, "run_member_panel", lambda **kw: _panel(resp))
     res = verifier.verify_sprint(_topic(), _contract(), _findings())
     assert res.scores.depth == 4
     assert not res.passed
@@ -82,7 +82,7 @@ def test_median_is_robust_to_a_lone_lenient_grader(monkeypatch):
 
 
 def test_no_responses_falls_back(monkeypatch):
-    monkeypatch.setattr(verifier, "run_panel", lambda **kw: _panel([], quorum=False))
+    monkeypatch.setattr(verifier, "run_member_panel", lambda **kw: _panel([], quorum=False))
     res = verifier.verify_sprint(_topic(), _contract(), _findings())
     assert not res.passed
     assert res.scores.overall == 3
@@ -93,7 +93,7 @@ def test_panel_error_falls_back(monkeypatch):
     def boom(**kw):
         raise RuntimeError("router down")
 
-    monkeypatch.setattr(verifier, "run_panel", boom)
+    monkeypatch.setattr(verifier, "run_member_panel", boom)
     res = verifier.verify_sprint(_topic(), _contract(), _findings())
     assert not res.passed
     assert "router down" in res.feedback
@@ -102,7 +102,7 @@ def test_panel_error_falls_back(monkeypatch):
 def test_degraded_quorum_noted(monkeypatch):
     monkeypatch.setattr(
         verifier,
-        "run_panel",
+        "run_member_panel",
         lambda **kw: _panel([_score(8, 8, 8, 8, 8)], quorum=False, attempted=3),
     )
     res = verifier.verify_sprint(_topic(), _contract(), _findings())
