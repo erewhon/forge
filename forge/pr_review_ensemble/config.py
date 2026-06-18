@@ -41,6 +41,13 @@ class PRReviewEnsembleSettings(BaseSettings):
     )
     quorum_floor: int = 2
 
+    # Digest pass (single resilient pass, no fan-out). The MVP is single-shot: if the diff exceeds
+    # the budget it fails loudly rather than silently truncating — the chunked/map-reduce path is
+    # the planned follow-on. ~400k chars is roughly 100k input tokens, comfortably inside a
+    # large-context model with room for the digest itself.
+    digest_max_diff_chars: int = 400_000
+    digest_max_tokens: int = 8192
+
     # Logging
     log_path: Path = Path(__file__).parent / "logs" / "runs.jsonl"
 

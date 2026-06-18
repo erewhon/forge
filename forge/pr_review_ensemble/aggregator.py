@@ -10,19 +10,8 @@ from __future__ import annotations
 
 from agents.pr_review_ensemble.config import settings
 from agents.pr_review_ensemble.prompts import AGGREGATOR_SYSTEM_PROMPT
-from agents.pr_review_ensemble.providers import ReviewerSlot
-from agents.shared.ensemble import AggregateCombiner, Pool
-
-# Capability-ordered rotation; "local" (LiteLLM on Euclid) is the structural break-glass and
-# always sits last. The configured aggregator_provider is promoted to the front of this order.
-_ROTATION_ORDER = ("anthropic", "opencode_zen", "local")
-
-
-def _aggregator_order() -> list[str]:
-    preferred = settings.aggregator_provider
-    order = [preferred] if preferred in _ROTATION_ORDER else []
-    order += [p for p in _ROTATION_ORDER if p not in order]
-    return order
+from agents.pr_review_ensemble.providers import ReviewerSlot, rotation_pool
+from agents.shared.ensemble import AggregateCombiner
 
 
 def build_aggregator(
@@ -33,9 +22,7 @@ def build_aggregator(
     Reuses each active slot's executor (ApiExecutor is stateless), so the aggregator rotates over
     the same models that reviewed. Inactive (skipped) providers are excluded from the rotation.
     """
-    active = {s.provider: s for s in slots if s.active}
-    executors = [active[p].pool.executors[0] for p in _aggregator_order() if p in active]
-    pool = Pool(role="aggregator", executors=executors)
+    pool = rotation_pool(slots, role="aggregator", preferred=settings.aggregator_provider)
 
     header = (
         f"Pull request: {pr_ref}\n"

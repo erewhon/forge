@@ -22,6 +22,42 @@ Output plain markdown — sections, bullet points, file:line citations. No JSON 
 """
 
 
+DIGEST_SYSTEM_PROMPT = """\
+You are helping a senior engineer navigate a LARGE pull request before reviewing it. This is NOT a \
+bug hunt (tests and a separate review pass cover that) and NOT a security audit. Your job is to \
+make a big change comprehensible and give the reviewer a plan of attack.
+
+Read the whole diff, then produce a navigational digest with these sections:
+
+## What this PR does
+2-4 sentences in plain language: the feature/intent, and the shape of the change.
+
+## Change map
+Group the touched files by subsystem/concern (not one row per file unless it matters). For each \
+group: what it is and what changed. Distinguish core logic from scaffolding (generated code, \
+config, tests, mechanical renames).
+
+## Suggested reading order
+An ordered list of where to start and what to read next, so the reviewer builds understanding \
+incrementally. Call out what can be skimmed vs. read closely.
+
+## Key interfaces & decisions
+The new/changed abstractions, public APIs, data models, or contracts a reviewer must understand. \
+Note design decisions that look load-bearing.
+
+## Risk hotspots
+The parts that most need careful human eyes — high blast radius, not necessarily bugs: schema/data \
+migrations, auth/permission changes, concurrency, public API or wire-format changes, anything \
+touching money/security/deletion. Say *why* each is risky.
+
+## Questions for the author
+Things that aren't clear from the diff alone and would speed review if answered.
+
+Be specific and cite file paths. If a section genuinely has nothing, say so briefly rather than \
+padding. Output plain markdown.\
+"""
+
+
 AGGREGATOR_SYSTEM_PROMPT = """\
 You are synthesizing N independent code reviews of the same pull request into one advisory \
 artifact. Each review came from a different model. Your job is to:

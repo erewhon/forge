@@ -121,3 +121,22 @@ def _opencode_zen_slot() -> ReviewerSlot:
 def build_reviewer_slots() -> list[ReviewerSlot]:
     """The ensemble roster, in a stable order. Diversity (distinct model families) > count."""
     return [_anthropic_slot(), _local_slot(), _opencode_zen_slot()]
+
+
+# Capability-ordered rotation; "local" (LiteLLM on Euclid) is the structural break-glass and
+# always sits last. A `preferred` provider is promoted to the front when it is active.
+ROTATION_ORDER = ("anthropic", "opencode_zen", "local")
+
+
+def rotation_pool(slots: list[ReviewerSlot], *, role: str, preferred: str | None = None) -> Pool:
+    """A failover Pool over the *active* providers in capability-rotation order.
+
+    Shared by the aggregator (synthesize N reviews) and the digest (one resilient pass). Inactive
+    (skipped) providers are excluded; `preferred` (if active) leads, then ROTATION_ORDER fills in.
+    Each active slot's executor is reused (ApiExecutor is stateless), so the pool rotates over the
+    same models the ensemble uses.
+    """
+    active = {s.provider: s for s in slots if s.active}
+    order = [preferred] if preferred in active else []
+    order += [p for p in ROTATION_ORDER if p in active and p not in order]
+    return Pool(role=role, executors=[active[p].pool.executors[0] for p in order])

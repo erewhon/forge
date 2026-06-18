@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from agents.pr_review_ensemble.config import settings
-from agents.pr_review_ensemble.models import EnsembleResult
+from agents.pr_review_ensemble.models import DigestResult, EnsembleResult
 
 
 def log_run(result: EnsembleResult, *, log_path: Path | None = None) -> Path:
@@ -13,6 +13,7 @@ def log_run(result: EnsembleResult, *, log_path: Path | None = None) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
 
     record = {
+        "pass": "review",
         "timestamp": result.timestamp.isoformat(),
         "pr_ref": result.pr_ref,
         "diff_lines": result.diff_lines,
@@ -33,6 +34,30 @@ def log_run(result: EnsembleResult, *, log_path: Path | None = None) -> Path:
             }
             for r in result.reviews
         ],
+    }
+
+    with target.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record) + "\n")
+
+    return target
+
+
+def log_digest(result: DigestResult, *, log_path: Path | None = None) -> Path:
+    """Append one JSONL record for a digest run (shares the log with review runs via `pass`)."""
+    target = log_path or settings.log_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    record = {
+        "pass": "digest",
+        "timestamp": result.timestamp.isoformat(),
+        "pr_ref": result.pr_ref,
+        "diff_lines": result.diff_lines,
+        "diff_chars": result.diff_chars,
+        "model": result.model,
+        "oversize": result.oversize,
+        "ok": result.digest is not None,
+        "error": result.error,
+        "digest_chars": len(result.digest) if result.digest else 0,
     }
 
     with target.open("a", encoding="utf-8") as fh:

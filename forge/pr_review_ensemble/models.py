@@ -19,6 +19,20 @@ class ProviderReview(BaseModel):
     error_message: str | None = None
 
 
+class DigestResult(BaseModel):
+    """One single-pass digest run. ``digest`` is None when the pass failed or the diff was too
+    large for the single-shot MVP (``oversize=True`` — chunked path pending)."""
+
+    pr_ref: str
+    timestamp: datetime
+    diff_lines: int
+    diff_chars: int
+    digest: str | None = None
+    model: str | None = None  # executor label that produced the digest (after any failover)
+    oversize: bool = False  # diff exceeded digest_max_diff_chars; not attempted single-shot
+    error: str | None = None
+
+
 class EnsembleResult(BaseModel):
     pr_ref: str
     timestamp: datetime
