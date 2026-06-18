@@ -70,7 +70,7 @@ def run(ref_date: date | None = None, *, dry_run: bool = False) -> None:
             print("  Not appended (note missing or review already present)")
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Nightly Code Reviewer")
     parser.add_argument(
         "--date",
@@ -83,11 +83,12 @@ def main() -> None:
         action="store_true",
         help="Print report without writing to Nous",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     ref_date = date.fromisoformat(args.date) if args.date else None
     run(ref_date, dry_run=args.dry_run)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

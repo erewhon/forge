@@ -253,7 +253,7 @@ def run(*, project_filter: str | None = None) -> None:
     print(f"Task '{task.task}' completed")
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Autonomous task worker")
     parser.add_argument(
         "--project",
@@ -266,11 +266,12 @@ def main() -> None:
         action="store_true",
         help="Run OpenCode but don't commit or update Nous",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if args.dry_run:
         settings.dry_run = True
     run(project_filter=args.project)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

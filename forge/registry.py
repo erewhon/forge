@@ -55,4 +55,37 @@ REGISTRY: list[AgentCommand] = [
         summary="PR review ensemble (review / digest / supply-chain lenses).",
         module="agents.pr_review_ensemble.main",
     ),
+    # The remaining on-demand agents are CLI-only for now (exposes_mcp=False). `task` autonomously
+    # edits + commits repos (like `edit`); the others write to Nous / files and are human-run, not
+    # the sort of thing to call mid-task. Typed MCP wrappers can be added later if any prove useful.
+    AgentCommand(
+        name="code-review",
+        summary="Nightly code review of recent commits.",
+        module="agents.code_reviewer.main",
+        exposes_mcp=False,
+    ),
+    AgentCommand(
+        name="task",
+        summary="Autonomous Forge task worker (picks, executes, commits).",
+        module="agents.task_worker.main",
+        exposes_mcp=False,
+    ),
+    AgentCommand(
+        name="astro",
+        summary="Scout astronomy events worth streaming; write prep pages to Nous.",
+        module="agents.astro_scout.main",
+        exposes_mcp=False,
+    ),
+    AgentCommand(
+        name="stream",
+        summary="Plan weekly astronomy streams from weather + events.",
+        module="agents.stream_planner.main",
+        exposes_mcp=False,
+    ),
+    AgentCommand(
+        name="dashboard",
+        summary="Generate the weekly life dashboard page.",
+        module="agents.dashboard.main",
+        exposes_mcp=False,
+    ),
 ]

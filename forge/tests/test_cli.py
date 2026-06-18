@@ -61,3 +61,23 @@ def test_help_does_not_import_any_agent(monkeypatch):
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     assert not any(cmd.module in seen for cmd in registry.REGISTRY)
+
+
+def test_every_registered_agent_exposes_a_callable_main():
+    # Guards against a registry entry pointing at an agent that lacks a main(argv) entry point.
+    for cmd in registry.REGISTRY:
+        assert callable(cmd.load_main()), f"{cmd.name} -> {cmd.module} has no callable main"
+
+
+def test_normalized_no_main_agent_routes(monkeypatch):
+    # astro_scout had no main() (it parsed sys.argv[1] directly); the new main(argv) must route.
+    captured: dict = {}
+
+    def fake_main(argv):
+        captured["argv"] = argv
+        return 0
+
+    monkeypatch.setattr("agents.astro_scout.main.main", fake_main)
+    result = runner.invoke(app, ["astro", "2026-06-18"])
+    assert result.exit_code == 0
+    assert captured["argv"] == ["2026-06-18"]
