@@ -72,6 +72,12 @@ REGISTRY: list[AgentCommand] = [
         exposes_mcp=False,
     ),
     AgentCommand(
+        name="refactor",
+        summary="Multi-model refactoring review: find smells, verify safe+worthwhile, plan them.",
+        module="agents.refactor_ensemble.main",
+        exposes_mcp=False,
+    ),
+    AgentCommand(
         name="code-review",
         summary="Nightly code review of recent commits.",
         module="agents.code_reviewer.main",
