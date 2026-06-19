@@ -66,6 +66,12 @@ REGISTRY: list[AgentCommand] = [
         exposes_mcp=False,
     ),
     AgentCommand(
+        name="testing",
+        summary="Multi-model test-coverage review: find untested behavior, suggest tests.",
+        module="agents.testing_ensemble.main",
+        exposes_mcp=False,
+    ),
+    AgentCommand(
         name="code-review",
         summary="Nightly code review of recent commits.",
         module="agents.code_reviewer.main",
