@@ -73,20 +73,22 @@ class ApiExecutor:
             )
 
     async def _call(self, prompt: Prompt) -> str:
+        # Each call opens its own client inside an ``async with`` so the underlying httpx
+        # transport is closed *within* this event loop. Pools drive several sequential
+        # ``asyncio.run`` loops, and a client left open gets GC'd against an already-closed loop —
+        # the harmless-but-noisy "RuntimeError: Event loop is closed" at interpreter shutdown.
+        # Closing it here silences that.
         if self.kind == "anthropic":
             import anthropic
 
-            client = (
-                anthropic.AsyncAnthropic(api_key=self.api_key)
-                if self.api_key
-                else anthropic.AsyncAnthropic()
-            )
-            response = await client.messages.create(
-                model=self.model,
-                max_tokens=prompt.max_tokens,
-                system=prompt.system,
-                messages=[{"role": "user", "content": prompt.user}],
-            )
+            kwargs = {"api_key": self.api_key} if self.api_key else {}
+            async with anthropic.AsyncAnthropic(**kwargs) as client:
+                response = await client.messages.create(
+                    model=self.model,
+                    max_tokens=prompt.max_tokens,
+                    system=prompt.system,
+                    messages=[{"role": "user", "content": prompt.user}],
+                )
             for block in response.content:
                 if block.type == "text":
                     return block.text
@@ -94,12 +96,12 @@ class ApiExecutor:
 
         import openai
 
-        client = openai.AsyncOpenAI(base_url=self.base_url, api_key=self.api_key)
         messages: list[dict[str, str]] = []
         if prompt.system:
             messages.append({"role": "system", "content": prompt.system})
         messages.append({"role": "user", "content": prompt.user})
-        response = await client.chat.completions.create(
-            model=self.model, max_tokens=prompt.max_tokens, messages=messages
-        )
+        async with openai.AsyncOpenAI(base_url=self.base_url, api_key=self.api_key) as client:
+            response = await client.chat.completions.create(
+                model=self.model, max_tokens=prompt.max_tokens, messages=messages
+            )
         return response.choices[0].message.content or ""
