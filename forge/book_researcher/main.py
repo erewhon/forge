@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import yaml
@@ -11,6 +12,7 @@ from agents.book_researcher.models import BookConfig, SprintFindings
 from agents.book_researcher.planner import create_sprint
 from agents.book_researcher.renderer import render_knowledge_summary, render_verification
 from agents.book_researcher.researcher import execute_sprint
+from agents.book_researcher.scaffold import DEFAULT_FILENAME, write_skeleton
 from agents.book_researcher.verifier import verify_sprint
 
 
@@ -196,9 +198,48 @@ def print_summary(config_path: str) -> None:
     print(summary)
 
 
-def main(argv: list[str] | None = None) -> int:
+def _init(argv: list[str]) -> int:
+    """`meta book init [path]` — write a skeleton book config to edit."""
     parser = argparse.ArgumentParser(
-        description="Book research harness using generator-evaluator sprint cycles"
+        prog="meta book init",
+        description="Write a skeleton book config YAML to fill in",
+    )
+    parser.add_argument(
+        "path",
+        nargs="?",
+        default=None,
+        help=f"Where to write it (default: ./{DEFAULT_FILENAME}; a directory gets "
+        f"{DEFAULT_FILENAME} appended)",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite the file if it already exists",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        target = write_skeleton(args.path, force=args.force)
+    except FileExistsError as e:
+        print(f"error: {e} already exists (use --force to overwrite)", file=sys.stderr)
+        return 1
+    except OSError as e:
+        print(f"error: could not write skeleton: {e}", file=sys.stderr)
+        return 1
+
+    print(f"Wrote book config skeleton to {target}")
+    print(f"Edit it, then run:  meta book {target} --max-sprints 10")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] == "init":
+        return _init(argv[1:])
+
+    parser = argparse.ArgumentParser(
+        description="Book research harness using generator-evaluator sprint cycles",
+        epilog="Subcommand: `init [path]` writes a skeleton book config to fill in.",
     )
     parser.add_argument("config", help="Path to book config YAML/JSON file")
     parser.add_argument(

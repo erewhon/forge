@@ -75,8 +75,16 @@ knowledge/
 
 ## Usage
 
-Write a book config (see `examples/sample-book.yaml`) — chapters with
-research questions per chapter:
+Scaffold a config to start (writes `./book.yaml`, refuses to clobber without
+`--force`):
+
+```bash
+meta book init                 # or: meta book init path/to/book.yaml
+```
+
+The skeleton already validates, so you can `--dry-run` it immediately. Or write
+one by hand (see `examples/sample-book.yaml`) — chapters with research questions
+per chapter:
 
 ```yaml
 title: "My Book"
