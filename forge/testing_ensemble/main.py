@@ -9,6 +9,41 @@ from pathlib import Path
 from agents.testing_ensemble.review import render, run_review
 
 
+def _run_auto(args: argparse.Namespace) -> int:
+    """`meta testing --auto ...` — the generate → gate → push/merge loop."""
+    from agents.shared.automerge import find_repo_root
+    from agents.testing_ensemble.autotest import auto_test, render_auto
+
+    if args.repo:
+        repo_path = Path(args.repo).expanduser().resolve()
+    else:
+        repo_path = find_repo_root(Path(args.paths[0])) or Path.cwd()
+
+    try:
+        result = auto_test(
+            args.paths,
+            repo_path=repo_path,
+            focus=args.focus,
+            project=args.project,
+            auto_merge=args.auto_merge,
+            max_gaps=args.max_gaps,
+            min_severity=args.min_severity,
+            branch_prefix=args.branch_prefix,
+            dry_run=args.dry_run,
+            log=lambda m: print(f"  auto: {m}", file=sys.stderr),
+        )
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    if args.output:
+        Path(args.output).write_text(render_auto(result) + "\n")
+        print(f"Report written to {args.output}", file=sys.stderr)
+    else:
+        sys.stdout.write(render_auto(result) + "\n")
+    return 1 if result.status == "error" else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Adversarial multi-model test-coverage review (discover → dedup → verify)"
@@ -45,11 +80,49 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="With --emit-tasks: print what would be created, create nothing",
     )
+    auto = parser.add_argument_group("auto-merge (--auto): generate tests, gate, and push a branch")
+    auto.add_argument(
+        "--auto",
+        action="store_true",
+        help="Generate tests for confirmed gaps, gate (tests-only + green + full-quorum sign-off), "
+        "and push a branch. Blocked gates revert and fall back to --emit-tasks.",
+    )
+    auto.add_argument(
+        "--auto-merge",
+        action="store_true",
+        help="With --auto: also advance `main` to the branch when every gate passes (loaded).",
+    )
+    auto.add_argument(
+        "--repo",
+        default=None,
+        help="Repo root for VCS actions (default: derived from the first path, else cwd)",
+    )
+    auto.add_argument(
+        "--max-gaps",
+        type=int,
+        default=None,
+        help="Cap generated tests per --auto run (default: TESTING_ENSEMBLE_auto_max_gaps)",
+    )
+    auto.add_argument(
+        "--branch-prefix",
+        default="auto-tests",
+        help="Branch/bookmark name prefix for --auto (default: auto-tests)",
+    )
+    auto.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="With --auto: plan only — no test generation, gating, or VCS writes",
+    )
     args = parser.parse_args(argv)
 
     if args.emit_tasks and not args.project:
         print("error: --emit-tasks requires --project", file=sys.stderr)
         return 2
+    if args.auto_merge and not args.auto:
+        print("error: --auto-merge requires --auto", file=sys.stderr)
+        return 2
+    if args.auto:
+        return _run_auto(args)
 
     try:
         report = run_review(args.paths, args.focus)
