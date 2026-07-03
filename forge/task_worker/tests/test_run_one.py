@@ -56,7 +56,7 @@ def wired(monkeypatch, tmp_path):
         tw,
         "execute_task_with_opencode",
         lambda task, spec, pdir, model, timeout, sandbox=None: (
-            events.append("execute") or (True, "ok")
+            events.append("execute") or (True, "ok", False)
         ),
     )
     monkeypatch.setattr(tw, "run_tests", lambda p, sandbox=None: (True, "all green"))
@@ -168,11 +168,39 @@ def test_tests_fail_reverts_and_reopens(wired, monkeypatch):
     assert wired.index("revert") < wired.index(("status", "Ready"))
 
 
-def test_opencode_failure_reverts_and_reopens(wired, monkeypatch):
-    monkeypatch.setattr(tw, "execute_task_with_opencode", lambda *a, **k: (False, "model exploded"))
+def test_opencode_failure_without_diff_reverts_and_reopens(wired, monkeypatch):
+    monkeypatch.setattr(
+        tw, "execute_task_with_opencode", lambda *a, **k: (False, "model exploded", False)
+    )
+    monkeypatch.setattr(tw, "get_changed_files", lambda p: [])  # nothing left behind
     out = tw.run_one(_task())
     assert out.status == "failed"
     assert "opencode failed" in out.reason
+    assert wired.index("revert") < wired.index(("status", "Ready"))
+
+
+def test_opencode_nonzero_exit_with_diff_proceeds_to_gates(wired, monkeypatch):
+    # Session-end plugin crashes fail the process after the model finished (observed:
+    # open-mem missing its API key). Exit code is advisory — the gates decide.
+    monkeypatch.setattr(
+        tw, "execute_task_with_opencode", lambda *a, **k: (False, "plugin died at exit", False)
+    )
+    out = tw.run_one(_task())
+    assert out.status == "done"  # scope + tests + commit all ran and passed
+    assert out.commit_id == "abc123"
+    assert "revert" not in wired
+
+
+def test_model_blocked_refusal_always_reverts(wired, monkeypatch):
+    # An explicit BLOCKED refusal reverts even though a diff exists — never gate-check
+    # work the model itself disowned.
+    monkeypatch.setattr(
+        tw, "execute_task_with_opencode", lambda *a, **k: (False, "BLOCKED: missing dep", True)
+    )
+    out = tw.run_one(_task())
+    assert out.status == "failed"
+    assert "BLOCKED" in out.reason
+    assert "commit" not in wired
     assert wired.index("revert") < wired.index(("status", "Ready"))
 
 

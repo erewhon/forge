@@ -132,8 +132,10 @@ def _task() -> TaskInfo:
 
 def test_executor_runs_opencode_via_sandbox_and_cleans_spec(tmp_path):
     box = FakeSandbox(tmp_path, stdout="did the thing")
-    ok, tail = ex.execute_task_with_opencode(_task(), "SPEC", tmp_path, "auto", 60, sandbox=box)
-    assert ok
+    ok, tail, blocked = ex.execute_task_with_opencode(
+        _task(), "SPEC", tmp_path, "auto", 60, sandbox=box
+    )
+    assert ok and not blocked
     assert box.commands and box.commands[0][0] == "opencode"
     assert "llm/auto" in box.commands[0]
     leftover = list((tmp_path / ".task_worker").glob("spec-*.md"))
@@ -142,18 +144,24 @@ def test_executor_runs_opencode_via_sandbox_and_cleans_spec(tmp_path):
 
 def test_executor_blocked_marker_fails_via_sandbox(tmp_path):
     box = FakeSandbox(tmp_path, stdout="BLOCKED: cannot proceed")
-    ok, tail = ex.execute_task_with_opencode(_task(), "SPEC", tmp_path, "auto", 60, sandbox=box)
-    assert not ok
+    ok, tail, blocked = ex.execute_task_with_opencode(
+        _task(), "SPEC", tmp_path, "auto", 60, sandbox=box
+    )
+    assert not ok and blocked
     assert "BLOCKED" in tail
 
 
 def test_executor_blocked_marker_detected_through_ansi(tmp_path):
     box = FakeSandbox(tmp_path, stdout="work done\n\x1b[91mBLOCKED:\x1b[0m missing dep\n")
-    ok, _ = ex.execute_task_with_opencode(_task(), "SPEC", tmp_path, "auto", 60, sandbox=box)
-    assert not ok
+    ok, _, blocked = ex.execute_task_with_opencode(
+        _task(), "SPEC", tmp_path, "auto", 60, sandbox=box
+    )
+    assert not ok and blocked
 
 
 def test_executor_mid_line_blocked_mention_is_not_a_refusal(tmp_path):
     box = FakeSandbox(tmp_path, stdout="I will print BLOCKED: only if I cannot proceed. Done.")
-    ok, _ = ex.execute_task_with_opencode(_task(), "SPEC", tmp_path, "auto", 60, sandbox=box)
-    assert ok
+    ok, _, blocked = ex.execute_task_with_opencode(
+        _task(), "SPEC", tmp_path, "auto", 60, sandbox=box
+    )
+    assert ok and not blocked

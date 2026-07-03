@@ -185,25 +185,54 @@ def run_one(task: TaskInfo, *, spec: str | None = None) -> RunOutcome:
     model = task.model_tier or settings.model_tier_default
     print(f"Executing with model llm/{model}...")
     try:
-        success, stdout_tail = execute_task_with_opencode(
+        success, stdout_tail, blocked = execute_task_with_opencode(
             task, spec, project_dir, model, settings.task_timeout_seconds, sandbox=sandbox
         )
     except Exception as e:  # noqa: BLE001
         success = False
         stdout_tail = f"executor raised: {e}"
+        blocked = False
 
     duration = time.time() - exec_start
     print(f"OpenCode finished in {duration:.1f}s (success={success})")
 
-    if not success:
-        print(f"OpenCode failed, reverting. Tail: {_tail(stdout_tail, 200)}")
-        _safe_revert(project_dir, "post-opencode-failure")
+    if blocked:
+        print(f"Model reported BLOCKED, reverting. Tail: {_tail(stdout_tail, 200)}")
+        _safe_revert(project_dir, "model-blocked")
         nw = _safe_status(
             task.task,
             "Ready",
-            notes=f"Autonomous worker failed:\n\n{_tail(stdout_tail, 500)}",
+            notes=f"Worker model reported BLOCKED:\n\n{_tail(stdout_tail, 500)}",
         )
-        return _outcome("failed", f"opencode failed: {_tail(stdout_tail, 200)}", notes_written=nw)
+        return _outcome(
+            "failed", f"model reported BLOCKED: {_tail(stdout_tail, 200)}", notes_written=nw
+        )
+
+    if not success:
+        # A bare non-zero exit is advisory: session-end plugin crashes (observed:
+        # open-mem missing its in-container API key) fail the process after the model
+        # finished. If a diff exists, the gates below are the real arbiter — a
+        # truncated or bad diff fails scope/tests and reverts there. No diff = a
+        # genuine startup/run failure.
+        try:
+            leftover = get_changed_files(project_dir)
+        except VCSError:
+            leftover = []
+        if not leftover:
+            print(f"OpenCode failed, reverting. Tail: {_tail(stdout_tail, 200)}")
+            _safe_revert(project_dir, "post-opencode-failure")
+            nw = _safe_status(
+                task.task,
+                "Ready",
+                notes=f"Autonomous worker failed:\n\n{_tail(stdout_tail, 500)}",
+            )
+            return _outcome(
+                "failed", f"opencode failed: {_tail(stdout_tail, 200)}", notes_written=nw
+            )
+        print(
+            f"OpenCode exited non-zero but left {len(leftover)} changed file(s) — "
+            f"proceeding to the gates (exit code is advisory; gates decide)."
+        )
 
     # 7. Check scope
     try:

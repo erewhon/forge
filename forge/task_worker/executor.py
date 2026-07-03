@@ -88,8 +88,13 @@ def execute_task_with_opencode(
     model: str,
     timeout: int,
     sandbox: Sandbox | None = None,
-) -> tuple[bool, str]:
-    """Run the task inside the project's sandbox. Returns (success, stdout_tail).
+) -> tuple[bool, str, bool]:
+    """Run the task inside the project's sandbox. Returns (success, stdout_tail, blocked).
+
+    ``blocked`` is True only for an explicit model refusal (a BLOCKED: line) — the caller
+    must revert. A bare non-zero exit is advisory: plugins crashing at session end (observed:
+    open-mem with no in-container API key) fail the process after the model finished, so the
+    caller decides based on whether a diff was left behind.
 
     The spec is written to `<project>/.task_worker/spec-<id>-<uuid>.md`; the
     opencode prompt tells the model to read that file. File is deleted on the
@@ -125,13 +130,13 @@ def execute_task_with_opencode(
         out = e.stdout if isinstance(e.stdout, str) else ""
         err = e.stderr if isinstance(e.stderr, str) else ""
         _cleanup_spec(spec_path)
-        return False, _tail(f"TIMEOUT after {timeout}s\n{out}\n{err}")
+        return False, _tail(f"TIMEOUT after {timeout}s\n{out}\n{err}"), False
     except FileNotFoundError:
         _cleanup_spec(spec_path)
-        return False, "gaol binary not found on PATH"
+        return False, "gaol binary not found on PATH", False
     except Exception as e:  # noqa: BLE001
         _cleanup_spec(spec_path)
-        return False, f"dx_run raised: {e}"
+        return False, f"dx_run raised: {e}", False
 
     combined = (result.stdout or "") + "\n" + (result.stderr or "")
     tail = _tail(combined)
@@ -140,6 +145,6 @@ def execute_task_with_opencode(
 
     # An explicit BLOCKED marker means the model chose not to proceed.
     if _BLOCKED_LINE_RE.search(_ANSI_RE.sub("", combined)):
-        return False, tail
+        return False, tail, True
 
-    return result.returncode == 0, tail
+    return result.returncode == 0, tail, False
