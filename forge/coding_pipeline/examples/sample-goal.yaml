@@ -1,0 +1,11 @@
+# Example goal spec for `meta build plan` (a .md file with this as YAML frontmatter also works —
+# the markdown body is appended to `context`).
+goal: "Add a JSON export command to the notes CLI"
+project: "Notes"
+context: >
+  The CLI already has `notes list` and `notes show`. Export should reuse the existing query
+  layer, not reimplement filtering. Output must be stable enough to diff between runs.
+value_hints:
+  - "a working `notes export --json` for the default notebook ships first"
+  - "filter flags and pretty-printing are polish"
+epic_slug: notes-json-export
