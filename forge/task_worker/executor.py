@@ -19,9 +19,19 @@ if TYPE_CHECKING:
     from agents.task_worker.sandbox import Sandbox
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-# The refusal protocol is a LINE starting with "BLOCKED:". Line-anchored (after ANSI strip) so
-# model narration that merely mentions the marker mid-sentence doesn't read as a refusal.
+# The refusal protocol is "print a line starting with BLOCKED: and STOP" — so a genuine refusal
+# sits at the END of the transcript. Only the tail window is scanned (line-anchored, ANSI
+# stripped): earlier occurrences are quoted material (the transcript includes the model reading
+# the spec file, whose rules text mentions the marker and can wrap to a line start).
 _BLOCKED_LINE_RE = re.compile(r"(?im)^\s*blocked:")
+_BLOCKED_TAIL_LINES = 15
+
+
+def _model_refused(combined: str) -> bool:
+    clean = _ANSI_RE.sub("", combined)
+    tail_lines = [line for line in clean.splitlines() if line.strip()][-_BLOCKED_TAIL_LINES:]
+    return _BLOCKED_LINE_RE.search("\n".join(tail_lines)) is not None
+
 
 _STDOUT_TAIL = 500
 _SPEC_DIR = ".task_worker"
@@ -143,8 +153,8 @@ def execute_task_with_opencode(
 
     _cleanup_spec(spec_path)
 
-    # An explicit BLOCKED marker means the model chose not to proceed.
-    if _BLOCKED_LINE_RE.search(_ANSI_RE.sub("", combined)):
+    # An explicit BLOCKED marker at the end of the transcript means the model refused.
+    if _model_refused(combined):
         return False, tail, True
 
     return result.returncode == 0, tail, False

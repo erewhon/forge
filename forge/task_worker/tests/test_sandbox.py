@@ -165,3 +165,27 @@ def test_executor_mid_line_blocked_mention_is_not_a_refusal(tmp_path):
         _task(), "SPEC", tmp_path, "auto", 60, sandbox=box
     )
     assert ok and not blocked
+
+
+def test_executor_quoted_spec_early_in_transcript_is_not_a_refusal(tmp_path):
+    # The transcript includes the model READING the spec file, whose rules text can wrap
+    # so that "BLOCKED:" lands at a line start — early occurrences must not count
+    # (found by dogfood: a completed run was reverted as a false refusal).
+    quoted_spec = (
+        "reading spec...\nIf you cannot proceed, print a line starting with\nBLOCKED: and stop.\n"
+    )
+    work = "\n".join(f"[ok] step {i} done" for i in range(30))
+    box = FakeSandbox(tmp_path, stdout=quoted_spec + work)
+    ok, _, blocked = ex.execute_task_with_opencode(
+        _task(), "SPEC", tmp_path, "auto", 60, sandbox=box
+    )
+    assert ok and not blocked
+
+
+def test_executor_refusal_at_end_of_long_transcript_fires(tmp_path):
+    work = "\n".join(f"[ok] step {i}" for i in range(30))
+    box = FakeSandbox(tmp_path, stdout=work + "\nBLOCKED: dependency missing\n")
+    ok, _, blocked = ex.execute_task_with_opencode(
+        _task(), "SPEC", tmp_path, "auto", 60, sandbox=box
+    )
+    assert not ok and blocked
