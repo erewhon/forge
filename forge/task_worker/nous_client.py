@@ -1,7 +1,7 @@
 """Interactions with the Nous notebook: find tasks, read specs, update status.
 
 Uses:
-- nous_mcp.storage.NousStorage for direct filesystem reads (databases, pages).
+- nous_mcp.storage.NousStorage (daemon-backed) for reads (databases, pages).
 - nous_mcp.daemon_client.NousDaemonClient for HTTP writes (tag/row updates,
   page appends). The daemon exposes the same endpoints we'd otherwise have
   to re-implement, so we delegate to it.
@@ -20,6 +20,7 @@ from nous_mcp.workflow import (
     ALL_STATUS_TAGS,
     STATUS_TAG_MAP,
     _find_task_row,
+    _is_task_blocked,
     _query_tasks,
 )
 
@@ -28,7 +29,8 @@ from agents.task_worker.models import TaskInfo
 
 
 def _get_storage() -> NousStorage:
-    return NousStorage(settings.nous_data_dir)
+    # NousStorage is daemon-backed now (the constructor takes a client, not a data dir).
+    return NousStorage(_get_daemon())
 
 
 def _get_daemon() -> NousDaemonClient:
@@ -41,8 +43,7 @@ def _read_db_content() -> dict:
     content = storage.read_database_content(settings.notebook_id, settings.database_id)
     if content is None:
         raise RuntimeError(
-            f"Database '{settings.database_name}' not found in notebook "
-            f"'{settings.notebook_name}'"
+            f"Database '{settings.database_name}' not found in notebook '{settings.notebook_name}'"
         )
     return content
 
@@ -86,6 +87,62 @@ def _task_from_raw(raw: dict) -> TaskInfo:
     )
 
 
+def _normalize_task_name(task_name: str) -> str:
+    name = task_name.strip()
+    if name.lower().startswith("task: "):
+        name = name[6:].strip()
+    return name
+
+
+def _find_raw_task(db_content: dict, task_name: str) -> dict | None:
+    """Find a task row dict (any status, including Done) by case-insensitive title match."""
+    name = _normalize_task_name(task_name).lower()
+    for raw in _query_tasks(db_content, include_done=True, limit=None):
+        if str(raw.get("task", "")).strip().lower() == name:
+            return raw
+    return None
+
+
+def find_task(task_name: str) -> TaskInfo | None:
+    """Resolve a named task (any status) to a TaskInfo, or None if it doesn't exist.
+
+    For callers that dispatch a *specific* task (the coding pipeline's dispatcher) rather than
+    picking the next worker-ready one. Resolution alone grants nothing: ``run_one`` re-checks
+    the worker gate itself before touching anything.
+    """
+    raw = _find_raw_task(_read_db_content(), task_name)
+    return _task_from_raw(raw) if raw is not None else None
+
+
+def _gate_reason(status: str, execution_mode: str, blocking: list[str]) -> str:
+    """Pure worker-gate decision: '' when Ready AND Auto AND unblocked, else the refusal reason.
+
+    Null execution_mode is Manual (null-as-manual, same as the query filters).
+    """
+    if status.strip().lower() != "ready":
+        return f"status is '{status}', not Ready"
+    mode = (execution_mode or "Manual").strip()
+    if mode.lower() not in {"auto-ok", "auto-preferred"}:
+        return f"execution_mode is '{mode}', not Auto-OK/Auto-Preferred"
+    if blocking:
+        return f"blocked by unmet dependencies: {', '.join(blocking)}"
+    return ""
+
+
+def check_worker_gate(task_name: str) -> str:
+    """Fresh-read worker-gate check for one named task. '' = allowed; else the refusal reason.
+
+    Reads the database again rather than trusting the caller's TaskInfo, so a task retagged
+    or blocked after selection is refused.
+    """
+    db_content = _read_db_content()
+    raw = _find_raw_task(db_content, task_name)
+    if raw is None:
+        return f"task '{_normalize_task_name(task_name)}' not found in the tasks database"
+    _, blocking = _is_task_blocked(raw, db_content)
+    return _gate_reason(str(raw.get("status", "")), str(raw.get("execution_mode", "")), blocking)
+
+
 def find_next_task(allowed_projects: list[str]) -> TaskInfo | None:
     """Find the highest-priority worker-ready task.
 
@@ -101,8 +158,6 @@ def find_next_task(allowed_projects: list[str]) -> TaskInfo | None:
     # worker_ready=True applies the implicit filters. _query_tasks does not
     # run the blocked post-filter itself (that happens upstream in the MCP
     # tool), so we replicate it here.
-    from nous_mcp.workflow import _is_task_blocked
-
     raw_tasks = _query_tasks(db_content, worker_ready=True, limit=None)
     unblocked: list[dict] = []
     for t in raw_tasks:
@@ -157,9 +212,7 @@ def get_task_spec(task_name: str) -> str:
         try:
             page = daemon.resolve_page(notebook_id, name)
         except Exception as e:
-            raise ValueError(
-                f"Task page not found: tried '{page_title}' and '{name}'"
-            ) from e
+            raise ValueError(f"Task page not found: tried '{page_title}' and '{name}'") from e
 
     page_content = export_page_to_markdown(page)
 
@@ -255,13 +308,10 @@ def get_task_spec(task_name: str) -> str:
         guardrails.append("> **Note:** This task is already marked Done.")
     elif status.lower() == "in progress":
         guardrails.append(
-            "> **Warning:** This task is already In Progress "
-            "— another agent may be working on it."
+            "> **Warning:** This task is already In Progress — another agent may be working on it."
         )
     if blocking:
-        guardrails.append(
-            f"> **Blocked:** Dependencies not yet Done: {', '.join(blocking)}"
-        )
+        guardrails.append(f"> **Blocked:** Dependencies not yet Done: {', '.join(blocking)}")
 
     parts: list[str] = []
     if guardrails:
@@ -275,7 +325,8 @@ def get_task_spec(task_name: str) -> str:
     parts.append(f"- **Phase:** {phase}")
     parts.append(f"- **External Ref:** {external_ref}")
     parts.append(
-        f"- **Execution Mode:** {exec_mode}" if exec_mode
+        f"- **Execution Mode:** {exec_mode}"
+        if exec_mode
         else "- **Execution Mode:** Manual (default)"
     )
     if model_tier_val:
@@ -333,9 +384,7 @@ def update_task_status(task: str, status: str, notes: str = "") -> None:
     page = _resolve_task_page(daemon, name)
     current_tags: list[str] = page.get("tags", []) or []
     new_tags = [t for t in current_tags if t.lower() not in ALL_STATUS_TAGS]
-    new_status_tag = STATUS_TAG_MAP.get(
-        status.lower(), status.lower().replace(" ", "-")
-    )
+    new_status_tag = STATUS_TAG_MAP.get(status.lower(), status.lower().replace(" ", "-"))
     new_tags.append(new_status_tag)
     daemon.update_page(notebook_id, page["id"], tags=new_tags)
 
@@ -355,10 +404,6 @@ def update_task_status(task: str, status: str, notes: str = "") -> None:
     # 3. Append implementation notes
     if notes:
         today_iso = date.today().isoformat()
-        notes_md = (
-            f"\n\n## Implementation Notes\n\n"
-            f"### {today_iso} — Status: {status}\n\n"
-            f"{notes}\n"
-        )
+        notes_md = f"\n\n## Implementation Notes\n\n### {today_iso} — Status: {status}\n\n{notes}\n"
         blocks = markdown_to_blocks(notes_md)
         daemon.append_to_page(notebook_id, page["id"], blocks=blocks)

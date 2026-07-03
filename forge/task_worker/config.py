@@ -11,7 +11,6 @@ class TaskWorkerSettings(BaseSettings):
 
     # Paths
     projects_dir: Path = Path.home() / "Projects" / "erewhon"
-    nous_data_dir: Path = Path.home() / ".local" / "share" / "nous"
 
     # Nous targets
     notebook_name: str = "Forge"
@@ -35,13 +34,17 @@ class TaskWorkerSettings(BaseSettings):
 
     # --- Derived properties ---
 
+    def _storage(self):
+        """Daemon-backed NousStorage (the constructor takes a client, not a data dir)."""
+        from nous_mcp.daemon_client import NousDaemonClient
+        from nous_mcp.storage import NousStorage
+
+        return NousStorage(NousDaemonClient(base_url=self.daemon_url))
+
     @cached_property
     def notebook_id(self) -> str:
         """Resolve notebook_name to its UUID via NousStorage."""
-        from nous_mcp.storage import NousStorage
-
-        storage = NousStorage(self.nous_data_dir)
-        nb = storage.resolve_notebook(self.notebook_name)
+        nb = self._storage().resolve_notebook(self.notebook_name)
         return nb["id"]
 
     @cached_property
@@ -51,9 +54,7 @@ class TaskWorkerSettings(BaseSettings):
         Restricted to pages with pageType=='database' to disambiguate when a
         regular page shares the same title.
         """
-        from nous_mcp.storage import NousStorage
-
-        storage = NousStorage(self.nous_data_dir)
+        storage = self._storage()
         name_lower = self.database_name.lower()
         all_dbs = storage.list_database_pages(self.notebook_id)
 
@@ -63,25 +64,17 @@ class TaskWorkerSettings(BaseSettings):
             seen.setdefault(p["id"], p)
         db_pages = list(seen.values())
 
-        candidates = [
-            p for p in db_pages if p.get("title", "").lower() == name_lower
-        ]
+        candidates = [p for p in db_pages if p.get("title", "").lower() == name_lower]
         if not candidates:
-            candidates = [
-                p for p in db_pages
-                if p.get("title", "").lower().startswith(name_lower)
-            ]
+            candidates = [p for p in db_pages if p.get("title", "").lower().startswith(name_lower)]
         if len(candidates) == 1:
             return candidates[0]["id"]
         if not candidates:
             raise ValueError(
-                f"No database page titled '{self.database_name}' in notebook "
-                f"'{self.notebook_name}'"
+                f"No database page titled '{self.database_name}' in notebook '{self.notebook_name}'"
             )
         titles = [c.get("title", "") for c in candidates]
-        raise ValueError(
-            f"Ambiguous database name '{self.database_name}': {titles}"
-        )
+        raise ValueError(f"Ambiguous database name '{self.database_name}': {titles}")
 
 
 settings = TaskWorkerSettings()

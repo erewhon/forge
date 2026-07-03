@@ -1,0 +1,204 @@
+"""run_one orchestration tests — every IO boundary (Nous, dx, VCS, tester, OpenCode) mocked.
+
+The decision flow is under test: the fresh-read gate refusal, each failure path's distinct
+reason, revert-before-status ordering, and the happy-path commit.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from agents.task_worker import main as tw
+from agents.task_worker.models import TaskInfo
+from agents.task_worker.nous_client import _gate_reason
+
+
+def _task(**overrides) -> TaskInfo:
+    base = dict(
+        id="row-1",
+        task="Pipeline: wave planner",
+        project="Meta",
+        status="Ready",
+        priority=2,
+        execution_mode="Auto-OK",
+        max_files=5,
+        requires_tests=True,
+    )
+    base.update(overrides)
+    return TaskInfo.model_validate(base)
+
+
+@pytest.fixture
+def wired(monkeypatch, tmp_path):
+    """Happy path across every boundary; returns an ordered event log for sequence asserts."""
+    events: list = []
+    (tmp_path / "Meta").mkdir()
+    monkeypatch.setattr(tw.settings, "projects_dir", tmp_path)
+    monkeypatch.setattr(tw.settings, "dry_run", False)
+    monkeypatch.setattr(tw.settings, "default_max_files", 5)
+
+    monkeypatch.setattr(tw, "check_worker_gate", lambda name: "")
+    monkeypatch.setattr(tw, "get_task_spec", lambda name: "SPEC BODY")
+    monkeypatch.setattr(tw, "detect_vcs", lambda p: "jj")
+    monkeypatch.setattr(tw, "check_dx_ready", lambda p: (True, "Status: running"))
+
+    changed_calls = {"n": 0}
+
+    def fake_changed(p):
+        changed_calls["n"] += 1
+        return [] if changed_calls["n"] == 1 else ["agents/x.py", "agents/tests/test_x.py"]
+
+    monkeypatch.setattr(tw, "get_changed_files", fake_changed)
+    monkeypatch.setattr(
+        tw,
+        "execute_task_with_opencode",
+        lambda task, spec, pdir, model, timeout: events.append("execute") or (True, "ok"),
+    )
+    monkeypatch.setattr(tw, "run_tests", lambda p: (True, "all green"))
+    monkeypatch.setattr(tw, "commit", lambda p, msg: events.append("commit") or "abc123")
+    monkeypatch.setattr(tw, "revert_changes", lambda p: events.append("revert"))
+    monkeypatch.setattr(
+        tw,
+        "update_task_status",
+        lambda name, status, notes="": events.append(("status", status)),
+    )
+    return events
+
+
+# --- gate ---------------------------------------------------------------------
+
+
+def test_gate_refusal_skips_without_touching_anything(wired, monkeypatch):
+    monkeypatch.setattr(tw, "check_worker_gate", lambda name: "status is 'Done', not Ready")
+    out = tw.run_one(_task())
+    assert out.status == "skipped"
+    assert out.reason == "worker gate: status is 'Done', not Ready"
+    assert wired == []  # no execute, no revert, no status write
+
+
+def test_gate_check_error_fails_closed(wired, monkeypatch):
+    def boom(name):
+        raise RuntimeError("daemon down")
+
+    monkeypatch.setattr(tw, "check_worker_gate", boom)
+    out = tw.run_one(_task())
+    assert out.status == "skipped"
+    assert "gate check failed: daemon down" in out.reason
+    assert wired == []
+
+
+def test_gate_reason_pure_decision():
+    assert _gate_reason("Ready", "Auto-OK", []) == ""
+    assert _gate_reason("Ready", "Auto-Preferred", []) == ""
+    assert "not Ready" in _gate_reason("Spec Needed", "Auto-OK", [])
+    assert "'Manual'" in _gate_reason("Ready", "", [])  # null-as-manual
+    assert "'Manual'" in _gate_reason("Ready", "Manual", [])
+    assert "unmet dependencies: dep-a" in _gate_reason("Ready", "Auto-OK", ["dep-a"])
+
+
+# --- preflights ---------------------------------------------------------------
+
+
+def test_project_dir_falls_back_to_lowercase(wired, monkeypatch, tmp_path):
+    # Forge project "Meta" ↔ checkout dir "meta": only the lowercase dir exists.
+    lower_root = tmp_path / "lower"
+    (lower_root / "meta").mkdir(parents=True)
+    monkeypatch.setattr(tw.settings, "projects_dir", lower_root)
+    out = tw.run_one(_task())
+    assert out.status == "done"  # resolved to the lowercase dir and ran through
+
+
+def test_missing_project_dir_skips(wired, monkeypatch, tmp_path):
+    monkeypatch.setattr(tw.settings, "projects_dir", tmp_path / "nowhere")
+    out = tw.run_one(_task())
+    assert out.status == "skipped"
+    assert "project dir not found" in out.reason
+
+
+def test_dirty_working_copy_skips_before_in_progress(wired, monkeypatch):
+    monkeypatch.setattr(tw, "get_changed_files", lambda p: ["already-dirty.py"])
+    out = tw.run_one(_task())
+    assert out.status == "skipped"
+    assert "not clean" in out.reason
+    assert wired == []  # In Progress never written
+
+
+def test_blocked_marker_in_spec_skips(wired):
+    out = tw.run_one(_task(), spec="> **Blocked:** deps not Done")
+    assert out.status == "skipped"
+    assert out.reason == "spec contains BLOCKED marker"
+
+
+# --- failure paths ------------------------------------------------------------
+
+
+def test_max_files_bail_reverts_before_reopening(wired, monkeypatch):
+    out = tw.run_one(_task(max_files=1))  # post-exec diff has 2 files
+    assert out.status == "failed"
+    assert "max_files exceeded (2 > 1)" in out.reason
+    assert out.changed_files == ["agents/x.py", "agents/tests/test_x.py"]
+    assert "commit" not in wired
+    # revert precedes the Ready write
+    assert wired.index("revert") < wired.index(("status", "Ready"))
+
+
+def test_tests_fail_reverts_and_reopens(wired, monkeypatch):
+    monkeypatch.setattr(tw, "run_tests", lambda p: (False, "assertion boom"))
+    out = tw.run_one(_task())
+    assert out.status == "failed"
+    assert "tests failed" in out.reason
+    assert "commit" not in wired
+    assert wired.index("revert") < wired.index(("status", "Ready"))
+
+
+def test_opencode_failure_reverts_and_reopens(wired, monkeypatch):
+    monkeypatch.setattr(tw, "execute_task_with_opencode", lambda *a, **k: (False, "model exploded"))
+    out = tw.run_one(_task())
+    assert out.status == "failed"
+    assert "opencode failed" in out.reason
+    assert wired.index("revert") < wired.index(("status", "Ready"))
+
+
+# --- happy path + dry run -------------------------------------------------------
+
+
+def test_happy_path_commits_and_marks_done(wired):
+    out = tw.run_one(_task())
+    assert out.status == "done"
+    assert out.commit_id == "abc123"
+    assert out.changed_files == ["agents/x.py", "agents/tests/test_x.py"]
+    assert out.notes_written is True
+    assert out.duration_s >= 0
+    assert ("status", "In Progress") in wired
+    assert wired.index("commit") < wired.index(("status", "Done"))
+    assert "revert" not in wired
+
+
+def test_dry_run_executes_then_reverts_without_nous_writes(wired, monkeypatch):
+    monkeypatch.setattr(tw.settings, "dry_run", True)
+    out = tw.run_one(_task())
+    assert out.status == "skipped"
+    assert "dry-run" in out.reason
+    assert out.notes_written is False
+    assert "execute" in wired
+    assert "revert" in wired
+    assert "commit" not in wired
+    assert not any(isinstance(e, tuple) and e[0] == "status" for e in wired)
+
+
+# --- CLI wrapper ----------------------------------------------------------------
+
+
+def test_run_delegates_selection_to_run_one(wired, monkeypatch):
+    picked = _task()
+    monkeypatch.setattr(tw, "find_next_task", lambda allowed: picked)
+    seen = []
+    monkeypatch.setattr(tw, "run_one", lambda task, **kw: seen.append(task))
+    tw.run(project_filter="Meta")
+    assert seen == [picked]
+
+
+def test_run_no_ready_tasks_is_quiet_noop(wired, monkeypatch, capsys):
+    monkeypatch.setattr(tw, "find_next_task", lambda allowed: None)
+    tw.run()
+    assert "No worker-ready tasks found" in capsys.readouterr().out
