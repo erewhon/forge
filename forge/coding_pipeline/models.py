@@ -194,6 +194,14 @@ class LeafSpec(BaseModel):
         return v
 
 
+class TaskTree(BaseModel):
+    """The decomposition output: the flat leaf list whose deps encode the tree.
+
+    Persisted as ``tree.json`` in the run dir; A3 emission maps it to Forge."""
+
+    leaves: list[LeafSpec] = []
+
+
 # --- wave execution ---------------------------------------------------------
 
 

@@ -18,7 +18,13 @@ from agents.coding_pipeline.architect import (
     render_framing,
     require_approved_framing,
 )
-from agents.coding_pipeline.models import FramingProposal, GoalSpec, Inventory
+from agents.coding_pipeline.models import (
+    FramingProposal,
+    GoalSpec,
+    Inventory,
+    LeafSpec,
+    TaskTree,
+)
 
 
 def _proposal(**overrides) -> FramingProposal:
@@ -135,3 +141,110 @@ def test_render_framing_unrescoped_has_no_pushback_banner():
     md = render_framing(_proposal(rescoped=False))
     assert "Architect push-back" not in md
     assert "## Restated goal" in md
+
+
+# --- A2: decomposition ------------------------------------------------------
+
+
+def _leaf(title: str, **overrides) -> LeafSpec:
+    base = dict(title=title, content="spec", feature="Web Shim", estimate="s")
+    base.update(overrides)
+    return LeafSpec.model_validate(base)
+
+
+def _shaped(title: str, **flags) -> arch.LeafBoundedness:
+    base = dict(
+        leaf_title=title,
+        single_concern=True,
+        bounded_diff=True,
+        small_estimate=True,
+        testable_acceptance=True,
+        files_named=True,
+    )
+    base.update(flags)
+    return arch.LeafBoundedness.model_validate(base)
+
+
+def _mock_decompose(monkeypatch, leaves, verdicts=None):
+    """Wire structured() to return a TaskTree and discover() to return boundedness verdicts.
+    verdicts=None means 'all leaves pass'."""
+    calls = _mock_structured(monkeypatch, TaskTree(leaves=leaves) if leaves else None)
+    if verdicts is None:
+        verdicts = [_shaped(leaf.title) for leaf in leaves or []]
+    monkeypatch.setattr(arch, "discover", lambda finders, **kw: verdicts)
+    return calls
+
+
+def test_decompose_refuses_unapproved_framing(monkeypatch):
+    _mock_decompose(monkeypatch, [_leaf("a")])
+    with pytest.raises(FramingNotApprovedError):
+        arch.decompose(_proposal(approved=False), _inventory())
+
+
+def test_decompose_applies_conservative_floor(monkeypatch):
+    leaves = [
+        _leaf("auto leaf", execution_mode="Auto-OK", requires_tests=False, max_files=None),
+        _leaf("novel leaf", execution_mode="Auto-OK", complexity="novel"),
+        _leaf("specless leaf", execution_mode="Auto-Preferred", status="Spec Needed"),
+        _leaf("blank feature", feature=" "),
+    ]
+    _mock_decompose(monkeypatch, leaves)
+    out = arch.decompose(_proposal(approved=True), _inventory())
+    auto = next(leaf for leaf in out if leaf.title == "auto leaf")
+    assert auto.requires_tests is True  # auto always tests
+    assert auto.max_files == 5  # auto always capped
+    assert next(le for le in out if le.title == "novel leaf").execution_mode == "Manual"
+    assert next(le for le in out if le.title == "specless leaf").execution_mode == "Manual"
+    assert next(le for le in out if le.title == "blank feature").feature == "Web Shim"
+
+
+def test_decompose_rejects_unknown_dep(monkeypatch):
+    _mock_decompose(monkeypatch, [_leaf("a", depends_on=["ghost"])])
+    with pytest.raises(ArchitectError, match="unknown titles"):
+        arch.decompose(_proposal(approved=True), _inventory())
+
+
+def test_decompose_rejects_dependency_cycle(monkeypatch):
+    _mock_decompose(monkeypatch, [_leaf("a", depends_on=["b"]), _leaf("b", depends_on=["a"])])
+    with pytest.raises(ArchitectError, match="cycle"):
+        arch.decompose(_proposal(approved=True), _inventory())
+
+
+def test_boundedness_failure_demotes_auto_leaf(monkeypatch):
+    leaves = [_leaf("wobbly", execution_mode="Auto-OK")]
+    _mock_decompose(
+        monkeypatch, leaves, verdicts=[_shaped("wobbly", files_named=False, notes="no files")]
+    )
+    out = arch.decompose(_proposal(approved=True), _inventory())
+    assert out[0].execution_mode == "Manual"
+    assert out[0].complexity == "novel"
+    assert out[0].boundedness is not None and not out[0].boundedness.worker_shaped
+
+
+def test_missing_boundedness_verdict_demotes_fail_closed(monkeypatch):
+    leaves = [_leaf("unchecked", execution_mode="Auto-OK")]
+    _mock_decompose(monkeypatch, leaves, verdicts=[])  # finder dropped, no verdict
+    out = arch.decompose(_proposal(approved=True), _inventory())
+    assert out[0].execution_mode == "Manual"
+    assert "unavailable" in out[0].boundedness.notes
+
+
+def test_manual_leaf_keeps_mode_despite_failing_boundedness(monkeypatch):
+    leaves = [_leaf("big design", execution_mode="Manual", complexity="novel")]
+    _mock_decompose(monkeypatch, leaves, verdicts=[_shaped("big design", single_concern=False)])
+    out = arch.decompose(_proposal(approved=True), _inventory())
+    assert out[0].execution_mode == "Manual"  # terminal state, not an error
+
+
+def test_decompose_pool_exhaustion_raises(monkeypatch):
+    _mock_decompose(monkeypatch, None)
+    with pytest.raises(ArchitectError, match="no usable tree"):
+        arch.decompose(_proposal(approved=True), _inventory())
+
+
+def test_persist_and_load_tree_round_trip(tmp_path, monkeypatch):
+    leaves = [_leaf("a"), _leaf("b", depends_on=["a"])]
+    arch.persist_tree(leaves, tmp_path)
+    assert arch.load_tree(tmp_path) == leaves
+    md = (tmp_path / "tree.md").read_text()
+    assert "**a**" in md and "← a" in md

@@ -38,6 +38,8 @@ class CodingPipelineSettings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-6"
     architect_max_tokens: int = 8192
     architect_timeout: float = 240.0
+    decompose_max_tokens: int = 16_000  # trees are big: N leaves x full worker specs
+    default_auto_max_files: int = 5  # every Auto-* leaf gets a max_files cap, no exceptions
 
     def llm_cfg(self) -> LLMConfig:
         return LLMConfig(
