@@ -61,6 +61,40 @@ def _split_frontmatter(text: str) -> tuple[dict, str]:
     return data, parts[1].lstrip("\n")
 
 
+# --- A0: inventory ----------------------------------------------------------
+
+
+class FileHead(BaseModel):
+    """The opening lines of a key file (CLAUDE.md, README, manifests) for architect context."""
+
+    path: str
+    head: str
+
+
+class ExistingTask(BaseModel):
+    """Compact row of a Forge task already filed for the project — decomposition dedup context."""
+
+    task: str
+    status: str
+    feature: str = ""
+    external_ref: str = ""
+
+
+class Inventory(BaseModel):
+    """What A0 hands the framing stage: enough repo + Forge reality to push back on the goal."""
+
+    project: str
+    repo: str
+    tree: str  # indented directory tree, depth-capped, ignore-aware
+    key_files: list[FileHead] = []
+    modules: list[str] = []  # top-level non-ignored directories
+    test_layout: list[str] = []  # directories containing test files
+    toolchain: list[str] = []  # detected: uv/python, pnpm/node, cargo/rust, ...
+    existing_tasks: list[ExistingTask] = []
+    overlaps: list[str] = []  # repo paths lexically related to the goal's terms
+    truncated: int = 0  # items dropped by size caps — counted, never silent
+
+
 # --- A1: framing ------------------------------------------------------------
 
 

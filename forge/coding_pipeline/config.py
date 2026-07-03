@@ -24,6 +24,11 @@ class CodingPipelineSettings(BaseSettings):
     # All epic work lands on {branch_prefix}/{epic_slug}; main only moves at the epic gate.
     branch_prefix: str = "pipeline"
 
+    # A0 inventory caps — the architect prompt budget. Rendered inventory.md is trimmed (tree
+    # first) to fit inventory_max_chars; per-section drops are counted, never silent.
+    inventory_max_chars: int = 40_000
+    inventory_tree_depth: int = 3
+
     # Architect LLM (strong tier) — the headless path only. The interactive Fable session IS the
     # architect during the free window and never touches these.
     llm_backend: Literal["openai", "anthropic"] = "openai"
