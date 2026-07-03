@@ -36,6 +36,8 @@ class CodingPipelineSettings(BaseSettings):
     openai_api_key: str = "sk-local-router"
     architect_model: str = "coder"
     anthropic_model: str = "claude-sonnet-4-6"
+    architect_max_tokens: int = 8192
+    architect_timeout: float = 240.0
 
     def llm_cfg(self) -> LLMConfig:
         return LLMConfig(
