@@ -130,3 +130,90 @@ def test_emit_tasks_dry_run_creates_nothing(captured_creates, monkeypatch):
     assert len(summary.planned) == 2
     assert len(summary.created) == 0
     assert captured_creates == []
+
+
+# --- per-spec gating overrides + guardrail fields -----------------------------
+
+
+def test_emit_task_passes_guardrail_fields(captured_creates, monkeypatch):
+    _no_existing(monkeypatch)
+    emit_task(
+        project="Meta",
+        title="t",
+        content="b",
+        external_ref="r1",
+        max_files=4,
+        requires_tests=True,
+        model_tier="auto",
+        depends_on="Leaf A, Leaf B",
+    )
+    sent = captured_creates[0]
+    assert sent["max_files"] == 4
+    assert sent["requires_tests"] is True
+    assert sent["model_tier"] == "auto"
+    assert sent["depends_on"] == "Leaf A, Leaf B"
+
+
+def test_emit_task_guardrail_fields_default_to_none(captured_creates, monkeypatch):
+    _no_existing(monkeypatch)
+    emit_task(project="Meta", title="t", content="b", external_ref="r1")
+    sent = captured_creates[0]
+    assert sent["max_files"] is None
+    assert sent["requires_tests"] is None
+    assert sent["model_tier"] is None
+    assert sent["depends_on"] is None
+
+
+def test_emit_tasks_per_spec_gating_overrides_batch(captured_creates, monkeypatch):
+    _no_existing(monkeypatch)
+    ready_leaf = EmitSpec(
+        title="ready leaf",
+        content="body",
+        external_ref="r-ready",
+        status="Ready",
+        execution_mode="Auto-OK",
+        phase="Feature",
+        priority=2,
+    )
+    emit_tasks([ready_leaf], project="Meta")
+    sent = captured_creates[0]
+    assert sent["status"] == "Ready"
+    assert sent["execution_mode"] == "Auto-OK"
+    assert sent["phase"] == "Feature"
+    assert sent["priority"] == 2
+
+
+def test_emit_tasks_unset_spec_gating_falls_back_to_batch(captured_creates, monkeypatch):
+    _no_existing(monkeypatch)
+    emit_tasks(
+        [_spec("r1")],
+        project="Meta",
+        status="Spec Needed",
+        execution_mode="Manual",
+        phase="Bugfix",
+        priority=4,
+    )
+    sent = captured_creates[0]
+    assert sent["status"] == "Spec Needed"
+    assert sent["execution_mode"] == "Manual"
+    assert sent["phase"] == "Bugfix"
+    assert sent["priority"] == 4
+
+
+def test_emit_tasks_guardrails_flow_from_spec(captured_creates, monkeypatch):
+    _no_existing(monkeypatch)
+    leaf = EmitSpec(
+        title="guarded leaf",
+        content="body",
+        external_ref="r-guarded",
+        max_files=3,
+        requires_tests=True,
+        model_tier="auto-free",
+        depends_on="Other Leaf",
+    )
+    emit_tasks([leaf], project="Meta")
+    sent = captured_creates[0]
+    assert sent["max_files"] == 3
+    assert sent["requires_tests"] is True
+    assert sent["model_tier"] == "auto-free"
+    assert sent["depends_on"] == "Other Leaf"

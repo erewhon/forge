@@ -48,6 +48,13 @@ class EmitSpec:
 
     ``external_ref`` is the idempotency key and MUST be stable across runs — derive it
     from durable attributes (location, finding type), never from a run-assigned id.
+
+    The gating fields (``status``/``execution_mode``/``phase``/``priority``) are per-spec
+    overrides: when None the batch-level defaults passed to :func:`emit_tasks` apply, so
+    ensemble consumers that gate a whole batch uniformly are unaffected. The guardrail
+    fields (``max_files``/``requires_tests``/``model_tier``/``depends_on``) exist only
+    per-spec — the coding pipeline's architect emits every leaf with its own autonomy
+    tags and dependency list.
     """
 
     title: str
@@ -58,6 +65,14 @@ class EmitSpec:
     complexity: str | None = None  # routine | novel
     feature: str | None = None
     tags: str | None = None  # comma-separated extras; "task" + project auto-added
+    status: str | None = None  # per-spec override of the batch status
+    execution_mode: str | None = None  # per-spec override of the batch execution_mode
+    phase: str | None = None  # per-spec override of the batch phase
+    priority: int | None = None  # per-spec override of the batch priority
+    max_files: int | None = None  # worker diff-sprawl guardrail
+    requires_tests: bool | None = None  # worker must green tests before Done
+    model_tier: str | None = None  # auto | auto-free | auto-full
+    depends_on: str | None = None  # comma-separated task names (names must be comma-free)
 
 
 @dataclass(frozen=True)
@@ -178,6 +193,10 @@ def emit_task(
     complexity: str | None = None,
     feature: str | None = None,
     tags: str | None = None,
+    max_files: int | None = None,
+    requires_tests: bool | None = None,
+    model_tier: str | None = None,
+    depends_on: str | None = None,
     dry_run: bool = False,
     existing_refs: set[str] | None = None,
 ) -> EmitOutcome:
@@ -214,6 +233,10 @@ def emit_task(
         estimate=estimate,
         complexity=complexity,
         task_type=task_type,
+        max_files=max_files,
+        requires_tests=requires_tests,
+        model_tier=model_tier,
+        depends_on=depends_on,
     )
     if existing_refs is not None:
         existing_refs.add(ref)
@@ -242,7 +265,8 @@ def emit_tasks(
     Reads the existing external_refs once, then for each spec: skips dedup hits, drops
     overflow past the per-run cap (counted, not silently truncated), else creates (or,
     in dry-run, plans) the task. The cap applies only to would-create tasks — dedup
-    skips are free.
+    skips are free. A spec's own gating fields, when set, override the batch-level
+    ``status``/``execution_mode``/``phase``/``priority`` for that spec only.
     """
     refs = existing_external_refs()
     cap = max_per_run if max_per_run is not None else settings.max_per_run
@@ -266,14 +290,20 @@ def emit_tasks(
             content=spec.content,
             external_ref=ref,
             task_type=spec.task_type,
-            status=status,
-            execution_mode=execution_mode,
-            phase=phase,
-            priority=priority,
+            status=spec.status if spec.status is not None else status,
+            execution_mode=(
+                spec.execution_mode if spec.execution_mode is not None else execution_mode
+            ),
+            phase=spec.phase if spec.phase is not None else phase,
+            priority=spec.priority if spec.priority is not None else priority,
             estimate=spec.estimate,
             complexity=spec.complexity,
             feature=spec.feature,
             tags=spec.tags,
+            max_files=spec.max_files,
+            requires_tests=spec.requires_tests,
+            model_tier=spec.model_tier,
+            depends_on=spec.depends_on,
             dry_run=dry_run,
             existing_refs=refs,
         )
