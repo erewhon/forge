@@ -145,3 +145,15 @@ def test_executor_blocked_marker_fails_via_sandbox(tmp_path):
     ok, tail = ex.execute_task_with_opencode(_task(), "SPEC", tmp_path, "auto", 60, sandbox=box)
     assert not ok
     assert "BLOCKED" in tail
+
+
+def test_executor_blocked_marker_detected_through_ansi(tmp_path):
+    box = FakeSandbox(tmp_path, stdout="work done\n\x1b[91mBLOCKED:\x1b[0m missing dep\n")
+    ok, _ = ex.execute_task_with_opencode(_task(), "SPEC", tmp_path, "auto", 60, sandbox=box)
+    assert not ok
+
+
+def test_executor_mid_line_blocked_mention_is_not_a_refusal(tmp_path):
+    box = FakeSandbox(tmp_path, stdout="I will print BLOCKED: only if I cannot proceed. Done.")
+    ok, _ = ex.execute_task_with_opencode(_task(), "SPEC", tmp_path, "auto", 60, sandbox=box)
+    assert ok

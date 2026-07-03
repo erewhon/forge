@@ -134,6 +134,18 @@ def test_blocked_marker_in_spec_skips(wired):
     assert out.reason == "spec contains BLOCKED marker"
 
 
+def test_blocked_line_at_start_skips(wired):
+    out = tw.run_one(_task(), spec="notes\nBLOCKED: cannot proceed\nmore")
+    assert out.status == "skipped"
+
+
+def test_mentioning_blocked_protocol_mid_line_does_not_skip(wired):
+    # A respec that documents the protocol must not trip the marker (found by dogfood).
+    spec = "Do the task. If stuck, print a line starting with `BLOCKED:` and stop."
+    out = tw.run_one(_task(), spec=spec)
+    assert out.status == "done"
+
+
 # --- failure paths ------------------------------------------------------------
 
 

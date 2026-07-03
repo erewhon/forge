@@ -49,9 +49,7 @@ def _git_changed_files(repo_path: Path) -> list[str]:
         raise VCSError(f"git diff failed: {tracked.stderr.strip()}")
 
     # Untracked (not ignored)
-    untracked = _run(
-        ["git", "ls-files", "--others", "--exclude-standard"], repo_path
-    )
+    untracked = _run(["git", "ls-files", "--others", "--exclude-standard"], repo_path)
     if untracked.returncode != 0:
         raise VCSError(f"git ls-files failed: {untracked.stderr.strip()}")
 
@@ -114,14 +112,10 @@ def _git_revert(repo_path: Path) -> None:
         pass
 
     # Count untracked before cleaning
-    untracked = _run(
-        ["git", "ls-files", "--others", "--exclude-standard"], repo_path
-    )
+    untracked = _run(["git", "ls-files", "--others", "--exclude-standard"], repo_path)
     if untracked.returncode != 0:
         raise VCSError(f"git ls-files failed: {untracked.stderr.strip()}")
-    untracked_files = [
-        line.strip() for line in untracked.stdout.splitlines() if line.strip()
-    ]
+    untracked_files = [line.strip() for line in untracked.stdout.splitlines() if line.strip()]
     if len(untracked_files) > _CLEAN_SAFETY_LIMIT:
         raise VCSError(
             f"Refusing to clean {len(untracked_files)} untracked files "

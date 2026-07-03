@@ -25,6 +25,7 @@ the task.
 from __future__ import annotations
 
 import argparse
+import re
 import time
 
 from agents.task_worker.config import settings
@@ -49,6 +50,16 @@ from agents.task_worker.vcs import (
 
 def _tail(s: str, n: int = 500) -> str:
     return s if len(s) <= n else s[-n:]
+
+
+# A BLOCKED marker is a LINE starting with "BLOCKED:" (the model protocol) or the guardrail
+# "> **Blocked:**" that get_task_spec injects. Line-anchored on purpose: a spec that merely
+# *mentions* the protocol ("print a line starting with BLOCKED:") must not trip it.
+_BLOCKED_LINE_RE = re.compile(r"(?im)^\s*(?:>\s*)?(?:\*+)?blocked(?:\*+)?:")
+
+
+def _has_blocked_marker(spec: str) -> bool:
+    return _BLOCKED_LINE_RE.search(spec) is not None
 
 
 def _safe_revert(repo_path, label: str) -> None:
@@ -119,7 +130,7 @@ def run_one(task: TaskInfo, *, spec: str | None = None) -> RunOutcome:
             print(f"Failed to fetch task spec: {e}")
             return _outcome("skipped", f"spec fetch failed: {e}")
 
-    if "BLOCKED:" in spec.upper():
+    if _has_blocked_marker(spec):
         print("Spec contains BLOCKED marker, skipping")
         return _outcome("skipped", "spec contains BLOCKED marker")
 

@@ -7,6 +7,7 @@ quoting. OpenCode inside the dx container reads the file and executes.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import uuid
 from pathlib import Path
@@ -16,6 +17,11 @@ from agents.task_worker.models import TaskInfo
 
 if TYPE_CHECKING:
     from agents.task_worker.sandbox import Sandbox
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+# The refusal protocol is a LINE starting with "BLOCKED:". Line-anchored (after ANSI strip) so
+# model narration that merely mentions the marker mid-sentence doesn't read as a refusal.
+_BLOCKED_LINE_RE = re.compile(r"(?im)^\s*blocked:")
 
 _STDOUT_TAIL = 500
 _SPEC_DIR = ".task_worker"
@@ -133,7 +139,7 @@ def execute_task_with_opencode(
     _cleanup_spec(spec_path)
 
     # An explicit BLOCKED marker means the model chose not to proceed.
-    if "BLOCKED:" in combined.upper():
+    if _BLOCKED_LINE_RE.search(_ANSI_RE.sub("", combined)):
         return False, tail
 
     return result.returncode == 0, tail
