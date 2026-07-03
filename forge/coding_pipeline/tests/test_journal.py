@@ -112,6 +112,13 @@ class TestWavePersistence:
 
         assert _highest_wave_number(epics_runs_dir, "nonexistent") == 0
 
+    def test_next_wave_number_resumes_from_highest(self, epics_runs_dir: Path):
+        from agents.coding_pipeline.journal import next_wave_number
+
+        assert next_wave_number(epics_runs_dir, "my-epic") == 1  # fresh epic
+        persist_wave(epics_runs_dir, "my-epic", WaveRecord(wave=3, report=WaveReport(wave=3)))
+        assert next_wave_number(epics_runs_dir, "my-epic") == 4
+
 
 # ---------------------------------------------------------------------------
 # Journal appending
@@ -242,103 +249,43 @@ class TestAttemptCounting:
 
 
 class TestReconcile:
-    def test_no_orphans_when_run_dir_exists(self, epics_runs_dir: Path):
-        """When a run dir exists, reconcile returns empty — nothing to fix."""
-        (epics_runs_dir / "my-epic").mkdir(parents=True)
+    def test_flips_every_in_progress_task(self):
+        """At orchestrator startup, ANY In Progress task for the feature is an orphan
+        (single-orchestrator invariant) — the run dir persisting is irrelevant."""
+        update_calls: list[tuple[str, str, str]] = []
+
+        def fake_update(task: str, status: str, notes: str = "") -> None:
+            update_calls.append((task, status, notes))
+
         result = reconcile(
-            epics_runs_dir,
-            "my-epic",
-            run_dir_exists=lambda _r, _e: True,
+            "Coding Pipeline",
+            in_progress=lambda feature: ["Task: Add parser", "Task: Add writer"],
+            update_status=fake_update,
+        )
+        assert result == ["Task: Add parser", "Task: Add writer"]
+        assert [(c[0], c[1]) for c in update_calls] == [
+            ("Task: Add parser", "Ready"),
+            ("Task: Add writer", "Ready"),
+        ]
+        assert "crash recovery" in update_calls[0][2]
+
+    def test_nothing_in_progress_is_a_noop(self):
+        update_calls: list = []
+        result = reconcile(
+            "Coding Pipeline",
+            in_progress=lambda feature: [],
+            update_status=lambda *a, **k: update_calls.append(a),
         )
         assert result == []
+        assert update_calls == []
 
-    def test_flips_orphaned_in_progress_tasks(self, epics_runs_dir: Path):
-        """Tasks In Progress for this epic with no live run get flipped to Ready."""
-        update_calls: list[tuple[str, str, str]] = []
+    def test_feature_name_passes_through_to_query(self):
+        """reconcile filters on the Feature column NAME, not the epic slug."""
+        seen: list[str] = []
 
-        def fake_update(task: str, status: str, notes: str = "") -> None:
-            update_calls.append((task, status, notes))
-
-        result = reconcile(
-            epics_runs_dir,
-            "my-epic",
-            run_dir_exists=lambda _r, _e: False,
-            query_tasks=lambda status, feature: [
-                {"task": "Task: Add parser", "status": "In Progress"},
-                {"task": "Task: Add writer", "status": "In Progress"},
-            ],
-            update_task_status=fake_update,
-        )
-        assert "Task: Add parser" in result
-        assert "Task: Add writer" in result
-        assert len(update_calls) == 2
-
-    def test_only_flips_in_progress(self, epics_runs_dir: Path):
-        """Ready tasks are not touched — query returns only In Progress."""
-        update_calls: list[tuple[str, str, str]] = []
-
-        def fake_update(task: str, status: str, notes: str = "") -> None:
-            update_calls.append((task, status, notes))
-
-        # The query returns In Progress tasks (as the real query would),
-        # but reconcile should only flip tasks that have no live run.
-        result = reconcile(
-            epics_runs_dir,
-            "my-epic",
-            run_dir_exists=lambda _r, _e: False,
-            query_tasks=lambda status, feature: [
-                {"task": "Task: In Progress thing", "status": "In Progress"},
-            ],
-            update_task_status=fake_update,
-        )
-        assert len(result) == 1
-        assert update_calls[0][1] == "Ready"
-
-    def test_skips_empty_task_names(self, epics_runs_dir: Path):
-        """Rows with empty task name are skipped."""
-        result = reconcile(
-            epics_runs_dir,
-            "my-epic",
-            run_dir_exists=lambda _r, _e: False,
-            query_tasks=lambda status, feature: [
-                {"task": "", "status": "In Progress"},
-            ],
-        )
-        assert result == []
-
-    def test_reconcile_calls_update_task_status(self, epics_runs_dir: Path):
-        """Each orphaned task triggers update_task_status with Ready + diagnostic."""
-        update_calls: list[tuple[str, str, str]] = []
-
-        def fake_update(task: str, status: str, notes: str = "") -> None:
-            update_calls.append((task, status, notes))
-
-        reconcile(
-            epics_runs_dir,
-            "my-epic",
-            run_dir_exists=lambda _r, _e: False,
-            query_tasks=lambda status, feature: [
-                {"task": "Task: X", "status": "In Progress"},
-            ],
-            update_task_status=fake_update,
-        )
-        assert len(update_calls) == 1
-        assert update_calls[0][0] == "Task: X"
-        assert update_calls[0][1] == "Ready"
-        assert "Reconciled by coding pipeline" in update_calls[0][2]
-
-    def test_no_query_tasks_when_run_dir_exists(self, epics_runs_dir: Path):
-        """When run dir exists, query_tasks is never called."""
-        called = []
-
-        def fake_query(**kwargs):
-            called.append(kwargs)
+        def fake_in_progress(feature: str) -> list[str]:
+            seen.append(feature)
             return []
 
-        reconcile(
-            epics_runs_dir,
-            "my-epic",
-            run_dir_exists=lambda _r, _e: True,
-            query_tasks=fake_query,
-        )
-        assert called == []
+        reconcile("Coding Pipeline", in_progress=fake_in_progress)
+        assert seen == ["Coding Pipeline"]

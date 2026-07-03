@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +46,12 @@ def _highest_wave_number(runs_dir: Path, epic_slug: str) -> int:
             if n > max_n:
                 max_n = n
     return max_n
+
+
+def next_wave_number(runs_dir: Path, epic_slug: str) -> int:
+    """The number the next wave should use: highest persisted wave + 1 (the
+    research-harness resume mechanic — numbering continues across runs)."""
+    return _highest_wave_number(runs_dir, epic_slug) + 1
 
 
 def _run_dir(runs_dir: Path, epic_slug: str) -> Path:
@@ -152,7 +159,9 @@ def persist_wave(
     run_dir = _run_dir(runs_dir, epic_slug)
     wave_n = record.wave
     path = run_dir / f"wave-{wave_n:04d}.json"
-    path.write_text(record.model_dump_json(indent=2, exclude_unset=True))
+    # Full dump on purpose: the journal is the crash-recovery record, so explicit
+    # defaults must survive the round trip rather than being dropped as "unset".
+    path.write_text(record.model_dump_json(indent=2))
     return path
 
 
@@ -213,85 +222,59 @@ def count_attempts_for_all(
 # ---------------------------------------------------------------------------
 
 
-def reconcile(
-    runs_dir: Path,
-    epic_slug: str,
-    *,
-    query_tasks: Any | None = None,
-    update_task_status: Any | None = None,
-    run_dir_exists: Any | None = None,
-) -> list[str]:
-    """Reconcile Forge task state with the persisted run directory.
+def _in_progress_titles(feature: str) -> list[str]:
+    """Titles of Forge tasks currently In Progress for *feature* (real Nous read).
 
-    On startup the orchestrator calls this to find **orphaned** tasks — Forge
-    tasks that are ``In Progress`` for this epic's feature but have no live run
-    directory (crash recovery).  Those tasks are flipped back to ``Ready`` with
-    a diagnostic note and the task names are returned.
+    Filters on the Feature COLUMN NAME (e.g. "Coding Pipeline"), not the epic slug —
+    the two are related but not interchangeable.
+    """
+    from nous_mcp.workflow import _query_tasks
+
+    from agents.task_worker.nous_client import _read_db_content
+
+    rows = _query_tasks(_read_db_content(), feature=feature, status="In Progress", limit=None)
+    return [str(r.get("task", "")) for r in rows if str(r.get("task", "")).strip()]
+
+
+def reconcile(
+    feature: str,
+    *,
+    in_progress: Callable[[str], list[str]] | None = None,
+    update_status: Callable[..., None] | None = None,
+) -> list[str]:
+    """Crash recovery: flip orphaned In Progress tasks for *feature* back to Ready.
+
+    The orchestrator calls this at startup, BEFORE dispatching anything. Under the
+    single-orchestrator invariant (one run per repo — the dispatch lockfile enforces
+    it), any task still In Progress at that moment is an orphan from a crashed or
+    killed run: nothing live can be mid-dispatch. Each is returned to Ready with a
+    diagnostic note and the titles are reported.
+
+    Deliberately NOT gated on the run directory existing — the run dir (journal,
+    wave records) persists across crashes by design, so its presence says nothing
+    about whether a run is live.
 
     **Never touches the working copy** — the orchestrator owns VCS.
 
-    Parameters
-    ----------
-    runs_dir:
-        Top-level runs directory (the ``runs_dir`` config value).
-    epic_slug:
-        The epic whose tasks to reconcile.
-    query_tasks:
-        A callable matching ``query_tasks(status=…, feature=…)`` signature.
-        Called as ``query_tasks(status="In Progress", feature=epic_slug)``.
-        Defaults to importing the real ``nous_client.query_tasks``.
-    update_task_status:
-        A callable matching ``update_task_status(task, status, notes)``.
-        Defaults to importing the real ``nous_client.update_task_status``.
-    run_dir_exists:
-        Override for checking whether the run dir exists (for testing).
-        A callable ``(runs_dir, epic_slug) -> bool``.
-
-    Returns
-    -------
-    list[str]
-        Task names that were flipped back to Ready (empty list when nothing
-        was orphaned).
+    ``in_progress`` (feature -> titles) and ``update_status`` (task, status,
+    notes=...) are injectable for tests; the defaults use the real daemon-backed
+    Nous paths.
     """
-    run_dir = runs_dir / epic_slug
-    if run_dir_exists is not None:
-        exists = run_dir_exists(runs_dir, epic_slug)
-    else:
-        exists = run_dir.is_dir()
-
-    # If a live run dir exists, nothing to reconcile — the orchestrator is
-    # already tracking state.
-    if exists:
-        return []
-
-    # Import inside the function so tests can mock the functions before calling.
-    from agents.task_worker import nous_client
-
-    if query_tasks is None:
-        query_tasks = nous_client.query_tasks  # type: ignore[assignment]
-
-    if update_task_status is None:
-        update_task_status = nous_client.update_task_status  # type: ignore[assignment]
-
-    # Find In Progress tasks for this feature/epic with no live run.
-    # query_tasks returns compact rows; we look for status = "In Progress".
-    in_progress = query_tasks(status="In Progress", feature=epic_slug)  # type: ignore[arg-type]
+    if in_progress is None:
+        in_progress = _in_progress_titles
+    if update_status is None:
+        from agents.task_worker.nous_client import update_task_status as update_status
 
     orphaned: list[str] = []
-    for row in in_progress:
-        task_name = row.get("task", "")
-        if not task_name:
-            continue
-        # Flip back to Ready with a diagnostic note.
-        update_task_status(  # type: ignore[call-arg]
-            task_name,
+    for title in in_progress(feature):
+        update_status(
+            title,
             "Ready",
             notes=(
-                f"Reconciled by coding pipeline on crash recovery.\n"
-                f"No live run directory found for epic `{epic_slug}`.\n"
-                f"Task returned to Ready for redispatch."
+                "Reconciled by the coding pipeline at startup: task was In Progress "
+                "with no live orchestrator run (crash recovery). Returned to Ready "
+                "for redispatch."
             ),
         )
-        orphaned.append(task_name)
-
+        orphaned.append(title)
     return orphaned
