@@ -202,6 +202,58 @@ class TaskTree(BaseModel):
     leaves: list[LeafSpec] = []
 
 
+# --- wave planning ------------------------------------------------------------
+
+
+class LeafRow(BaseModel):
+    """A normalized Forge task row as the wave planner sees it (null-as-manual applied,
+    blocked state resolved)."""
+
+    task: str
+    status: str
+    execution_mode: str = "Manual"
+    priority: int = 99
+    blocked: bool = False
+    blocked_by: list[str] = []
+
+
+class BlockedLeaf(BaseModel):
+    task: str
+    blocked_by: list[str] = []
+
+
+class WavePlan(BaseModel):
+    """What the orchestrator may dispatch next, plus the counts it needs to tell
+    "dry" (epic exhausted → run the epic gate) from "waiting on humans"."""
+
+    feature: str
+    project: str
+    dispatch: list[str] = []  # leaf titles in dispatch order, capped at wave_size
+    ready_manual: int = 0  # Ready but human-owned (Manual, unblocked)
+    spec_needed: int = 0
+    in_progress: int = 0
+    done: int = 0
+    blocked: list[BlockedLeaf] = []
+
+    @property
+    def dry(self) -> bool:
+        """Nothing dispatchable and nothing that could ever become dispatchable —
+        the epic's tree is exhausted; the orchestrator proceeds to the epic gate."""
+        return (
+            not self.dispatch
+            and not self.blocked
+            and self.ready_manual == 0
+            and self.spec_needed == 0
+            and self.in_progress == 0
+        )
+
+    @property
+    def waiting_on_human(self) -> bool:
+        """Nothing dispatchable now, but human-owned or blocked leaves remain —
+        the orchestrator reports and exits cleanly rather than spinning."""
+        return not self.dispatch and not self.dry
+
+
 # --- wave execution ---------------------------------------------------------
 
 
