@@ -10,9 +10,12 @@ from __future__ import annotations
 import subprocess
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from agents.task_worker.dx import dx_run
 from agents.task_worker.models import TaskInfo
+
+if TYPE_CHECKING:
+    from agents.task_worker.sandbox import Sandbox
 
 _STDOUT_TAIL = 500
 _SPEC_DIR = ".task_worker"
@@ -78,13 +81,18 @@ def execute_task_with_opencode(
     project_dir: Path,
     model: str,
     timeout: int,
+    sandbox: Sandbox | None = None,
 ) -> tuple[bool, str]:
-    """Run the task inside the project's dx container. Returns (success, stdout_tail).
+    """Run the task inside the project's sandbox. Returns (success, stdout_tail).
 
     The spec is written to `<project>/.task_worker/spec-<id>-<uuid>.md`; the
     opencode prompt tells the model to read that file. File is deleted on the
     way out (success or failure).
     """
+    if sandbox is None:
+        from agents.task_worker.sandbox import make_sandbox
+
+        sandbox = make_sandbox(project_dir)
     spec_path = _write_spec(project_dir, task, spec)
     rel_spec = spec_path.relative_to(project_dir).as_posix()
 
@@ -106,7 +114,7 @@ def execute_task_with_opencode(
     ]
 
     try:
-        result = dx_run(project_dir, cmd, timeout=timeout)
+        result = sandbox.run(cmd, timeout=timeout)
     except subprocess.TimeoutExpired as e:
         out = e.stdout if isinstance(e.stdout, str) else ""
         err = e.stderr if isinstance(e.stderr, str) else ""

@@ -28,7 +28,6 @@ import argparse
 import time
 
 from agents.task_worker.config import settings
-from agents.task_worker.dx import check_dx_ready
 from agents.task_worker.executor import execute_task_with_opencode
 from agents.task_worker.models import RunOutcome, TaskInfo
 from agents.task_worker.nous_client import (
@@ -37,6 +36,7 @@ from agents.task_worker.nous_client import (
     get_task_spec,
     update_task_status,
 )
+from agents.task_worker.sandbox import make_sandbox
 from agents.task_worker.tester import run_tests
 from agents.task_worker.vcs import (
     VCSError,
@@ -139,8 +139,9 @@ def run_one(task: TaskInfo, *, spec: str | None = None) -> RunOutcome:
         return _outcome("skipped", f"no VCS detected in {project_dir}")
     print(f"  repo={project_dir} vcs={vcs}")
 
-    # 3. Preflight: require a running gaol dx container for this project
-    dx_ready, dx_status = check_dx_ready(project_dir)
+    # 3. Preflight: require a ready sandbox (a running gaol dx container by default)
+    sandbox = make_sandbox(project_dir)
+    dx_ready, dx_status = sandbox.preflight()
     if not dx_ready:
         print(
             f"dx container not ready for {task.project} ({dx_status}). "
@@ -174,7 +175,7 @@ def run_one(task: TaskInfo, *, spec: str | None = None) -> RunOutcome:
     print(f"Executing with model llm/{model}...")
     try:
         success, stdout_tail = execute_task_with_opencode(
-            task, spec, project_dir, model, settings.task_timeout_seconds
+            task, spec, project_dir, model, settings.task_timeout_seconds, sandbox=sandbox
         )
     except Exception as e:  # noqa: BLE001
         success = False
@@ -235,7 +236,7 @@ def run_one(task: TaskInfo, *, spec: str | None = None) -> RunOutcome:
     if task.requires_tests:
         print("Running tests...")
         try:
-            tests_passed, test_output = run_tests(project_dir)
+            tests_passed, test_output = run_tests(project_dir, sandbox=sandbox)
         except Exception as e:  # noqa: BLE001
             tests_passed = False
             test_output = f"tester raised: {e}"

@@ -6,6 +6,8 @@ reason, revert-before-status ordering, and the happy-path commit.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from agents.task_worker import main as tw
@@ -40,7 +42,8 @@ def wired(monkeypatch, tmp_path):
     monkeypatch.setattr(tw, "check_worker_gate", lambda name: "")
     monkeypatch.setattr(tw, "get_task_spec", lambda name: "SPEC BODY")
     monkeypatch.setattr(tw, "detect_vcs", lambda p: "jj")
-    monkeypatch.setattr(tw, "check_dx_ready", lambda p: (True, "Status: running"))
+    fake_sandbox = SimpleNamespace(preflight=lambda: (True, "dx status: running"))
+    monkeypatch.setattr(tw, "make_sandbox", lambda p: fake_sandbox)
 
     changed_calls = {"n": 0}
 
@@ -52,9 +55,11 @@ def wired(monkeypatch, tmp_path):
     monkeypatch.setattr(
         tw,
         "execute_task_with_opencode",
-        lambda task, spec, pdir, model, timeout: events.append("execute") or (True, "ok"),
+        lambda task, spec, pdir, model, timeout, sandbox=None: (
+            events.append("execute") or (True, "ok")
+        ),
     )
-    monkeypatch.setattr(tw, "run_tests", lambda p: (True, "all green"))
+    monkeypatch.setattr(tw, "run_tests", lambda p, sandbox=None: (True, "all green"))
     monkeypatch.setattr(tw, "commit", lambda p, msg: events.append("commit") or "abc123")
     monkeypatch.setattr(tw, "revert_changes", lambda p: events.append("revert"))
     monkeypatch.setattr(
@@ -143,7 +148,7 @@ def test_max_files_bail_reverts_before_reopening(wired, monkeypatch):
 
 
 def test_tests_fail_reverts_and_reopens(wired, monkeypatch):
-    monkeypatch.setattr(tw, "run_tests", lambda p: (False, "assertion boom"))
+    monkeypatch.setattr(tw, "run_tests", lambda p, sandbox=None: (False, "assertion boom"))
     out = tw.run_one(_task())
     assert out.status == "failed"
     assert "tests failed" in out.reason

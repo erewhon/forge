@@ -1,15 +1,17 @@
-"""Run the project's tests inside its `gaol dx` container.
+"""Run the project's tests inside its sandbox (gaol dx by default).
 
 Detection runs on the host (file existence checks), but the actual test
-commands run inside the container so they see the right toolchain.
+commands run inside the sandbox so they see the right toolchain.
 """
 
 from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from agents.task_worker.dx import dx_run
+if TYPE_CHECKING:
+    from agents.task_worker.sandbox import Sandbox
 
 _TEST_TIMEOUT = 300  # 5 min
 _OUTPUT_TAIL = 1000
@@ -41,10 +43,7 @@ def _pyproject_has_pytest(repo_path: Path) -> bool:
         content = path.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return False
-    return (
-        "[tool.pytest" in content
-        or "pytest" in content
-    )
+    return "[tool.pytest" in content or "pytest" in content
 
 
 def _package_json_has_test_script(repo_path: Path) -> bool:
@@ -67,8 +66,8 @@ def _tail(text: str, n: int = _OUTPUT_TAIL) -> str:
     return text[-n:]
 
 
-def run_tests(repo_path: Path) -> tuple[bool, str]:
-    """Run the project's tests inside its dx container. Returns (passed, output_tail).
+def run_tests(repo_path: Path, sandbox: Sandbox | None = None) -> tuple[bool, str]:
+    """Run the project's tests inside its sandbox. Returns (passed, output_tail).
 
     Detection order (first match wins):
       1. Justfile with test recipe -> `just test`
@@ -88,8 +87,13 @@ def run_tests(repo_path: Path) -> tuple[bool, str]:
     else:
         return True, "no tests configured"
 
+    if sandbox is None:
+        from agents.task_worker.sandbox import make_sandbox
+
+        sandbox = make_sandbox(repo_path)
+
     try:
-        result = dx_run(repo_path, cmd, timeout=_TEST_TIMEOUT)
+        result = sandbox.run(cmd, timeout=_TEST_TIMEOUT)
     except subprocess.TimeoutExpired as e:
         out = (e.stdout or "") if isinstance(e.stdout, str) else ""
         err = (e.stderr or "") if isinstance(e.stderr, str) else ""

@@ -21,6 +21,7 @@ class TaskWorkerSettings(BaseSettings):
     task_timeout_seconds: int = 1800  # 30 min max per task
     default_max_files: int = 5  # used when task has no max_files set
     model_tier_default: str = "auto"  # router alias
+    sandbox: str = "gaol-dx"  # execution sandbox kind; only "gaol-dx" is implemented today
 
     # Safety
     dry_run: bool = False  # when True, run OpenCode but don't commit or update Nous
