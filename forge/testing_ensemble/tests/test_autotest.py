@@ -211,3 +211,29 @@ def test_render_auto_smoke(wired):
     out = at.render_auto(r)
     assert "branched" in out
     assert "auto-tests/mod-func0" in out
+
+
+def test_signoff_seats_shared_gate_from_active_slots(monkeypatch):
+    """_signoff wiring: only active roster slots become seats, with the testing prompt."""
+    from types import SimpleNamespace
+
+    slots = [
+        SimpleNamespace(provider="anthropic", active=True, pool=SimpleNamespace(executors=["e1"])),
+        SimpleNamespace(provider="dead", active=False, pool=SimpleNamespace(executors=["e2"])),
+        SimpleNamespace(provider="local", active=True, pool=SimpleNamespace(executors=["e3"])),
+    ]
+    monkeypatch.setattr(at, "build_reviewer_slots", lambda: slots)
+    captured: dict = {}
+
+    def fake_gate(diff_text, **kwargs):
+        captured["diff"] = diff_text
+        captured.update(kwargs)
+        return SignoffResult(approved=True, attempted=2, approvals=2)
+
+    monkeypatch.setattr(at, "full_quorum_signoff", fake_gate)
+    at._signoff("DIFF", pr_ref="auto-tests/foo")
+    assert [s.provider for s in captured["seats"]] == ["anthropic", "local"]
+    assert [s.executor for s in captured["seats"]] == ["e1", "e3"]
+    assert captured["system"] == at._SIGNOFF_SYSTEM
+    assert captured["ref"] == "auto-tests/foo"
+    assert "ONLY test files" in captured["context"]

@@ -9,8 +9,9 @@ is "no auto-merge, tasks filed for a human" rather than a bad merge:
                               │ any gate fails → revert working copy → emit Forge tasks → stop
 
 The tests-only classifier, the branch/merge VCS actions, and the decision log live in
-``agents.shared.automerge`` (Dependabot reuses them); the sign-off reuses pr_review's cross-family
-provider roster. Only the test *generation* is testing-specific.
+``agents.shared.automerge``; the full-quorum sign-off gate lives in ``agents.shared.signoff``
+(Dependabot and the coding pipeline's epic gate reuse both). The sign-off panel is seated from
+pr_review's cross-family provider roster. Only the test *generation* is testing-specific.
 """
 
 from __future__ import annotations
@@ -31,7 +32,7 @@ from agents.shared.automerge import (
     working_diff,
 )
 from agents.shared.forge_emit import EmitSummary
-from agents.shared.panel import run_panel
+from agents.shared.signoff import SignoffResult, SignoffSeat, full_quorum_signoff
 from agents.task_worker.tester import run_tests
 from agents.task_worker.vcs import VCSError, detect_vcs, revert_changes
 from agents.testing_ensemble.config import settings
@@ -54,54 +55,21 @@ Be strict: this merges with no human review. If anything is uncertain, do NOT ap
 Respond with ONLY a JSON object: {"approve": true|false, "blockers": ["..."], "notes": "..."}"""
 
 
-@dataclass
-class SignoffResult:
-    """The full-quorum sign-off gate outcome. ``approved`` requires every active provider to
-    respond AND unanimously approve — anything less (a dropped/degraded provider, one dissent, an
-    unparseable verdict) fails closed."""
-
-    approved: bool
-    attempted: int
-    approvals: int
-    providers: list[str] = field(default_factory=list)
-    blockers: list[str] = field(default_factory=list)
-    reason: str = ""
-
-
 def _signoff(diff_text: str, *, pr_ref: str) -> SignoffResult:
-    slots = [s for s in build_reviewer_slots() if s.active]
-    if len(slots) < 2:
-        names = [s.provider for s in slots]
-        return SignoffResult(
-            approved=False,
-            attempted=len(slots),
-            approvals=0,
-            providers=names,
-            reason=f"need >=2 active providers for a diverse sign-off, have {len(slots)}",
-        )
-    executors = [s.pool.executors[0] for s in slots]
-    user = f"Change: {pr_ref}\nThis change must contain ONLY test files.\n\nDiff:\n{diff_text}"
-    panel = run_panel(
-        executors=executors,
+    """Seat the shared full-quorum gate from pr_review's active provider roster."""
+    seats = [
+        SignoffSeat(provider=s.provider, executor=s.pool.executors[0])
+        for s in build_reviewer_slots()
+        if s.active
+    ]
+    return full_quorum_signoff(
+        diff_text,
+        seats=seats,
         system=_SIGNOFF_SYSTEM,
-        user=user,
-        floor=len(executors),
+        ref=pr_ref,
+        context="This change must contain ONLY test files.",
         max_tokens=settings.signoff_max_tokens,
         timeout=settings.signoff_timeout,
-    )
-    approvals = sum(1 for r in panel.responses if r.get("approve") is True)
-    blockers = [str(b) for r in panel.responses for b in (r.get("blockers") or [])]
-    full = len(panel.responses) == panel.attempted  # every active provider produced a verdict
-    approved = full and approvals == panel.attempted
-    got, n = len(panel.responses), panel.attempted
-    reason = "" if approved else f"quorum {got}/{n}, approvals {approvals}/{n}"
-    return SignoffResult(
-        approved=approved,
-        attempted=panel.attempted,
-        approvals=approvals,
-        providers=[s.provider for s in slots],
-        blockers=blockers,
-        reason=reason,
     )
 
 
