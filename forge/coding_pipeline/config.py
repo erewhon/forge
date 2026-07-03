@@ -41,6 +41,12 @@ class CodingPipelineSettings(BaseSettings):
     decompose_max_tokens: int = 16_000  # trees are big: N leaves x full worker specs
     default_auto_max_files: int = 5  # every Auto-* leaf gets a max_files cap, no exceptions
 
+    # Wave verification (advisory review pass over the wave diff)
+    review_max_tokens: int = 4096
+    review_timeout: float = 180.0
+    review_max_findings: int = 12  # cap the candidate pool before the confirm vote
+    confirm_concurrency: int = 4
+
     def llm_cfg(self) -> LLMConfig:
         return LLMConfig(
             backend=self.llm_backend,
