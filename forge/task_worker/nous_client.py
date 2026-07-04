@@ -408,9 +408,11 @@ def update_task_status(
             [{"row": row["id"], "cells": update_cells}],
         )
 
-    # 3. Append implementation notes
+    # 3. Append implementation notes. H3-only on purpose: every append used to emit its
+    # own "## Implementation Notes" H2, so task pages accreted a duplicate header per
+    # status write (dry-run finding) — the dated H3 sections are self-describing.
     if notes:
         today_iso = date.today().isoformat()
-        notes_md = f"\n\n## Implementation Notes\n\n### {today_iso} — Status: {status}\n\n{notes}\n"
+        notes_md = f"\n\n### {today_iso} — Status: {status}\n\n{notes}\n"
         blocks = markdown_to_blocks(notes_md)
         daemon.append_to_page(notebook_id, page["id"], blocks=blocks)

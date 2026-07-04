@@ -247,3 +247,94 @@ def test_run_no_ready_tasks_is_quiet_noop(wired, monkeypatch, capsys):
     monkeypatch.setattr(tw, "find_next_task", lambda allowed: None)
     tw.run()
     assert "No worker-ready tasks found" in capsys.readouterr().out
+
+
+# --- degenerate-session retry + no-change diagnostics (dry-run findings) ------------
+
+
+def test_degenerate_session_retries_in_process_before_failing(wired, monkeypatch):
+    """A near-instant session with zero file changes is an empty generation, not a
+    real attempt (observed live: 2.8s, zero tool calls, burned the leaf's last
+    attempt) — it retries in-process before the failure is recorded."""
+    monkeypatch.setattr(tw.settings, "degenerate_retries", 1)
+    monkeypatch.setattr(tw.settings, "degenerate_session_seconds", 10.0)
+    monkeypatch.setattr(tw, "get_changed_files", lambda p: [])  # nothing ever changes
+    executes = {"n": 0}
+    monkeypatch.setattr(
+        tw,
+        "execute_task_with_opencode",
+        lambda *a, **k: executes.__setitem__("n", executes["n"] + 1) or (True, "empty", False),
+    )
+    out = tw.run_one(_task())
+    assert executes["n"] == 2  # original + one in-process retry
+    assert out.status == "failed"
+    assert out.reason == "no file changes produced"
+
+
+def test_slow_no_change_session_does_not_retry(wired, monkeypatch):
+    """Only FAST empty sessions are degenerate — a session that ran long and produced
+    nothing is a real (failed) attempt, not a router hiccup."""
+    monkeypatch.setattr(tw.settings, "degenerate_retries", 1)
+    monkeypatch.setattr(tw.settings, "degenerate_session_seconds", 0.0)  # everything is "slow"
+    monkeypatch.setattr(tw, "get_changed_files", lambda p: [])
+    executes = {"n": 0}
+    monkeypatch.setattr(
+        tw,
+        "execute_task_with_opencode",
+        lambda *a, **k: executes.__setitem__("n", executes["n"] + 1) or (True, "empty", False),
+    )
+    out = tw.run_one(_task())
+    assert executes["n"] == 1
+    assert out.status == "failed"
+
+
+def test_blocked_session_never_retries(wired, monkeypatch):
+    monkeypatch.setattr(tw.settings, "degenerate_retries", 1)
+    executes = {"n": 0}
+    monkeypatch.setattr(
+        tw,
+        "execute_task_with_opencode",
+        lambda *a, **k: (
+            executes.__setitem__("n", executes["n"] + 1) or (False, "BLOCKED: cannot", True)
+        ),
+    )
+    out = tw.run_one(_task())
+    assert executes["n"] == 1  # an explicit refusal is a verdict, not a hiccup
+    assert "BLOCKED" in out.reason
+
+
+def test_no_change_failure_notes_carry_session_tail(wired, monkeypatch):
+    """Triage used to require container-side opencode logs — the task note now carries
+    the session tail like the tests-failed path does."""
+    monkeypatch.setattr(tw.settings, "degenerate_retries", 0)
+    monkeypatch.setattr(tw, "get_changed_files", lambda p: [])
+    monkeypatch.setattr(
+        tw,
+        "execute_task_with_opencode",
+        lambda *a, **k: (True, "model said: I analyzed the code thoroughly", False),
+    )
+    notes_seen = []
+    monkeypatch.setattr(
+        tw,
+        "update_task_status",
+        lambda name, status, notes="": notes_seen.append(notes),
+    )
+    out = tw.run_one(_task())
+    assert out.status == "failed"
+    final_note = notes_seen[-1]
+    assert "Session tail" in final_note
+    assert "analyzed the code thoroughly" in final_note
+
+
+def test_tail_trims_to_line_boundary():
+    text = "\n".join(f"line {i:03d} " + "x" * 40 for i in range(40))
+    tail = tw._tail(text, 200)
+    assert len(tail) <= 200
+    assert tail.startswith("line ")  # opens on a whole line, never mid-line
+    assert tail.endswith(text[-20:])
+
+    one_long_line = "y" * 1000
+    assert tw._tail(one_long_line, 200) == "y" * 200  # no newline: mid-line beats empty
+
+    short = "short text"
+    assert tw._tail(short, 200) == short

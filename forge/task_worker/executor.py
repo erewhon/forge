@@ -57,9 +57,15 @@ accessible. Execute the task described below.
 
 
 def _tail(text: str, n: int = _STDOUT_TAIL) -> str:
+    """Last ~n chars, trimmed forward to a line boundary (mid-line openings read as
+    garbage in task notes — dry-run finding)."""
     if len(text) <= n:
         return text
-    return text[-n:]
+    cut = text[-n:]
+    nl = cut.find("\n")
+    if 0 <= nl < len(cut) - 1:
+        return cut[nl + 1 :]
+    return cut
 
 
 def _write_spec(project_dir: Path, task: TaskInfo, spec: str) -> Path:

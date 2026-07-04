@@ -23,6 +23,13 @@ class TaskWorkerSettings(BaseSettings):
     model_tier_default: str = "auto"  # router alias
     sandbox: str = "gaol-dx"  # execution sandbox kind; only "gaol-dx" is implemented today
 
+    # Degenerate-session retry: a session that ends this fast with zero file changes is
+    # an empty generation (router hiccup), not a real attempt — retry in-process up to
+    # degenerate_retries times before recording the failure. Observed live (e2e dry-run):
+    # a 2.8s zero-tool-call coder session burned a leaf's last attempt and escalated it.
+    degenerate_session_seconds: float = 10.0
+    degenerate_retries: int = 1
+
     # Safety
     dry_run: bool = False  # when True, run OpenCode but don't commit or update Nous
 

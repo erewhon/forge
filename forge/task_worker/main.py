@@ -49,7 +49,15 @@ from agents.task_worker.vcs import (
 
 
 def _tail(s: str, n: int = 500) -> str:
-    return s if len(s) <= n else s[-n:]
+    """Last ~n chars, trimmed forward to a line boundary so notes never open mid-line
+    (dry-run finding: truncated tails like 'ined: 31.25E' read as garbage in Forge)."""
+    if len(s) <= n:
+        return s
+    cut = s[-n:]
+    nl = cut.find("\n")
+    if 0 <= nl < len(cut) - 1:
+        return cut[nl + 1 :]
+    return cut  # one long line: better mid-line than empty
 
 
 # A BLOCKED marker is a LINE starting with "BLOCKED:" (the model protocol) or the guardrail
@@ -180,21 +188,41 @@ def run_one(task: TaskInfo, *, spec: str | None = None) -> RunOutcome:
     # 5. Mark in progress
     _safe_status(task.task, "In Progress", notes="Autonomous worker started")
 
-    # 6. Execute via OpenCode (inside dx container)
-    exec_start = time.time()
+    # 6. Execute via OpenCode (inside dx container). A degenerate session — over in
+    # seconds with zero file changes (an empty generation from a router hiccup;
+    # observed live: a 2.8s zero-tool-call session) — retries in-process so it never
+    # burns a journal-counted attempt.
     model = task.model_tier or settings.model_tier_default
     print(f"Executing with model llm/{model}...")
-    try:
-        success, stdout_tail, blocked = execute_task_with_opencode(
-            task, spec, project_dir, model, settings.task_timeout_seconds, sandbox=sandbox
-        )
-    except Exception as e:  # noqa: BLE001
-        success = False
-        stdout_tail = f"executor raised: {e}"
-        blocked = False
+    retries = max(0, settings.degenerate_retries)
+    for exec_attempt in range(1 + retries):
+        exec_start = time.time()
+        try:
+            success, stdout_tail, blocked = execute_task_with_opencode(
+                task, spec, project_dir, model, settings.task_timeout_seconds, sandbox=sandbox
+            )
+        except Exception as e:  # noqa: BLE001
+            success = False
+            stdout_tail = f"executor raised: {e}"
+            blocked = False
 
-    duration = time.time() - exec_start
-    print(f"OpenCode finished in {duration:.1f}s (success={success})")
+        duration = time.time() - exec_start
+        print(f"OpenCode finished in {duration:.1f}s (success={success})")
+
+        if blocked or exec_attempt >= retries:
+            break
+        if duration >= settings.degenerate_session_seconds:
+            break
+        try:
+            probe = get_changed_files(project_dir)
+        except VCSError:
+            probe = []
+        if probe:
+            break
+        print(
+            f"Degenerate session ({duration:.1f}s, no file changes) — retrying in-process "
+            f"({exec_attempt + 1}/{retries})..."
+        )
 
     if blocked:
         print(f"Model reported BLOCKED, reverting. Tail: {_tail(stdout_tail, 200)}")
@@ -268,7 +296,10 @@ def run_one(task: TaskInfo, *, spec: str | None = None) -> RunOutcome:
         nw = _safe_status(
             task.task,
             "Ready",
-            notes="Worker produced no file changes; nothing to commit.",
+            notes=(
+                "Worker produced no file changes; nothing to commit.\n\n"
+                f"Session tail:\n\n{_tail(stdout_tail, 500)}"
+            ),
         )
         return _outcome("failed", "no file changes produced", notes_written=nw)
 
