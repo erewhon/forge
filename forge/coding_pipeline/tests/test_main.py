@@ -292,19 +292,28 @@ def test_status_accepts_epic_slug_argument(tmp_path):
 
 
 def test_status_reads_project_from_inventory_json(tmp_path, _tmp_runs_dir):
-    """status without --project should read project from inventory.json."""
+    """status without --project reads project from inventory.json AND passes it
+    to the Forge query (epic-gate feedback: the passthrough must be asserted)."""
     run_dir = _tmp_runs_dir / "my-epic"
     run_dir.mkdir(parents=True)
     from unittest.mock import patch
 
     (run_dir / "inventory.json").write_text('{"project": "Pipeline-Smoke"}')
 
+    seen_kwargs = {}
+
+    def fake_query(db, **kwargs):
+        seen_kwargs.update(kwargs)
+        return []
+
     with (
-        patch("nous_mcp.workflow._query_tasks", return_value=[]),
+        patch("nous_mcp.workflow._query_tasks", fake_query),
         patch("agents.task_worker.nous_client._read_db_content", return_value=None),
     ):
         result = main(["status", "my-epic"])
     assert result == 0
+    assert seen_kwargs.get("project") == "Pipeline-Smoke"
+    assert seen_kwargs.get("include_done") is True
 
 
 def test_status_fails_without_project_and_no_inventory(tmp_path):
@@ -316,7 +325,7 @@ def test_status_fails_without_project_and_no_inventory(tmp_path):
     assert result == 1
 
 
-def test_status_scopes_to_epic_and_includes_done(tmp_path):
+def test_status_scopes_to_epic_and_includes_done(tmp_path, capsys):
     """status should filter by epic ref prefix and include Done tasks."""
     from unittest.mock import patch
 
@@ -350,20 +359,20 @@ def test_status_scopes_to_epic_and_includes_done(tmp_path):
             "external_ref": "pipeline:smoke-epic:d",
         },
     ]
-    # Filter out rows not matching epic prefix — only smoke-epic rows should appear
-    # (project filter applied in _query_tasks, epic filter applied here)
-    filtered = [
-        r for r in mock_rows if str(r.get("external_ref", "")).startswith("pipeline:smoke-epic:")
-    ]
-    assert len(filtered) == 3  # A, B, D — C is excluded by epic prefix
-    assert any(r["task"] == "A" and r["status"] == "Done" for r in filtered)  # Done included
-
     with (
         patch("nous_mcp.workflow._query_tasks", return_value=mock_rows),
         patch("agents.task_worker.nous_client._read_db_content", return_value=None),
     ):
         result = main(["status", "smoke-epic"])
     assert result == 0
+
+    # Assert on main()'s actual OUTPUT, not a locally recomputed filter
+    # (epic-gate feedback: the original test validated its own logic only).
+    out = capsys.readouterr().out
+    assert "] A" in out and "] B" in out  # epic members render
+    assert "[Done" in out  # Done leaves are visible now
+    assert "] D" in out  # ref-prefix membership wins even under another Feature
+    assert "] C" not in out  # other epics filtered out
 
 
 # ---------------------------------------------------------------------------
