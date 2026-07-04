@@ -90,6 +90,12 @@ REGISTRY: list[AgentCommand] = [
         exposes_mcp=False,
     ),
     AgentCommand(
+        name="build",
+        summary="Coding pipeline: plan, run, and inspect epic builds.",
+        module="agents.coding_pipeline.main",
+        exposes_mcp=False,
+    ),
+    AgentCommand(
         name="astro",
         summary="Scout astronomy events worth streaming; write prep pages to Nous.",
         module="agents.astro_scout.main",
