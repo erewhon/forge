@@ -149,3 +149,21 @@ def test_render_blocked_lists_blockers():
     assert "BLOCKED" in out
     assert "quorum 3/3" in out
     assert "test weakened" in out
+
+
+def test_jj_push_argv_has_no_allow_new(monkeypatch):
+    """jj 0.42 dropped --allow-new (new bookmarks push by default). Verify the argv."""
+    captured: list[list[str]] = []
+
+    def fake_run(cmd, cwd=None):
+        captured.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(ve, "_run", fake_run)
+
+    ve._push_branch(Path("/tmp"), "jj", "pipeline/toy", lambda m: None)
+
+    # The command should contain --bookmark but NOT --allow-new
+    cmd = captured[0]
+    assert "--bookmark" in cmd
+    assert "--allow-new" not in cmd

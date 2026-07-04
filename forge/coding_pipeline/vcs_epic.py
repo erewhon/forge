@@ -67,7 +67,7 @@ def _set_branch_to_tip(repo: Path, vcs: str, branch: str) -> None:
 def _push_branch(repo: Path, vcs: str, branch: str, log: Callable[[str], None]) -> bool:
     """Best-effort push (git.example.com is push-to-create). Returns True when pushed."""
     if vcs == "jj":
-        res = _run(["jj", "git", "push", "--allow-new", "--bookmark", branch], repo)
+        res = _run(["jj", "git", "push", "--bookmark", branch], repo)
     else:
         res = _run(["git", "push", "-u", "origin", branch], repo)
     if res.returncode != 0:
