@@ -21,6 +21,15 @@ def _inventory():
     return Inventory.model_validate({"project": "Meta", "repo": "/tmp", "tree": ""})
 
 
+@pytest.fixture(autouse=True)
+def _tmp_runs_dir(tmp_path, monkeypatch):
+    """Every CLI test runs against a throwaway runs dir — never the real pipeline-runs/."""
+    from agents.coding_pipeline.config import settings
+
+    monkeypatch.setattr(settings, "runs_dir", tmp_path / "pipeline-runs")
+    return tmp_path / "pipeline-runs"
+
+
 # ---------------------------------------------------------------------------
 # CLI help / dispatch
 # ---------------------------------------------------------------------------
@@ -63,11 +72,12 @@ def test_plan_parses_spec_and_project(tmp_path):
     spec = tmp_path / "goal.yaml"
     spec.write_text("goal: build x\nproject: Meta\n")
 
-    with patch("agents.coding_pipeline.main.collect_inventory") as mock_inv, \
-         patch("agents.coding_pipeline.main.propose_framing") as mock_frame, \
-         patch("agents.coding_pipeline.main.persist_framing") as mock_persist, \
-         patch("agents.coding_pipeline.main.write_inventory"):
-
+    with (
+        patch("agents.coding_pipeline.main.collect_inventory") as mock_inv,
+        patch("agents.coding_pipeline.main.propose_framing") as mock_frame,
+        patch("agents.coding_pipeline.main.persist_framing") as mock_persist,
+        patch("agents.coding_pipeline.main.write_inventory"),
+    ):
         mock_inv.return_value = _inventory()
         mock_frame.return_value = MagicMock(approved=False)
 
@@ -83,36 +93,90 @@ def test_plan_parses_spec_and_project(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_plan_approve_without_framing_json(tmp_path):
+def _epic_spec(tmp_path) -> str:
+    spec = tmp_path / "goal.yaml"
+    spec.write_text("goal: build x\nproject: Meta\nepic_slug: my-epic\n")
+    return str(spec)
+
+
+def test_plan_approve_without_framing_json(tmp_path, _tmp_runs_dir):
     """--approve without an existing framing.json is an error, never a shortcut."""
-    run_dir = tmp_path / "pipeline-runs" / "my-epic"
-    run_dir.mkdir(parents=True)
+    (_tmp_runs_dir / "my-epic").mkdir(parents=True)
 
-    with patch("agents.coding_pipeline.main.collect_inventory") as mock_inv, \
-         patch("agents.coding_pipeline.main.write_inventory"):
-        mock_inv.return_value = _inventory()
-        result = main(["plan", "--approve", "--project", "Meta"])
-        assert result == 1
+    result = main(["plan", _epic_spec(tmp_path), "--approve", "--project", "Meta"])
+    assert result == 1
 
 
-def test_plan_approve_without_approved_flag(tmp_path):
+def test_plan_approve_without_approved_flag(tmp_path, _tmp_runs_dir):
     """--approve without approved:true in framing.json is an error."""
-    run_dir = tmp_path / "pipeline-runs" / "my-epic"
+    run_dir = _tmp_runs_dir / "my-epic"
     run_dir.mkdir(parents=True)
     (run_dir / "framing.json").write_text(
-        json.dumps({
-            "goal_as_stated": "x",
-            "restated_goal": "x",
-            "recommendation": "y",
-            "epic_slug": "my-epic",
-            "approved": False,
-        })
+        json.dumps(
+            {
+                "goal_as_stated": "x",
+                "restated_goal": "x",
+                "recommendation": "y",
+                "epic_slug": "my-epic",
+                "approved": False,
+            }
+        )
     )
 
-    with patch("agents.coding_pipeline.main.collect_inventory") as mock_inv, \
-         patch("agents.coding_pipeline.main.write_inventory"):
+    result = main(["plan", _epic_spec(tmp_path), "--approve", "--project", "Meta"])
+    assert result == 1
+
+
+def test_plan_approve_never_calls_propose_framing(tmp_path, _tmp_runs_dir):
+    """--approve must not burn an architect call — no framing proposal on this path
+    (the first draft proposed a framing and then discarded it)."""
+    run_dir = _tmp_runs_dir / "my-epic"
+    run_dir.mkdir(parents=True)
+    (run_dir / "framing.json").write_text(
+        json.dumps(
+            {
+                "goal_as_stated": "x",
+                "restated_goal": "x",
+                "recommendation": "y",
+                "epic_slug": "my-epic",
+                "approved": True,
+            }
+        )
+    )
+
+    def boom(*a, **k):
+        raise AssertionError("propose_framing must not run under --approve")
+
+    with (
+        patch("agents.coding_pipeline.main.propose_framing", boom),
+        patch("agents.coding_pipeline.main.collect_inventory") as mock_inv,
+        patch("agents.coding_pipeline.main.decompose") as mock_decompose,
+        patch("agents.coding_pipeline.main.emit_tree") as mock_emit,
+        patch("agents.coding_pipeline.main.persist_tree"),
+    ):
         mock_inv.return_value = _inventory()
-        result = main(["plan", "--approve", "--project", "Meta"])
+        mock_decompose.return_value = []
+        mock_emit.return_value = MagicMock(created=[], skipped=[])
+        result = main(["plan", _epic_spec(tmp_path), "--approve", "--project", "Meta"])
+        assert result == 0
+        mock_decompose.assert_called_once()
+        mock_emit.assert_called_once()
+
+
+def test_plan_existing_framing_refused_before_any_architect_call(tmp_path, _tmp_runs_dir):
+    """Plain plan over an existing framing errors out WITHOUT proposing (no wasted call)."""
+    run_dir = _tmp_runs_dir / "my-epic"
+    run_dir.mkdir(parents=True)
+    (run_dir / "framing.json").write_text("{}")
+
+    def boom(*a, **k):
+        raise AssertionError("no architect call when the framing already exists")
+
+    with (
+        patch("agents.coding_pipeline.main.propose_framing", boom),
+        patch("agents.coding_pipeline.main.collect_inventory", boom),
+    ):
+        result = main(["plan", _epic_spec(tmp_path), "--project", "Meta"])
         assert result == 1
 
 
@@ -126,11 +190,12 @@ def test_plan_without_approve_does_no_emission(tmp_path):
     spec = tmp_path / "goal.yaml"
     spec.write_text("goal: build x\nproject: Meta\n")
 
-    with patch("agents.coding_pipeline.main.collect_inventory") as mock_inv, \
-         patch("agents.coding_pipeline.main.propose_framing") as mock_frame, \
-         patch("agents.coding_pipeline.main.persist_framing") as mock_persist, \
-         patch("agents.coding_pipeline.main.write_inventory"):
-
+    with (
+        patch("agents.coding_pipeline.main.collect_inventory") as mock_inv,
+        patch("agents.coding_pipeline.main.propose_framing") as mock_frame,
+        patch("agents.coding_pipeline.main.persist_framing") as mock_persist,
+        patch("agents.coding_pipeline.main.write_inventory"),
+    ):
         mock_inv.return_value = _inventory()
         mock_frame.return_value = MagicMock(approved=False)
 
@@ -142,8 +207,10 @@ def test_plan_without_approve_does_no_emission(tmp_path):
 
         # decompose and emit_tree should NOT be called — re-run plan
         # and verify these functions are never imported/called.
-        with patch("agents.coding_pipeline.main.decompose") as mock_decompose, \
-             patch("agents.coding_pipeline.main.emit_tree") as mock_emit:
+        with (
+            patch("agents.coding_pipeline.main.decompose") as mock_decompose,
+            patch("agents.coding_pipeline.main.emit_tree") as mock_emit,
+        ):
             mock_inv.reset_mock()
             mock_persist.reset_mock()
             mock_frame.reset_mock()
@@ -168,8 +235,52 @@ def test_run_requires_epic_slug():
 
 def test_run_missing_run_dir(tmp_path):
     """`meta build run` with a non-existent run dir returns 1."""
-    result = main(["run", "nonexistent-epic"])
+    result = main(["run", "nonexistent-epic", "--project", "Meta"])
     assert result == 1
+
+
+def test_run_requires_project():
+    """--project is required — the epic slug is NOT a Forge project name."""
+    with pytest.raises(SystemExit) as exc:
+        main(["run", "some-epic"])
+    assert exc.value.code != 0
+
+
+def test_run_derives_feature_from_tree(tmp_path, _tmp_runs_dir):
+    """With no --feature, the feature comes from the emitted tree.json."""
+    from agents.coding_pipeline.architect import persist_tree
+    from agents.coding_pipeline.models import FramingProposal, LeafSpec
+
+    run_dir = _tmp_runs_dir / "my-epic"
+    run_dir.mkdir(parents=True)
+    (run_dir / "framing.json").write_text(
+        FramingProposal(
+            goal_as_stated="x",
+            restated_goal="x",
+            recommendation="y",
+            epic_slug="my-epic",
+            approved=True,
+        ).model_dump_json()
+    )
+    persist_tree([LeafSpec(title="a", content="s", feature="Toy Feature")], run_dir)
+
+    seen = {}
+    with patch(
+        "agents.coding_pipeline.main.run_epic",
+        lambda **kw: (
+            seen.update(kw) or MagicMock(status="dry", epic_slug="my-epic", waves_run=0, notes=[])
+        ),
+    ):
+        result = main(["run", "my-epic", "--project", "Meta"])
+    assert result == 0
+    assert seen["feature"] == "Toy Feature"
+    assert seen["project"] == "Meta"
+
+
+def test_status_accepts_epic_slug_argument(tmp_path):
+    """`meta build status <epic>` must route (the first draft's outer parser rejected it)."""
+    result = main(["status", "some-epic"])
+    assert result == 0  # no journal data for it, but the argument parses and routes
 
 
 # ---------------------------------------------------------------------------

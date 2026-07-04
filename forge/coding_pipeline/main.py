@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
 from pathlib import Path
 
 from agents.coding_pipeline.architect import (
     ArchitectError,
     decompose,
+    load_tree,
     persist_framing,
     persist_tree,
     propose_framing,
@@ -21,8 +23,8 @@ from agents.coding_pipeline.architect import (
 )
 from agents.coding_pipeline.config import settings
 from agents.coding_pipeline.emit import emit_tree
-from agents.coding_pipeline.inventory import collect_inventory, write_inventory
-from agents.coding_pipeline.models import FramingProposal, GoalSpec, TaskTree
+from agents.coding_pipeline.inventory import collect_inventory, run_dir_for, write_inventory
+from agents.coding_pipeline.models import FramingProposal, GoalSpec, TaskTree, WaveRecord
 from agents.coding_pipeline.orchestrator import OrchestratorResult, run_epic
 
 # ---------------------------------------------------------------------------
@@ -63,7 +65,6 @@ def _cmd_plan(argv: list[str]) -> int:
     parsed = parser.parse_args(argv)
 
     # --- load spec --------------------------------------------------------
-    spec_path: Path | None = None
     if parsed.spec:
         spec_path = Path(parsed.spec)
         if not spec_path.is_file():
@@ -73,104 +74,99 @@ def _cmd_plan(argv: list[str]) -> int:
     else:
         goal = GoalSpec(goal="", project=parsed.project)
 
-    # Derive run directory (shared with the orchestrator).
-    epic = goal.epic_slug or "default"
-    run_dir = settings.runs_dir / epic
-    run_dir.mkdir(parents=True, exist_ok=True)
+    # Run directory: derived from the goal (set epic_slug in the spec so plan and
+    # plan --approve resolve the same dir).
+    run_dir = run_dir_for(goal)
+    framing_path = run_dir / "framing.json"
 
-    # --- A0: inventory ----------------------------------------------------
-    print(f"[A0] Inventorying project '{goal.project}'…")
-    try:
-        repo_path = goal.repo if goal.repo else Path.cwd()
-        inv = collect_inventory(goal, repo=repo_path)
-    except ArchitectError as e:
-        print(f"Inventory failed: {e}")
+    # --- --approve path: A2+A3 against an ALREADY-approved framing ----------
+    # No framing proposal happens here — --approve is never a shortcut past the
+    # human gate, and never burns an architect call.
+    if parsed.approve:
+        if not framing_path.is_file():
+            print(
+                f"--approve was passed but {framing_path} does not exist. "
+                "Run without --approve first to produce the proposal."
+            )
+            return 1
+        existing = FramingProposal.model_validate_json(framing_path.read_text())
+        if not existing.approved:
+            print(
+                "--approve requires an already-approved framing.json. "
+                "Read framing.md, then set ``approved: true`` in framing.json."
+            )
+            return 1
+        if existing.epic_slug != run_dir.name:
+            print(
+                f"note: framing epic_slug '{existing.epic_slug}' differs from the run dir "
+                f"'{run_dir.name}' — refs will use the framing's slug"
+            )
+
+        print("[A0] Collecting inventory for decomposition context…")
+        inv = collect_inventory(goal, repo=goal.repo or Path.cwd())
+
+        print("[A2] Decomposing tree…")
+        try:
+            leaves = decompose(existing, inv)
+        except ArchitectError as e:
+            print(f"Decomposition failed: {e}")
+            return 1
+
+        print("[A3] Emitting task tree to Forge…")
+        try:
+            result = emit_tree(
+                TaskTree(leaves=leaves),
+                project=parsed.project,
+                epic_slug=existing.epic_slug,
+                runs_dir=settings.runs_dir,
+            )
+        except ArchitectError as e:
+            print(f"Emission failed: {e}")
+            return 1
+        persist_tree(leaves, run_dir)
+
+        print(f"\nTree emitted: {len(leaves)} leaf(s) for '{existing.epic_slug}'.")
+        if result.created:
+            print(f"  Created: {len(result.created)}")
+        if result.skipped:
+            print(f"  Skipped (existing): {len(result.skipped)}")
+        print(f"Run ``meta build run {existing.epic_slug} --project {parsed.project}``.")
+        return 0
+
+    # --- plain path: A0+A1, then stop for the human -------------------------
+    # Check for an existing framing BEFORE spending an architect call on a
+    # proposal that persist_framing would refuse to write anyway.
+    if framing_path.is_file() and not parsed.force:
+        print(
+            f"{framing_path} already exists — review/approve it, or pass --force "
+            "to discard it and re-propose."
+        )
         return 1
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    print(f"[A0] Inventorying project '{goal.project}'…")
+    inv = collect_inventory(goal, repo=goal.repo or Path.cwd())
     if inv.truncated:
         print(f"  (truncated {inv.truncated} items to fit budget)")
+    write_inventory(inv, run_dir)
 
-    # Persist inventory to the run dir.
-    try:
-        write_inventory(inv, run_dir)
-    except Exception as e:
-        print(f"Inventory write failed: {e}")
-
-    # --- A1: framing proposal ---------------------------------------------
     print("[A1] Proposing framing…")
     try:
         proposal = propose_framing(goal, inv)
     except ArchitectError as e:
         print(f"Framing failed: {e}")
         return 1
-
-    # --- --approve vs plain path ------------------------------------------
-    if not parsed.approve:
-        # Plain path: write framing proposal and exit.
-        try:
-            persist_framing(proposal, run_dir, force=parsed.force)
-        except ArchitectError as e:
-            print(f"Framing write failed: {e}")
-            return 1
-        print(
-            "\nFraming proposal written to the run directory.\n"
-            "A human must approve it (set ``approved: true`` in framing.json) before "
-            "decomposition proceeds.\n"
-            "Run ``meta build plan --approve`` once approved to continue."
-        )
-        return 0
-
-    # --- --approve path: require existing approval -------------------------
-    framing_path = run_dir / "framing.json"
-    if not framing_path.is_file():
-        print(
-            "--approve was passed but no framing.json exists. "
-            "Run without --approve first to produce the proposal."
-        )
-        return 1
-
-    # Validate the existing framing is approved (never let --approve shortcut the gate).
-    existing = FramingProposal.model_validate_json(framing_path.read_text())
-    if not existing.approved:
-        print(
-            "--approve requires an already-approved framing.json. "
-            "Either edit framing.json to set ``approved: true`` or approve interactively."
-        )
-        return 1
-
-    # --- A2+A3: decomposition + emission ----------------------------------
-    print("[A2] Decomposing tree…")
     try:
-        leaves = decompose(existing, inv)
+        persist_framing(proposal, run_dir, force=parsed.force)
     except ArchitectError as e:
-        print(f"Decomposition failed: {e}")
+        print(f"Framing write failed: {e}")
         return 1
-
-    tree = TaskTree(leaves=leaves)
-
-    print("[A3] Emitting task tree to Forge…")
-    try:
-        result = emit_tree(
-            tree,
-            project=parsed.project,
-            epic_slug=goal.epic_slug or "default",
-            runs_dir=settings.runs_dir,
-        )
-    except ArchitectError as e:
-        print(f"Emission failed: {e}")
-        return 1
-
-    # Persist the tree for the orchestrator.
-    try:
-        persist_tree(leaves, run_dir)
-    except Exception as e:
-        print(f"Tree persistence failed: {e}")
-
-    print(f"\nTree emitted: {len(leaves)} leaf(s) for '{goal.epic_slug}'.")
-    if result.created:
-        print(f"  Created: {len(result.created)}")
-    if result.skipped:
-        print(f"  Skipped (existing): {len(result.skipped)}")
-    print("Run ``meta build run`` to start the orchestrator wave loop.")
+    print(
+        f"\nFraming proposal written to {run_dir}.\n"
+        "Read framing.md; a human must set ``approved: true`` in framing.json before "
+        "decomposition proceeds.\n"
+        "Then run ``meta build plan <same spec> --approve`` to decompose and emit."
+    )
     return 0
 
 
@@ -191,13 +187,13 @@ def _cmd_run(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--project",
-        default=None,
-        help="Forge project name (overrides the one in framing.json).",
+        required=True,
+        help="Forge project name (framing does not carry it; there is no sane default).",
     )
     parser.add_argument(
         "--feature",
         default=None,
-        help="Feature name to scope leaves to (overrides the one in framing.json).",
+        help="Feature name to scope leaves to (default: from the emitted tree.json).",
     )
     parser.add_argument(
         "--max-waves",
@@ -222,19 +218,22 @@ def _cmd_run(argv: list[str]) -> int:
         print(f"Run directory not found: {run_dir}. Run ``meta build plan`` first.")
         return 1
 
-    framing = require_approved_framing(run_dir)
-    project = args.project or framing.epic_slug
-    feature = args.feature or "Coding Pipeline"
+    require_approved_framing(run_dir)  # fail fast with the gate's own message
 
-    repo = Path.cwd()
-    if not repo.is_dir():
-        repo = Path.home()
+    feature = args.feature
+    if feature is None:
+        tree = load_tree(run_dir)
+        if tree:
+            feature = tree[0].feature
+    if not feature:
+        print("No --feature given and no tree.json to derive it from — emit the tree first.")
+        return 1
 
     result = run_epic(
-        project=project,
+        project=args.project,
         feature=feature,
         epic_slug=args.epic_slug,
-        repo=repo,
+        repo=Path.cwd(),
         max_waves=args.max_waves,
         wave_gate=args.wave_gate,
         dry_run=args.dry_run,
@@ -291,8 +290,7 @@ def _cmd_status(argv: list[str]) -> int:
                 status = str(t.get("status", "?"))
                 pri = t.get("priority", "?")
                 ref = t.get("external_ref", "")
-                print(f"    [{status:12s}] {t.get('task', '?'):50s} "
-                      f"pri={pri} ref={ref}")
+                print(f"    [{status:12s}] {t.get('task', '?'):50s} pri={pri} ref={ref}")
     except Exception:
         print("  (could not query Forge — Nous daemon may be unavailable)\n")
 
@@ -311,8 +309,10 @@ def _cmd_status(argv: list[str]) -> int:
                 record = WaveRecord.model_validate_json(w.read_text())
                 landed = len(record.report.landed)
                 failed = len(record.report.failed)
-                print(f"    wave-{record.wave:04d}: {landed} landed, {failed} failed, "
-                      f"{len(record.report.findings)} findings")
+                print(
+                    f"    wave-{record.wave:04d}: {landed} landed, {failed} failed, "
+                    f"{len(record.report.findings)} findings"
+                )
             except Exception:
                 print(f"    wave-{_wave_number(w.name)}: (parse error)")
     else:
@@ -368,49 +368,34 @@ def _latest_epic(runs_dir: Path) -> str | None:
     return None
 
 
-# Import WaveRecord at top level now that we're in helpers
-from agents.coding_pipeline.models import WaveRecord  # noqa: E402
+_COMMANDS = {
+    "plan": _cmd_plan,
+    "run": _cmd_run,
+    "status": _cmd_status,
+}
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Dispatch ``meta build`` subcommands."""
+    """Dispatch ``meta build`` subcommands.
+
+    Route-only: known subcommands go straight to their own parser with the remaining
+    args (no double parse, no argument drift between an outer and inner parser, and
+    ``argv=None`` correctly falls back to ``sys.argv``). The outer parser exists only
+    to render help and reject unknown commands.
+    """
+    args = list(sys.argv[1:]) if argv is None else list(argv)
+    if args and args[0] in _COMMANDS:
+        return _COMMANDS[args[0]](args[1:])
+
     parser = argparse.ArgumentParser(
         prog="meta build",
         description="Coding pipeline: plan, run, and inspect epic builds.",
     )
     sub = parser.add_subparsers(dest="command")
-
-    # plan
-    plan_p = sub.add_parser("plan", help="A0+A1 framing; --approve unlocks A2+A3.")
-    plan_p.add_argument("spec", nargs="?", default=None, help="Goal spec file.")
-    plan_p.add_argument("--project", required=True, help="Forge project name.")
-    plan_p.add_argument("--approve", action="store_true", help="Approve framing + decompose.")
-    plan_p.add_argument("--force", action="store_true", help="Overwrite existing approved framing.")
-
-    # run
-    run_p = sub.add_parser("run", help="Orchestrator wave loop.")
-    run_p.add_argument("epic_slug", help="Epic slug.")
-    run_p.add_argument("--project", default=None, help="Project override.")
-    run_p.add_argument("--feature", default=None, help="Feature override.")
-    run_p.add_argument("--max-waves", type=int, default=None, help="Max waves.")
-    run_p.add_argument("--wave-gate", action="store_true", help="Stop per wave for review.")
-    run_p.add_argument("--dry-run", action="store_true", help="Plan only, no dispatch.")
-
-    # status
+    sub.add_parser("plan", help="A0+A1 framing; --approve unlocks A2+A3.")
+    sub.add_parser("run", help="Orchestrator wave loop.")
     sub.add_parser("status", help="Tree + journal summary for an epic.")
-
-    args = parser.parse_args(argv)
-
-    if args.command == "plan":
-        argv = argv or []
-        return _cmd_plan(argv[1:])  # strip "plan" verb, pass remaining to sub-parser
-    if args.command == "run":
-        argv = argv or []
-        return _cmd_run(argv[1:])
-    if args.command == "status":
-        argv = argv or []
-        return _cmd_status(argv[1:])
-
+    parser.parse_args(args)  # --help exits 0 here; unknown commands exit 2
     parser.print_help()
     return 0
 
