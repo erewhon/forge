@@ -39,7 +39,15 @@ from agents.shared.panel import Finder, discover, structured
 
 
 class ArchitectError(RuntimeError):
-    """A stage of the architect could not produce a usable artifact."""
+    """A stage of the architect could not produce a usable artifact.
+
+    ``raw`` carries the model's last raw output when the failure was a payload that never
+    validated — captured so a degrade path (e.g. the orchestrator's replan fallback) can
+    journal what the model actually emitted instead of only the generic validation error."""
+
+    def __init__(self, *args: object, raw: str = "") -> None:
+        super().__init__(*args)
+        self.raw = raw
 
 
 class FramingExistsError(ArchitectError):
@@ -122,7 +130,9 @@ def propose_framing(goal: GoalSpec, inventory: Inventory) -> FramingProposal:
         timeout=settings.architect_timeout,
     )
     if result.value is None:
-        raise ArchitectError(f"framing produced no usable proposal: {result.error}")
+        raise ArchitectError(
+            f"framing produced no usable proposal: {result.error}", raw=result.raw
+        )
     proposal = result.value
     proposal.approved = False  # only approve_framing may flip this
     if goal.epic_slug:
@@ -363,7 +373,9 @@ def decompose(framing: FramingProposal, inventory: Inventory) -> list[LeafSpec]:
         predicate=lambda tree: len(tree.leaves) > 0,
     )
     if result.value is None:
-        raise ArchitectError(f"decomposition produced no usable tree: {result.error}")
+        raise ArchitectError(
+            f"decomposition produced no usable tree: {result.error}", raw=result.raw
+        )
     leaves = result.value.leaves
     _validate_deps(leaves)
     _apply_conservative_tags(leaves, framing)
@@ -431,10 +443,12 @@ Respond with ONLY a JSON object:
   {"kind": "halt", "reason": str}
 ]}
 where <LeafSpec> is {"title": str, "content": str, "feature": str, "depends_on": [str],
- "priority": int, "phase": str, "status": "Ready"|"Spec Needed", "execution_mode":
- "Manual"|"Auto-OK"|"Auto-Preferred", "complexity": "routine"|"novel"|null, "estimate":
- "xs"|"s"|"m"|"l"|"xl"|null, "task_type": str, "requires_tests": bool, "max_files": int|null,
- "model_tier": "auto"|"auto-free"|"auto-full"|null}
+ "priority": int, "phase": "Feature"|"Infrastructure"|"Polish"|"Bugfix"|"Launch",
+ "status": "Ready"|"Spec Needed", "execution_mode": "Manual"|"Auto-OK"|"Auto-Preferred",
+ "complexity": "routine"|"novel"|null, "estimate": "xs"|"s"|"m"|"l"|"xl"|null,
+ "task_type": "bug-fix"|"feature"|"refactor"|"docs"|"test"|"chore", "requires_tests": bool,
+ "max_files": int|null, "model_tier": "auto"|"auto-free"|"auto-full"|null}
+Use these exact enum values — they are validated strictly; a near-miss discards the whole action.
 
 An empty actions list is a valid answer when the wave landed clean."""
 
@@ -525,7 +539,9 @@ def replan(
         timeout=settings.architect_timeout,
     )
     if result.value is None:
-        raise ArchitectError(f"replan produced no usable actions: {result.error}")
+        raise ArchitectError(
+            f"replan produced no usable actions: {result.error}", raw=result.raw
+        )
 
     actions: list[ReplanAction] = []
     new_leaves: list[LeafSpec] = []

@@ -167,6 +167,15 @@ class StructuredResult[T: BaseModel]:
     def error(self) -> str | None:
         return self.result.error
 
+    @property
+    def raw(self) -> str:
+        """The model's last raw output — including a payload that failed schema validation.
+
+        ``value`` is None when nothing parsed; ``raw`` is what the model actually emitted, so a
+        caller can log *why* it failed. ``Pool.run`` preserves the last attempt's text when it
+        demotes an unparseable-but-transport-OK response, so this survives pool exhaustion."""
+        return self.result.output
+
 
 def _parse_model[T: BaseModel](
     schema: type[T], text: str, predicate: Callable[[T], bool] | None

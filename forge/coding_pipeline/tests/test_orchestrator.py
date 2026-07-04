@@ -232,7 +232,10 @@ def test_replan_failure_degrades_to_deterministic_escalations(wired, monkeypatch
     monkeypatch.setattr(orc, "count_attempts_for_all", lambda d, titles: {t: 99 for t in titles})
 
     def boom(f, t, r, a):
-        raise orc.ArchitectError("replan produced no usable actions: output failed validation")
+        raise orc.ArchitectError(
+            "replan produced no usable actions: output failed validation",
+            raw='{"actions": [{"kind": "fixup", "oops": true}]}',
+        )
 
     monkeypatch.setattr(orc, "replan", boom)
     status_writes = []
@@ -248,6 +251,7 @@ def test_replan_failure_degrades_to_deterministic_escalations(wired, monkeypatch
     assert (wired / "toy-epic" / "wave-0001.json").exists()  # record persisted
     journal = (wired / "toy-epic" / "journal.jsonl").read_text()
     assert "replan-degraded" in journal
+    assert "oops" in journal  # the model's raw output is captured (JSON-escaped) for diagnosis
     assert any("degraded" in n for n in result.notes)
     assert result.status == "dry"  # the loop continued past the failure
 

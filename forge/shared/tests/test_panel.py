@@ -173,11 +173,16 @@ def test_structured_fails_over_on_unparseable_output():
 
 def test_structured_none_when_pool_exhausted():
     res = structured(
-        pool=_pool(FakeExec("a", output="not json")), schema=_Pick, system="s", user="u"
+        pool=_pool(FakeExec("a", output="not the json we asked for")),
+        schema=_Pick,
+        system="s",
+        user="u",
     )
     assert not res.ok
     assert res.value is None
     assert res.error is not None  # carries the underlying failure for the caller to log
+    # ...and the model's actual (unparseable) output survives exhaustion, for diagnosis.
+    assert res.raw == "not the json we asked for"
 
 
 def test_structured_predicate_rejects_then_fails_over():

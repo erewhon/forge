@@ -286,7 +286,12 @@ def run_epic(
             # attempts). Degrade to the deterministic pre-rules — capped leaves still
             # escalate — and journal the degradation so a human sees replan is limping.
             actions = list(deterministic_escalations(report, attempts))
-            append_replan_action(run_dir, "replan-degraded", reason=str(e))
+            # Journal the model's raw output too — that's the only record of *why* replan's
+            # judgment half never fires (see pipeline:build:fix:replan-validation). Keep it out
+            # of the console note, which stays a one-liner.
+            append_replan_action(
+                run_dir, "replan-degraded", reason=str(e), raw_output=getattr(e, "raw", "")
+            )
             result.notes.append(f"replan degraded to deterministic escalations: {e}")
             log(result.notes[-1])
         halted = _apply_actions(

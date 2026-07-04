@@ -56,12 +56,12 @@ def _inventory() -> Inventory:
     return Inventory(project="Nous", repo="/repo", tree="src/\n  app.rs")
 
 
-def _mock_structured(monkeypatch, value, error=None):
+def _mock_structured(monkeypatch, value, error=None, raw=""):
     calls: list[dict] = []
 
     def fake(**kwargs):
         calls.append(kwargs)
-        return SimpleNamespace(value=value, error=error, ok=value is not None)
+        return SimpleNamespace(value=value, error=error, ok=value is not None, raw=raw)
 
     monkeypatch.setattr(arch, "structured", fake)
     return calls
@@ -431,3 +431,28 @@ def test_replan_pool_exhaustion_raises(monkeypatch):
     report = _report(outcomes=[_failed_leaf("wobbly")])
     with pytest.raises(ArchitectError, match="no usable actions"):
         arch.replan(_proposal(approved=True), [_leaf("wobbly")], report, {"wobbly": 0})
+
+
+def test_replan_prompt_enumerates_strict_leafspec_enums():
+    # Regression for pipeline:build:fix:replan-validation. A live coder replan was discarded
+    # because REPLAN_SYSTEM declared task_type a free `str` while LeafSpec enforces a 6-value
+    # Literal, so the model guessed "implementation". The prompt must spell out every strictly
+    # validated enum (task_type is the one that bit) — and must not label it a bare str.
+    import typing
+
+    from agents.coding_pipeline.models import LeafSpec
+
+    for value in typing.get_args(LeafSpec.model_fields["task_type"].annotation):
+        assert f'"{value}"' in arch.REPLAN_SYSTEM, f"task_type {value!r} missing from REPLAN_SYSTEM"
+    assert '"task_type": str' not in arch.REPLAN_SYSTEM
+
+
+def test_replan_failure_carries_model_raw_output(monkeypatch):
+    # The whole point of pipeline:build:fix:replan-validation: when the coder's replan JSON
+    # never validates, the raw payload must survive on the exception so a human can see it.
+    bad_json = '{"actions": [{"kind": "fixup", "leaf": "not a LeafSpec"}]}'
+    _mock_structured(monkeypatch, None, error="output failed validation", raw=bad_json)
+    report = _report(outcomes=[_failed_leaf("wobbly")])
+    with pytest.raises(ArchitectError) as exc:
+        arch.replan(_proposal(approved=True), [_leaf("wobbly")], report, {"wobbly": 0})
+    assert exc.value.raw == bad_json
