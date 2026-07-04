@@ -8,8 +8,9 @@ Flow (one-shot MVP):
   5. Verify a clean working copy, mark the task In Progress.
   6. Run OpenCode inside the dx container against the local LLM router.
   7. Sanity-check the diff (max_files guardrail).
-  8. Run tests inside the dx container if required.
-  9. Commit the change (on host) and mark the task Done.
+  8. Lint the changed files inside the dx container (autofix-then-recheck).
+  9. Run tests inside the dx container if required.
+ 10. Commit the change (on host) and mark the task Done.
 
 Any failure path reverts the working copy (host) and flips the task back to
 Ready with a diagnostic note. Execution is sandboxed to the dx container;
@@ -30,6 +31,7 @@ import time
 
 from agents.task_worker.config import settings
 from agents.task_worker.executor import execute_task_with_opencode
+from agents.task_worker.linter import run_lint
 from agents.task_worker.models import RunOutcome, TaskInfo
 from agents.task_worker.nous_client import (
     check_worker_gate,
@@ -303,7 +305,34 @@ def run_one(task: TaskInfo, *, spec: str | None = None) -> RunOutcome:
         )
         return _outcome("failed", "no file changes produced", notes_written=nw)
 
-    # 8. Run tests if required (inside dx container)
+    # 8. Lint gate (inside dx container) — changed files only, autofix-then-recheck.
+    # Runs BEFORE tests so a single test run validates the final (possibly autofixed)
+    # state. Only violations that survive autofix fail the leaf.
+    if task.requires_tests:
+        print("Linting changed files...")
+        try:
+            lint_ok, lint_output, lint_fixed = run_lint(project_dir, changed, sandbox=sandbox)
+        except Exception as e:  # noqa: BLE001
+            lint_ok, lint_output, lint_fixed = False, f"linter raised: {e}", False
+        if lint_fixed:
+            print("Lint autofix applied to changed files.")
+        if not lint_ok:
+            print(f"Lint failed after autofix. Reverting. Tail: {_tail(lint_output, 200)}")
+            _safe_revert(project_dir, "lint-failed")
+            nw = _safe_status(
+                task.task,
+                "Ready",
+                notes=f"Worker lint failed (after autofix attempt):\n\n{_tail(lint_output, 500)}",
+            )
+            return _outcome(
+                "failed",
+                f"lint failed: {_tail(lint_output, 200)}",
+                changed=changed,
+                notes_written=nw,
+            )
+        print("Lint clean")
+
+    # 9. Run tests if required (inside dx container)
     if task.requires_tests:
         print("Running tests...")
         try:
@@ -328,7 +357,7 @@ def run_one(task: TaskInfo, *, spec: str | None = None) -> RunOutcome:
             )
         print("Tests passed")
 
-    # 9. Commit (on host)
+    # 10. Commit (on host)
     if settings.dry_run:
         print(f"[DRY RUN] Would commit {len(changed)} files: {changed}")
         print("[DRY RUN] Reverting to leave repo clean.")

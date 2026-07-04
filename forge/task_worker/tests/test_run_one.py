@@ -338,3 +338,51 @@ def test_tail_trims_to_line_boundary():
 
     short = "short text"
     assert tw._tail(short, 200) == short
+
+
+# --- lint gate (autofix-then-recheck, before tests) ----------------------------------
+
+
+def test_lint_failure_reverts_before_tests(wired, monkeypatch):
+    events = wired
+    monkeypatch.setattr(
+        tw, "run_lint", lambda p, files, sandbox=None: (False, "E501 survived autofix", True)
+    )
+    tests_ran = []
+    monkeypatch.setattr(tw, "run_tests", lambda p, sandbox=None: tests_ran.append(1) or (True, ""))
+    out = tw.run_one(_task())
+    assert out.status == "failed"
+    assert out.reason.startswith("lint failed:")
+    assert tests_ran == []  # lint gates BEFORE tests: one test run per leaf, final state only
+    assert "revert" in events  # reverted like any other gate failure
+    assert ("status", "Ready") in events
+
+
+def test_lint_autofix_then_clean_proceeds_to_commit(wired, monkeypatch):
+    events = wired
+    monkeypatch.setattr(
+        tw, "run_lint", lambda p, files, sandbox=None: (True, "lint clean after autofix", True)
+    )
+    out = tw.run_one(_task())
+    assert out.status == "done"
+    assert "commit" in events  # autofixed state landed
+
+
+def test_lint_skipped_when_tests_not_required(wired, monkeypatch):
+    lint_calls = []
+    monkeypatch.setattr(
+        tw, "run_lint", lambda p, files, sandbox=None: lint_calls.append(1) or (True, "", False)
+    )
+    out = tw.run_one(_task(requires_tests=False))
+    assert out.status == "done"
+    assert lint_calls == []  # gated on requires_tests, per the task spec
+
+
+def test_linter_crash_fails_closed(wired, monkeypatch):
+    def boom(p, files, sandbox=None):
+        raise RuntimeError("uvx exploded")
+
+    monkeypatch.setattr(tw, "run_lint", boom)
+    out = tw.run_one(_task())
+    assert out.status == "failed"
+    assert "lint failed" in out.reason
