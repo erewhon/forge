@@ -15,15 +15,24 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from pydantic import BaseModel
+
 from agents.coding_pipeline.config import settings
 from agents.coding_pipeline.inventory import render_inventory
 from agents.coding_pipeline.models import (
     BoundednessCheck,
+    EscalateAction,
+    FixupAction,
     FramingProposal,
     GoalSpec,
+    HaltAction,
+    IntegrationFixAction,
     Inventory,
     LeafSpec,
+    ReplanAction,
+    RespecAction,
     TaskTree,
+    WaveReport,
 )
 from agents.shared.ensemble import ApiExecutor, Pool
 from agents.shared.panel import Finder, discover, structured
@@ -376,6 +385,164 @@ def render_tree(leaves: list[LeafSpec]) -> str:
             f"(p{leaf.priority}, {leaf.estimate or '?'}, {leaf.feature}, shaped:{shaped}){deps}"
         )
     return "\n".join(lines)
+
+
+# --- A4: replan -----------------------------------------------------------------
+
+REPLAN_SYSTEM = """You are the ARCHITECT for an iterative coding pipeline, running the REPLAN \
+stage after a wave of automated work. You receive the approved framing, the current tree, the \
+wave report (what landed, what failed and why, the suite result, CONFIRMED review findings), \
+per-leaf attempt counts, and a list of leaves already escalated to a human — those are handled; \
+do not touch them.
+
+Propose the smallest set of actions that keeps the epic converging:
+- "fixup": one new leaf per CONFIRMED finding (use its finding_slug). Never for unconfirmed ones.
+- "respec": a failed leaf under the attempt cap gets a REWRITTEN, worker-shaped spec — fix what \
+the failure diagnostics show went wrong (smaller scope, explicit files, sharper acceptance).
+- "integration_fix": only when the suite is red although the landed leaves individually passed — \
+one leaf targeting the interaction, complexity "novel", execution_mode "Manual".
+- "split_subtree": repeated failures across one feature — park it for re-decomposition.
+- "halt": the framing itself was invalidated by what landed. Prefer halt over guessing.
+
+New/rewritten leaves follow the same rules as decomposition: complete worker specs (what/why, \
+testable acceptance criteria, files hint, test expectations), conservative tagging (novel or \
+underspecified -> Manual), comma-free titles.
+
+Respond with ONLY a JSON object:
+{"actions": [
+  {"kind": "fixup", "finding_slug": str, "leaf": <LeafSpec>} |
+  {"kind": "respec", "leaf_title": str, "revised": <LeafSpec>, "rationale": str} |
+  {"kind": "split_subtree", "feature": str, "rationale": str} |
+  {"kind": "integration_fix", "leaf": <LeafSpec>, "rationale": str} |
+  {"kind": "halt", "reason": str}
+]}
+where <LeafSpec> is {"title": str, "content": str, "feature": str, "depends_on": [str],
+ "priority": int, "phase": str, "status": "Ready"|"Spec Needed", "execution_mode":
+ "Manual"|"Auto-OK"|"Auto-Preferred", "complexity": "routine"|"novel"|null, "estimate":
+ "xs"|"s"|"m"|"l"|"xl"|null, "task_type": str, "requires_tests": bool, "max_files": int|null,
+ "model_tier": "auto"|"auto-free"|"auto-full"|null}
+
+An empty actions list is a valid answer when the wave landed clean."""
+
+
+class ReplanEnvelope(BaseModel):
+    """Wire shape for the replan call — the discriminated union does the heavy lifting."""
+
+    actions: list[ReplanAction] = []
+
+
+def _deterministic_escalations(
+    report: WaveReport, attempts: dict[str, int]
+) -> list[EscalateAction]:
+    """The pre-rule that never goes near a model: a failed leaf at the attempt cap escalates
+    to a human, full stop."""
+    return [
+        EscalateAction(leaf_title=outcome.leaf, diagnostics=outcome.reason)
+        for outcome in report.failed
+        if attempts.get(outcome.leaf, 0) >= settings.max_leaf_attempts
+    ]
+
+
+def _replan_user(
+    framing: FramingProposal,
+    tree: list[LeafSpec],
+    report: WaveReport,
+    attempts: dict[str, int],
+    escalated: list[EscalateAction],
+) -> str:
+    landed = "\n".join(f"- {o.leaf} (commit {o.commit_id})" for o in report.landed) or "none"
+    failed = (
+        "\n".join(
+            f"- {o.leaf} (attempts so far: {attempts.get(o.leaf, 0)}): {o.reason}"
+            for o in report.failed
+            if o.leaf not in {e.leaf_title for e in escalated}
+        )
+        or "none"
+    )
+    findings = (
+        "\n".join(f"- [{f.severity}] {f.slug}: {f.summary}" for f in report.findings if f.confirmed)
+        or "none"
+    )
+    suite_tail = report.suite.output_tail if report.suite else ""
+    suite = "GREEN" if report.suite_green else f"RED\n```\n{suite_tail}\n```"
+    escalated_lines = "\n".join(f"- {e.leaf_title}" for e in escalated) or "none"
+    return (
+        f"## Approved framing (summary)\n\nGoal: {framing.restated_goal}\n"
+        f"Recommendation: {framing.recommendation}\n\n"
+        f"## Current tree\n\n{render_tree(tree)}\n\n"
+        f"## Wave {report.wave} report\n\n"
+        f"Suite: {suite}\n\nLanded:\n{landed}\n\nFailed (under the attempt cap):\n{failed}\n\n"
+        f"CONFIRMED findings:\n{findings}\n\n"
+        f"Already escalated to a human (do not touch):\n{escalated_lines}\n"
+    )
+
+
+def replan(
+    framing: FramingProposal,
+    tree: list[LeafSpec],
+    report: WaveReport,
+    attempts: dict[str, int],
+) -> list[ReplanAction]:
+    """A4: wave report → typed replan actions.
+
+    Deterministic pre-rules run first and without any model: leaves at the attempt cap
+    escalate to a human. The model is consulted only when there is judgment work left —
+    confirmed findings to turn into fix-ups, under-cap failures to respec, or an
+    integration-red suite. New/rewritten leaves get the same conservative tagging floor
+    as decomposition, and a replan that wants more new leaves than the emission cap
+    halts instead (a replan that big means the framing is wrong).
+    """
+    escalated = _deterministic_escalations(report, attempts)
+    escalated_titles = {e.leaf_title for e in escalated}
+
+    confirmed = [f for f in report.findings if f.confirmed]
+    failed_under_cap = [o for o in report.failed if o.leaf not in escalated_titles]
+    integration_red = bool(report.landed) and not report.suite_green
+    if not confirmed and not failed_under_cap and not integration_red:
+        return list(escalated)
+
+    result = structured(
+        pool=_architect_pool(),
+        schema=ReplanEnvelope,
+        system=REPLAN_SYSTEM,
+        user=_replan_user(framing, tree, report, attempts, escalated),
+        max_tokens=settings.decompose_max_tokens,
+        timeout=settings.architect_timeout,
+    )
+    if result.value is None:
+        raise ArchitectError(f"replan produced no usable actions: {result.error}")
+
+    actions: list[ReplanAction] = []
+    new_leaves: list[LeafSpec] = []
+    creations = 0
+    for action in result.value.actions:
+        if isinstance(action, RespecAction | EscalateAction):
+            title = action.leaf_title
+            if title in escalated_titles:
+                continue  # already human-owned; the model was told not to touch these
+        if isinstance(action, FixupAction | IntegrationFixAction):
+            creations += 1
+            new_leaves.append(action.leaf)
+        if isinstance(action, RespecAction):
+            new_leaves.append(action.revised)
+        actions.append(action)
+
+    _apply_conservative_tags(new_leaves, framing)
+
+    from agents.shared.forge_emit import settings as emit_settings
+
+    if creations > emit_settings.max_per_run:
+        return [
+            *escalated,
+            HaltAction(
+                reason=(
+                    f"replan wants {creations} new leaves, over the emission cap "
+                    f"({emit_settings.max_per_run}) — a replan that big means the framing "
+                    f"needs human review"
+                )
+            ),
+        ]
+    return [*escalated, *actions]
 
 
 def render_framing(p: FramingProposal) -> str:

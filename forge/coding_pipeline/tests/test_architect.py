@@ -19,11 +19,16 @@ from agents.coding_pipeline.architect import (
     require_approved_framing,
 )
 from agents.coding_pipeline.models import (
+    EscalateAction,
     FramingProposal,
     GoalSpec,
     Inventory,
+    LeafOutcome,
     LeafSpec,
+    ReviewFinding,
+    SuiteResult,
     TaskTree,
+    WaveReport,
 )
 
 
@@ -248,3 +253,139 @@ def test_persist_and_load_tree_round_trip(tmp_path, monkeypatch):
     assert arch.load_tree(tmp_path) == leaves
     md = (tmp_path / "tree.md").read_text()
     assert "**a**" in md and "← a" in md
+
+
+# --- A4: replan --------------------------------------------------------------
+
+
+def _report(**overrides) -> WaveReport:
+    base = dict(wave=1, suite=SuiteResult(passed=True))
+    base.update(overrides)
+    return WaveReport.model_validate(base)
+
+
+def _failed_leaf(title: str, reason: str = "tests red") -> LeafOutcome:
+    return LeafOutcome(leaf=title, status="failed", reason=reason)
+
+
+def _landed_leaf(title: str) -> LeafOutcome:
+    return LeafOutcome(leaf=title, status="done", commit_id="abc")
+
+
+def _finding(slug: str, confirmed: bool = True) -> ReviewFinding:
+    return ReviewFinding(slug=slug, summary=f"issue {slug}", confirmed=confirmed)
+
+
+def _envelope(monkeypatch, actions):
+    """Wire structured() to return a ReplanEnvelope; returns the call-recorder."""
+    return _mock_structured(monkeypatch, arch.ReplanEnvelope(actions=actions))
+
+
+def _structured_spy(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        arch, "structured", lambda **kw: calls.append(kw) or (_ for _ in ()).throw(AssertionError)
+    )
+    return calls
+
+
+def test_attempt_cap_escalation_is_deterministic_no_llm(monkeypatch):
+    calls = _structured_spy(monkeypatch)  # any LLM call would raise
+    report = _report(outcomes=[_failed_leaf("wobbly")])
+    actions = arch.replan(_proposal(approved=True), [_leaf("wobbly")], report, {"wobbly": 2})
+    assert calls == []
+    assert len(actions) == 1
+    assert isinstance(actions[0], EscalateAction)
+    assert actions[0].leaf_title == "wobbly"
+    assert "tests red" in actions[0].diagnostics
+
+
+def test_clean_wave_returns_no_actions_without_llm(monkeypatch):
+    _structured_spy(monkeypatch)
+    report = _report(outcomes=[_landed_leaf("fine")])
+    assert arch.replan(_proposal(approved=True), [_leaf("fine")], report, {}) == []
+
+
+def test_under_cap_failure_goes_to_llm_for_respec(monkeypatch):
+    revised = _leaf("wobbly", execution_mode="Auto-OK", max_files=None, requires_tests=False)
+    _envelope(
+        monkeypatch,
+        [arch.RespecAction(leaf_title="wobbly", revised=revised, rationale="shrink scope")],
+    )
+    report = _report(outcomes=[_failed_leaf("wobbly")])
+    actions = arch.replan(_proposal(approved=True), [_leaf("wobbly")], report, {"wobbly": 1})
+    assert len(actions) == 1
+    respec = actions[0]
+    assert isinstance(respec, arch.RespecAction)
+    # conservative floor applied to the revised leaf: auto implies tests + a cap
+    assert respec.revised.requires_tests is True
+    assert respec.revised.max_files == 5
+
+
+def test_confirmed_findings_become_fixups(monkeypatch):
+    fixup_leaf = _leaf("fix dangling ref")
+    _envelope(monkeypatch, [arch.FixupAction(finding_slug="dangling-ref", leaf=fixup_leaf)])
+    report = _report(
+        outcomes=[_landed_leaf("a")],
+        findings=[_finding("dangling-ref"), _finding("noise", confirmed=False)],
+    )
+    actions = arch.replan(_proposal(approved=True), [_leaf("a")], report, {})
+    assert len(actions) == 1
+    assert isinstance(actions[0], arch.FixupAction)
+
+
+def test_integration_red_reaches_llm(monkeypatch):
+    fix_leaf = _leaf("untangle interaction", complexity="novel")
+    calls = _envelope(
+        monkeypatch, [arch.IntegrationFixAction(leaf=fix_leaf, rationale="a+b clash")]
+    )
+    report = _report(
+        outcomes=[_landed_leaf("a"), _landed_leaf("b")],
+        suite=SuiteResult(passed=False, output_tail="boom"),
+    )
+    actions = arch.replan(_proposal(approved=True), [_leaf("a"), _leaf("b")], report, {})
+    assert isinstance(actions[0], arch.IntegrationFixAction)
+    assert "RED" in calls[0]["user"]
+
+
+def test_llm_actions_on_escalated_leaves_are_dropped(monkeypatch):
+    _envelope(
+        monkeypatch,
+        [arch.RespecAction(leaf_title="capped", revised=_leaf("capped"), rationale="")],
+    )
+    report = _report(
+        outcomes=[_failed_leaf("capped"), _failed_leaf("retryable")],
+    )
+    actions = arch.replan(
+        _proposal(approved=True),
+        [_leaf("capped"), _leaf("retryable")],
+        report,
+        {"capped": 2, "retryable": 0},
+    )
+    kinds = [a.kind for a in actions]
+    assert kinds == ["escalate"]  # model's respec of the escalated leaf was discarded
+
+
+def test_replan_over_emission_cap_halts(monkeypatch):
+    from agents.shared.forge_emit import settings as emit_settings
+
+    monkeypatch.setattr(emit_settings, "max_per_run", 1)
+    _envelope(
+        monkeypatch,
+        [
+            arch.FixupAction(finding_slug="f1", leaf=_leaf("fix one")),
+            arch.FixupAction(finding_slug="f2", leaf=_leaf("fix two")),
+        ],
+    )
+    report = _report(outcomes=[_landed_leaf("a")], findings=[_finding("f1"), _finding("f2")])
+    actions = arch.replan(_proposal(approved=True), [_leaf("a")], report, {})
+    assert len(actions) == 1
+    assert isinstance(actions[0], arch.HaltAction)
+    assert "emission cap" in actions[0].reason
+
+
+def test_replan_pool_exhaustion_raises(monkeypatch):
+    _mock_structured(monkeypatch, None, error="pool exhausted")
+    report = _report(outcomes=[_failed_leaf("wobbly")])
+    with pytest.raises(ArchitectError, match="no usable actions"):
+        arch.replan(_proposal(approved=True), [_leaf("wobbly")], report, {"wobbly": 0})
