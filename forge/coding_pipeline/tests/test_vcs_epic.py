@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from types import SimpleNamespace
+
 from agents.coding_pipeline import vcs_epic as ve
 from agents.coding_pipeline.models import FramingProposal
 from agents.shared.signoff import SignoffResult
@@ -135,6 +137,32 @@ def test_render_approved_instructs_human_merge_only():
     assert "HUMAN merge" in out
     assert "pipeline/toy" in out and "abc123" in out
     assert "advance" not in out.lower() or "never advances" in out  # no auto-merge language
+    # the EXACT merge command a human runs — the render is the pipeline's terminal action
+    assert "jj bookmark set main -r pipeline/toy && jj git push --bookmark main" in out
+    assert "3/3" in out and "a, b, c" in out  # quorum provenance visible
+
+
+def test_approved_gate_never_touches_vcs(tmp_path, monkeypatch):
+    """Approval RENDERS, never merges: an approved run_epic_gate must issue only
+    read commands (diff) — no bookmark moves, no pushes, no commits (dry-run Q5)."""
+    commands: list[list[str]] = []
+
+    def spy_run(cmd, cwd):
+        commands.append(cmd)
+        return SimpleNamespace(returncode=0, stdout="diff --git a/x b/x\n+y\n", stderr="")
+
+    monkeypatch.setattr(ve, "_run", spy_run)
+    monkeypatch.setattr(ve, "detect_vcs", lambda repo: "jj")
+    monkeypatch.setattr(
+        ve,
+        "full_quorum_signoff",
+        lambda *a, **k: SignoffResult(approved=True, attempted=2, approvals=2, providers=["x", "y"]),
+    )
+    result = ve.run_epic_gate(tmp_path, "toy", _framing())
+    assert result.approved
+    mutating = ("bookmark", "push", "commit", "describe", "new", "set")
+    for cmd in commands:
+        assert not any(m in cmd for m in mutating), f"gate issued a mutating command: {cmd}"
 
 
 def test_render_blocked_lists_blockers():
