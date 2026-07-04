@@ -198,9 +198,25 @@ def test_decompose_applies_conservative_floor(monkeypatch):
     auto = next(leaf for leaf in out if leaf.title == "auto leaf")
     assert auto.requires_tests is True  # auto always tests
     assert auto.max_files == 5  # auto always capped
+    assert auto.model_tier == "coder"  # bare/unset tier floors to a tool-capable one
     assert next(le for le in out if le.title == "novel leaf").execution_mode == "Manual"
     assert next(le for le in out if le.title == "specless leaf").execution_mode == "Manual"
     assert next(le for le in out if le.title == "blank feature").feature == "Web Shim"
+
+
+def test_model_tier_floor_respects_explicit_tiers_and_manual(monkeypatch):
+    leaves = [
+        _leaf("bare auto", execution_mode="Auto-OK", model_tier="auto"),
+        _leaf("cloud pool", execution_mode="Auto-OK", model_tier="auto-full"),
+        _leaf("manual leaf", execution_mode="Manual", model_tier="auto"),
+    ]
+    _mock_decompose(monkeypatch, leaves)
+    out = arch.decompose(_proposal(approved=True), _inventory())
+    assert next(le for le in out if le.title == "bare auto").model_tier == "coder"
+    # explicit larger pools stand — the floor only replaces unset/"auto"
+    assert next(le for le in out if le.title == "cloud pool").model_tier == "auto-full"
+    # Manual leaves are human-owned; their tier is not the pipeline's business
+    assert next(le for le in out if le.title == "manual leaf").model_tier == "auto"
 
 
 def test_decompose_rejects_unknown_dep(monkeypatch):

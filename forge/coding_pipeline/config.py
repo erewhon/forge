@@ -40,6 +40,10 @@ class CodingPipelineSettings(BaseSettings):
     architect_timeout: float = 240.0
     decompose_max_tokens: int = 16_000  # trees are big: N leaves x full worker specs
     default_auto_max_files: int = 5  # every Auto-* leaf gets a max_files cap, no exceptions
+    # Floor for autonomous leaves whose tier is unset/"auto": the router's bare "auto"
+    # often returns text-only (zero tool calls) through opencode (e2e dry-run), so
+    # Auto-* leaves get a tool-capable tier. Explicit auto-free/auto-full stand.
+    leaf_model_tier: str = "coder"
 
     # Wave verification (advisory review pass over the wave diff)
     review_max_tokens: int = 4096

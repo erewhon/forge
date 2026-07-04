@@ -289,6 +289,11 @@ def _apply_conservative_tags(leaves: list[LeafSpec], framing: FramingProposal) -
             leaf.requires_tests = True
             if leaf.max_files is None:
                 leaf.max_files = settings.default_auto_max_files
+            if leaf.model_tier in (None, "auto"):
+                # Bare "auto" often answers text-only through opencode (e2e dry-run:
+                # 3 of 4 auto sessions made zero tool calls) — autonomous leaves get
+                # a tool-capable floor. Explicit auto-free/auto-full stand.
+                leaf.model_tier = settings.leaf_model_tier
 
 
 def _apply_boundedness(leaves: list[LeafSpec]) -> None:

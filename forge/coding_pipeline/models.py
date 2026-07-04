@@ -173,7 +173,9 @@ class LeafSpec(BaseModel):
     task_type: Literal["bug-fix", "feature", "refactor", "docs", "test", "chore"] = "feature"
     requires_tests: bool = True
     max_files: int | None = None
-    model_tier: Literal["auto", "auto-free", "auto-full"] | None = None
+    # "coder" is the conservative-tagging floor for autonomous leaves — the router's
+    # bare "auto" often answers text-only in opencode sessions (e2e dry-run finding).
+    model_tier: Literal["auto", "auto-free", "auto-full", "coder"] | None = None
     boundedness: BoundednessCheck | None = None
 
     @field_validator("title")
