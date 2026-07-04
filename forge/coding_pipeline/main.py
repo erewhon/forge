@@ -8,6 +8,7 @@ is effectively its own entry point.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -285,6 +286,11 @@ def _cmd_status(argv: list[str]) -> int:
         default=None,
         help="The epic slug (default: last run).",
     )
+    parser.add_argument(
+        "--project",
+        default=None,
+        help="Forge project name (used to scope the Forge query; falls back to inventory.json).",
+    )
     args = parser.parse_args(argv)
 
     run_dir = settings.runs_dir
@@ -293,18 +299,36 @@ def _cmd_status(argv: list[str]) -> int:
         print("No epic slug provided and no prior runs found.")
         return 0
 
-    print(f"=== Pipeline status: {epic} ===\n")
+    # Resolve project: explicit flag > inventory.json fallback
+    epic_dir = run_dir / epic
+    if not args.project:
+        inv_path = epic_dir / "inventory.json"
+        if inv_path.is_file():
+            try:
+                inv_data = json.loads(inv_path.read_text())
+                args.project = inv_data.get("project")
+            except Exception:
+                pass
 
-    # Forge task tree (query Nous directly — same pattern as inventory.fetch_project_tasks).
+    if not args.project:
+        print("No --project specified and no inventory.json found.")
+        return 1
+
+    print(f"=== Pipeline status: {epic} (project={args.project}) ===\n")
+
+    # Forge task tree — scope to project + include Done, then filter by epic ref.
     try:
         from nous_mcp.workflow import _query_tasks
 
         from agents.task_worker.nous_client import _read_db_content
 
-        rows = _query_tasks(_read_db_content(), limit=None)
-        # Group by feature
+        rows = _query_tasks(_read_db_content(), project=args.project, include_done=True, limit=None)
+        epic_prefix = f"pipeline:{epic}:"
         features: dict[str, list[dict]] = {}
         for r in rows:
+            ref = str(r.get("external_ref", "") or "")
+            if not ref.startswith(epic_prefix):
+                continue
             feat = str(r.get("feature", "") or "").strip()
             if not feat:
                 continue

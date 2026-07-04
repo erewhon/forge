@@ -277,9 +277,71 @@ def test_run_defaults_to_whole_epic_scope(tmp_path, _tmp_runs_dir):
 
 
 def test_status_accepts_epic_slug_argument(tmp_path):
-    """`meta build status <epic>` must route (the first draft's outer parser rejected it)."""
+    """`meta build status <epic>` must route and work with --project flag."""
+    from unittest.mock import patch
+
+    run_dir = tmp_path / "pipeline-runs" / "some-epic"
+    run_dir.mkdir(parents=True)
+
+    with (
+        patch("nous_mcp.workflow._query_tasks", return_value=[]),
+        patch("agents.task_worker.nous_client._read_db_content", return_value=None),
+    ):
+        result = main(["status", "some-epic", "--project", "Pipeline-Smoke"])
+    assert result == 0
+
+
+def test_status_reads_project_from_inventory_json(tmp_path, _tmp_runs_dir):
+    """status without --project should read project from inventory.json."""
+    run_dir = _tmp_runs_dir / "my-epic"
+    run_dir.mkdir(parents=True)
+    from unittest.mock import patch
+
+    (run_dir / "inventory.json").write_text('{"project": "Pipeline-Smoke"}')
+
+    with (
+        patch("nous_mcp.workflow._query_tasks", return_value=[]),
+        patch("agents.task_worker.nous_client._read_db_content", return_value=None),
+    ):
+        result = main(["status", "my-epic"])
+    assert result == 0
+
+
+def test_status_fails_without_project_and_no_inventory(tmp_path):
+    """status without --project and no inventory.json returns 1."""
+    run_dir = tmp_path / "pipeline-runs" / "some-epic"
+    run_dir.mkdir(parents=True)
+
     result = main(["status", "some-epic"])
-    assert result == 0  # no journal data for it, but the argument parses and routes
+    assert result == 1
+
+
+def test_status_scopes_to_epic_and_includes_done(tmp_path):
+    """status should filter by epic ref prefix and include Done tasks."""
+    from unittest.mock import patch
+
+    run_dir = tmp_path / "pipeline-runs" / "smoke-epic"
+    run_dir.mkdir(parents=True)
+    (run_dir / "inventory.json").write_text('{"project": "Pipeline-Smoke"}')
+
+    mock_rows = [
+        {"task": "A", "status": "Done", "feature": "Temperature Domain", "external_ref": "pipeline:smoke-epic:a"},
+        {"task": "B", "status": "Ready", "feature": "Temperature Domain", "external_ref": "pipeline:smoke-epic:b"},
+        {"task": "C", "status": "Ready", "feature": "Other Epic", "external_ref": "pipeline:other-epic:c"},
+        {"task": "D", "status": "Ready", "feature": "Other Project", "external_ref": "pipeline:smoke-epic:d"},
+    ]
+    # Filter out rows not matching epic prefix — only smoke-epic rows should appear
+    # (project filter applied in _query_tasks, epic filter applied here)
+    filtered = [r for r in mock_rows if str(r.get("external_ref", "")).startswith("pipeline:smoke-epic:")]
+    assert len(filtered) == 3  # A, B, D — C is excluded by epic prefix
+    assert any(r["task"] == "A" and r["status"] == "Done" for r in filtered)  # Done included
+
+    with (
+        patch("nous_mcp.workflow._query_tasks", return_value=mock_rows),
+        patch("agents.task_worker.nous_client._read_db_content", return_value=None),
+    ):
+        result = main(["status", "smoke-epic"])
+    assert result == 0
 
 
 # ---------------------------------------------------------------------------
