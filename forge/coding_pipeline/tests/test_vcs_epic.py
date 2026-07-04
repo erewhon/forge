@@ -5,10 +5,9 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
-
-from types import SimpleNamespace
 
 from agents.coding_pipeline import vcs_epic as ve
 from agents.coding_pipeline.models import FramingProposal
@@ -153,11 +152,8 @@ def test_approved_gate_never_touches_vcs(tmp_path, monkeypatch):
 
     monkeypatch.setattr(ve, "_run", spy_run)
     monkeypatch.setattr(ve, "detect_vcs", lambda repo: "jj")
-    monkeypatch.setattr(
-        ve,
-        "full_quorum_signoff",
-        lambda *a, **k: SignoffResult(approved=True, attempted=2, approvals=2, providers=["x", "y"]),
-    )
+    approved = SignoffResult(approved=True, attempted=2, approvals=2, providers=["x", "y"])
+    monkeypatch.setattr(ve, "full_quorum_signoff", lambda *a, **k: approved)
     result = ve.run_epic_gate(tmp_path, "toy", _framing())
     assert result.approved
     mutating = ("bookmark", "push", "commit", "describe", "new", "set")

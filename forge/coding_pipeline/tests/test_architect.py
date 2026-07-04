@@ -233,6 +233,11 @@ def test_requires_tests_floors_max_files_to_3(monkeypatch):
     assert by_title["needs tests low cap"].max_files == 3
     assert by_title["needs tests exact"].max_files == 3
     assert by_title["needs tests ok"].max_files == 3
+    # Confirmed wave finding (pipeline:build wave 2): a requires_tests=False Auto-OK
+    # leaf is force-flipped to requires_tests=True by the conservative tags, so the
+    # floor applies to it too — assert it, don't just feed it in.
+    assert by_title["no tests"].requires_tests is True
+    assert by_title["no tests"].max_files == 3
     # Manual leaves are exempt from the floor
     manual = _leaf("manual needs tests", execution_mode="Manual", requires_tests=True, max_files=1)
     _mock_decompose(monkeypatch, [manual])
