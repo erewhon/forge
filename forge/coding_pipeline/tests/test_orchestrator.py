@@ -67,6 +67,8 @@ def wired(monkeypatch, tmp_path):
     monkeypatch.setattr(orc, "replan", lambda f, t, r, a: [])
     monkeypatch.setattr(orc, "update_task_status", lambda *a, **k: None)
     monkeypatch.setattr(orc, "emit_fixup", lambda *a, **k: None)
+    monkeypatch.setattr(orc, "ensure_epic_bookmark", lambda repo, slug, log: "pipeline/toy-epic")
+    monkeypatch.setattr(orc, "update_epic_bookmark", lambda repo, slug, log: "pipeline/toy-epic")
     return tmp_path
 
 
@@ -242,6 +244,14 @@ def test_respec_action_reopens_with_revised_spec(wired, monkeypatch):
     task, status, notes = writes[0]
     assert (task, status) == ("leaf-a", "Ready")
     assert "shrink" in notes and "spec" in notes.lower()
+
+
+def test_epic_bookmark_updated_at_each_wave_checkpoint(wired, monkeypatch):
+    updates = []
+    monkeypatch.setattr(orc, "update_epic_bookmark", lambda repo, slug, log: updates.append(slug))
+    result = _run()
+    assert result.waves_run == 1
+    assert updates == ["toy-epic"]  # re-pushed once per wave
 
 
 # --- resume numbering ------------------------------------------------------------------

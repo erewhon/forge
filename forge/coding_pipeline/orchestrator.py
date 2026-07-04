@@ -53,10 +53,11 @@ from agents.coding_pipeline.models import (
     WaveRecord,
     WaveReport,
 )
+from agents.coding_pipeline.vcs_epic import ensure_epic_bookmark, update_epic_bookmark
 from agents.coding_pipeline.verify import current_change_id, verify_wave
 from agents.coding_pipeline.waves import fetch_feature_rows, plan_wave
 from agents.task_worker.nous_client import update_task_status
-from agents.task_worker.vcs import get_changed_files
+from agents.task_worker.vcs import VCSError, get_changed_files
 
 ExitStatus = Literal[
     "dry", "waiting-on-human", "planned", "wave-gate", "max-waves", "halted", "aborted"
@@ -170,6 +171,15 @@ def run_epic(
         result.notes.append(f"reconciled orphaned In Progress tasks: {', '.join(orphaned)}")
         log(result.notes[-1])
 
+    if not dry_run:
+        try:
+            ensure_epic_bookmark(repo, epic_slug, log=log)
+        except VCSError as e:
+            result.status = "aborted"
+            result.notes.append(f"epic bookmark setup failed: {e}")
+            log(result.notes[-1])
+            return result
+
     while result.waves_run < limit:
         plan = plan_wave(feature, project, wave_size=settings.wave_size)
         if plan.dry:
@@ -235,6 +245,11 @@ def run_epic(
             epic_slug,
             WaveRecord(wave=wave_n, dispatched=plan.dispatch, report=report, actions=actions),
         )
+        try:
+            update_epic_bookmark(repo, epic_slug, log=log)  # the wave checkpoint re-push
+        except VCSError as e:
+            result.notes.append(f"warning: epic bookmark update failed: {e}")
+            log(result.notes[-1])
         result.waves_run += 1
         result.dispatched.extend(plan.dispatch)
 

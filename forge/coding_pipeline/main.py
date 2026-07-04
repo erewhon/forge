@@ -244,6 +244,38 @@ def _cmd_run(argv: list[str]) -> int:
 
 
 # ---------------------------------------------------------------------------
+# gate
+# ---------------------------------------------------------------------------
+
+
+def _cmd_gate(argv: list[str]) -> int:
+    """The final epic gate: full-quorum sign-off on the whole epic diff. Never merges."""
+    parser = argparse.ArgumentParser(
+        prog="meta build gate",
+        description="Run the full-quorum epic sign-off; approval means ready for HUMAN merge.",
+    )
+    parser.add_argument("epic_slug", help="Epic slug.")
+    parser.add_argument("--main", default="main", help="The mainline branch/bookmark name.")
+    args = parser.parse_args(argv)
+
+    from agents.coding_pipeline.journal import append_gate_result
+    from agents.coding_pipeline.vcs_epic import render_epic_gate, run_epic_gate
+
+    run_dir = settings.runs_dir / args.epic_slug
+    framing = require_approved_framing(run_dir)
+
+    result = run_epic_gate(Path.cwd(), args.epic_slug, framing, main=args.main)
+    append_gate_result(
+        run_dir,
+        "epic-signoff",
+        result.approved,
+        details=result.reason or ", ".join(result.providers),
+    )
+    print(render_epic_gate(result, args.epic_slug))
+    return 0 if result.approved else 1
+
+
+# ---------------------------------------------------------------------------
 # status
 # ---------------------------------------------------------------------------
 
@@ -371,6 +403,7 @@ def _latest_epic(runs_dir: Path) -> str | None:
 _COMMANDS = {
     "plan": _cmd_plan,
     "run": _cmd_run,
+    "gate": _cmd_gate,
     "status": _cmd_status,
 }
 
@@ -394,6 +427,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("plan", help="A0+A1 framing; --approve unlocks A2+A3.")
     sub.add_parser("run", help="Orchestrator wave loop.")
+    sub.add_parser("gate", help="Final full-quorum epic sign-off (human merges after).")
     sub.add_parser("status", help="Tree + journal summary for an epic.")
     parser.parse_args(args)  # --help exits 0 here; unknown commands exit 2
     parser.print_help()
