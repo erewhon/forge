@@ -195,6 +195,54 @@ def test_replan_receives_attempt_counts_from_journal(wired, monkeypatch):
     assert seen == {"leaf-a": 7}
 
 
+def test_replan_failure_degrades_to_deterministic_escalations(wired, monkeypatch):
+    # e2e dry-run regression: a failed model replan crashed the run, losing the wave
+    # record while the journal kept counting attempts. It must degrade instead: capped
+    # leaves still escalate, the record persists, the loop continues.
+    monkeypatch.setattr(
+        orc,
+        "run_wave",
+        lambda plan, repo, **k: [LeafOutcome(leaf="leaf-a", status="failed", reason="tests red")],
+    )
+    monkeypatch.setattr(orc, "count_attempts_for_all", lambda d, titles: {t: 99 for t in titles})
+
+    def boom(f, t, r, a):
+        raise orc.ArchitectError("replan produced no usable actions: output failed validation")
+
+    monkeypatch.setattr(orc, "replan", boom)
+    status_writes = []
+    monkeypatch.setattr(
+        orc, "update_task_status", lambda t, s, notes="": status_writes.append((t, s))
+    )
+
+    result = _run()
+
+    assert ("leaf-a", "Spec Needed") in status_writes  # escalation survived the degrade
+    assert (wired / "toy-epic" / "wave-0001.json").exists()  # record persisted
+    journal = (wired / "toy-epic" / "journal.jsonl").read_text()
+    assert "replan-degraded" in journal
+    assert any("degraded" in n for n in result.notes)
+    assert result.status == "dry"  # the loop continued past the failure
+
+
+def test_replan_failure_under_cap_degrades_to_no_actions(wired, monkeypatch):
+    monkeypatch.setattr(
+        orc,
+        "run_wave",
+        lambda plan, repo, **k: [
+            LeafOutcome(leaf="leaf-a", status="failed", reason="no file changes")
+        ],
+    )
+
+    def boom(f, t, r, a):
+        raise orc.ArchitectError("output failed validation")
+
+    monkeypatch.setattr(orc, "replan", boom)
+    result = _run()
+    assert result.status == "dry"
+    assert (wired / "toy-epic" / "wave-0001.json").exists()
+
+
 def test_escalation_action_flips_task_to_spec_needed(wired, monkeypatch):
     status_writes = []
     monkeypatch.setattr(

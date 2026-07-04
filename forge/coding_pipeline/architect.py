@@ -431,11 +431,14 @@ class ReplanEnvelope(BaseModel):
     actions: list[ReplanAction] = []
 
 
-def _deterministic_escalations(
+def deterministic_escalations(
     report: WaveReport, attempts: dict[str, int]
 ) -> list[EscalateAction]:
     """The pre-rule that never goes near a model: a failed leaf at the attempt cap escalates
-    to a human, full stop."""
+    to a human, full stop.
+
+    Public because it is also the orchestrator's degrade path when the model replan
+    call fails — the wave must still escalate capped leaves and persist its record."""
     return [
         EscalateAction(leaf_title=outcome.leaf, diagnostics=outcome.reason)
         for outcome in report.failed
@@ -492,7 +495,7 @@ def replan(
     as decomposition, and a replan that wants more new leaves than the emission cap
     halts instead (a replan that big means the framing is wrong).
     """
-    escalated = _deterministic_escalations(report, attempts)
+    escalated = deterministic_escalations(report, attempts)
     escalated_titles = {e.leaf_title for e in escalated}
 
     confirmed = [f for f in report.findings if f.confirmed]

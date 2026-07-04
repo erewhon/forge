@@ -28,8 +28,13 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from agents.coding_pipeline.architect import (
+    ArchitectError,
+    deterministic_escalations,
+    replan,
+    require_approved_framing,
+)
 from agents.coding_pipeline.architect import load_tree as _load_tree
-from agents.coding_pipeline.architect import replan, require_approved_framing
 from agents.coding_pipeline.config import settings
 from agents.coding_pipeline.dispatch import DispatchError, run_wave
 from agents.coding_pipeline.emit import emit_fixup
@@ -235,7 +240,17 @@ def run_epic(
         )
 
         attempts = count_attempts_for_all(run_dir, [o.leaf for o in report.failed])
-        actions = replan(framing, tree, report, attempts)
+        try:
+            actions = replan(framing, tree, report, attempts)
+        except ArchitectError as e:
+            # A failed model replan must not kill the wave (e2e dry-run: it crashed the
+            # run twice, losing the wave record while the journal kept counting
+            # attempts). Degrade to the deterministic pre-rules — capped leaves still
+            # escalate — and journal the degradation so a human sees replan is limping.
+            actions = list(deterministic_escalations(report, attempts))
+            append_replan_action(run_dir, "replan-degraded", reason=str(e))
+            result.notes.append(f"replan degraded to deterministic escalations: {e}")
+            log(result.notes[-1])
         halted = _apply_actions(
             actions, project=project, epic_slug=epic_slug, run_dir=run_dir, log=log
         )
