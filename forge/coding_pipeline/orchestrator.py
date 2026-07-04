@@ -54,7 +54,7 @@ from agents.coding_pipeline.models import (
     WaveReport,
 )
 from agents.coding_pipeline.vcs_epic import ensure_epic_bookmark, update_epic_bookmark
-from agents.coding_pipeline.verify import current_change_id, verify_wave
+from agents.coding_pipeline.verify import verify_wave, wave_start_rev
 from agents.coding_pipeline.waves import fetch_feature_rows, plan_wave
 from agents.task_worker.nous_client import update_task_status
 from agents.task_worker.vcs import VCSError, get_changed_files
@@ -209,7 +209,7 @@ def run_epic(
             result.notes.append("working copy not clean at wave start — aborting untouched")
             log(result.notes[-1])
             return result
-        wave_start = current_change_id(repo)
+        wave_start = wave_start_rev(repo)
 
         try:
             outcomes = run_wave(plan, repo, journal_dir=run_dir, log=log)

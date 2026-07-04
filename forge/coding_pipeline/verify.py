@@ -66,18 +66,32 @@ def _run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=cwd)
 
 
-def current_change_id(repo: Path) -> str:
-    """The working-copy change id (jj) / HEAD sha (git) — recorded as the wave start."""
+def wave_start_rev(repo: Path) -> str:
+    """The pre-wave tip, recorded as the basis for the accumulated wave diff.
+
+    jj: @ itself BECOMES the first landed commit when the worker commits
+    (describe-in-place + ``jj new``), so recording @'s change id made every
+    wave diff empty — the review gate never saw a diff (e2e dry-run finding).
+    Record @-'s commit id instead: the last commit before the wave. A merge
+    working copy has several parents; the first is the mainline one.
+
+    git: HEAD, which is already the pre-wave tip (commits move HEAD forward).
+    """
     vcs = detect_vcs(repo)
     if vcs == "jj":
-        res = _run(["jj", "log", "--no-graph", "-r", "@", "-T", "change_id.short()"], repo)
+        res = _run(
+            ["jj", "log", "--no-graph", "-r", "@-", "-T", 'commit_id.short() ++ "\\n"'], repo
+        )
     elif vcs == "git":
         res = _run(["git", "rev-parse", "--short", "HEAD"], repo)
     else:
         raise VCSError(f"No VCS detected in {repo}")
     if res.returncode != 0:
-        raise VCSError(f"current_change_id failed: {res.stderr.strip()}")
-    return res.stdout.strip()
+        raise VCSError(f"wave_start_rev failed: {res.stderr.strip()}")
+    lines = [line.strip() for line in res.stdout.splitlines() if line.strip()]
+    if not lines:
+        raise VCSError(f"wave_start_rev found no parent revision in {repo}")
+    return lines[0]
 
 
 def wave_diff(repo: Path, from_change: str) -> str:

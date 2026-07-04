@@ -58,7 +58,7 @@ def wired(monkeypatch, tmp_path):
     monkeypatch.setattr(orc, "_load_tree", lambda run_dir: [_leaf()])
     monkeypatch.setattr(orc, "reconcile", lambda feature: [])
     monkeypatch.setattr(orc, "get_changed_files", lambda repo: [])
-    monkeypatch.setattr(orc, "current_change_id", lambda repo: "c0")
+    monkeypatch.setattr(orc, "wave_start_rev", lambda repo: "c0")
 
     plans = iter([_plan("leaf-a"), _plan(done=1)])  # one wave, then dry
     monkeypatch.setattr(orc, "plan_wave", lambda *a, **k: next(plans))

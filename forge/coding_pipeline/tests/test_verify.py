@@ -174,6 +174,44 @@ def test_verify_wave_skip_review_flag(wired):
 
 def test_vcs_helpers_raise_without_vcs(tmp_path):
     with pytest.raises(Exception, match="No VCS"):
-        v.current_change_id(tmp_path)
+        v.wave_start_rev(tmp_path)
     with pytest.raises(Exception, match="No VCS"):
         v.wave_diff(tmp_path, "abc")
+
+
+# --- wave-start basis against a real jj repo ---------------------------------------
+# Regression for the e2e dry-run finding: recording @'s change id made every wave
+# diff empty, because the worker's describe-in-place commit turns @ itself into the
+# landed commit. The basis must be the pre-wave tip (@-).
+
+
+def _jj(tmp_path, *args):
+    import os
+    import subprocess
+
+    env = {**os.environ, "JJ_USER": "test", "JJ_EMAIL": "test@example.com"}
+    res = subprocess.run(
+        ["jj", *args], cwd=tmp_path, capture_output=True, text=True, timeout=30, env=env
+    )
+    assert res.returncode == 0, f"jj {' '.join(args)} failed: {res.stderr}"
+    return res.stdout
+
+
+@pytest.mark.skipif(__import__("shutil").which("jj") is None, reason="jj not installed")
+def test_wave_start_rev_sees_worker_style_commits(tmp_path):
+    _jj(tmp_path, "git", "init")
+    (tmp_path / "a.txt").write_text("one\n")
+    # Land the pre-wave state the way the worker does: describe @ in place, then new.
+    _jj(tmp_path, "describe", "-m", "pre-wave")
+    _jj(tmp_path, "new")
+
+    start = v.wave_start_rev(tmp_path)
+
+    # The "wave": a leaf edits a file and the worker commits describe-in-place.
+    (tmp_path / "b.txt").write_text("two\n")
+    _jj(tmp_path, "describe", "-m", "auto: leaf lands")
+    _jj(tmp_path, "new")
+
+    diff = v.wave_diff(tmp_path, start)
+    assert "b.txt" in diff, f"wave diff must contain the landed change, got: {diff!r}"
+    assert "a.txt" not in diff  # pre-wave state is the basis, not part of the diff
