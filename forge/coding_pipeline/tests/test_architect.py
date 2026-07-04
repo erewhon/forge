@@ -219,6 +219,27 @@ def test_model_tier_floor_respects_explicit_tiers_and_manual(monkeypatch):
     assert next(le for le in out if le.title == "manual leaf").model_tier == "auto"
 
 
+def test_requires_tests_floors_max_files_to_3(monkeypatch):
+    """Auto-OK leaves with requires_tests must have max_files >= 3 (impl + test + incidental)."""
+    leaves = [
+        _leaf("needs tests low cap", execution_mode="Auto-OK", requires_tests=True, max_files=1),
+        _leaf("needs tests exact", execution_mode="Auto-OK", requires_tests=True, max_files=2),
+        _leaf("needs tests ok", execution_mode="Auto-OK", requires_tests=True, max_files=3),
+        _leaf("no tests", execution_mode="Auto-OK", requires_tests=False, max_files=1),
+    ]
+    _mock_decompose(monkeypatch, leaves)
+    out = arch.decompose(_proposal(approved=True), _inventory())
+    by_title = {le.title: le for le in out}
+    assert by_title["needs tests low cap"].max_files == 3
+    assert by_title["needs tests exact"].max_files == 3
+    assert by_title["needs tests ok"].max_files == 3
+    # Manual leaves are exempt from the floor
+    manual = _leaf("manual needs tests", execution_mode="Manual", requires_tests=True, max_files=1)
+    _mock_decompose(monkeypatch, [manual])
+    out2 = arch.decompose(_proposal(approved=True), _inventory())
+    assert out2[0].max_files == 1
+
+
 def test_decompose_rejects_unknown_dep(monkeypatch):
     _mock_decompose(monkeypatch, [_leaf("a", depends_on=["ghost"])])
     with pytest.raises(ArchitectError, match="unknown titles"):

@@ -208,6 +208,10 @@ max_files <= 5, model_tier="auto";
 - anything with design latitude, on a safety path, or novel: execution_mode="Manual";
 - an underspecified leaf: status="Spec Needed" and execution_mode="Manual".
 
+Auto-OK leaves always require tests. When requires_tests=true, max_files must be at least 3 \
+(implementation file + test file + one incidental file). Never set max_files=1 on a leaf that \
+needs tests — that is impossible by construction and will waste the worker's attempts.
+
 Ordering: priority encodes the approved value ordering — user-visible value first (priority 2-3), \
 infrastructure it depends on same, polish last (priority 5-6). Group related leaves under the \
 same short "feature" name. "depends_on" entries must EXACTLY match another leaf's title. Titles \
@@ -289,6 +293,11 @@ def _apply_conservative_tags(leaves: list[LeafSpec], framing: FramingProposal) -
             leaf.requires_tests = True
             if leaf.max_files is None:
                 leaf.max_files = settings.default_auto_max_files
+            if leaf.max_files < 3:
+                # Requires tests but max_files < 3 — impossible (impl + test ≥ 2 files,
+                # plus one incidental). Floor to 3 so the worker isn't handed an
+                # impossible spec that burns its attempt budget and escalates.
+                leaf.max_files = 3
             if leaf.model_tier in (None, "auto"):
                 # Bare "auto" often answers text-only through opencode (e2e dry-run:
                 # 3 of 4 auto sessions made zero tool calls) — autonomous leaves get
