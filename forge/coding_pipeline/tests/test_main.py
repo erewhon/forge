@@ -325,14 +325,36 @@ def test_status_scopes_to_epic_and_includes_done(tmp_path):
     (run_dir / "inventory.json").write_text('{"project": "Pipeline-Smoke"}')
 
     mock_rows = [
-        {"task": "A", "status": "Done", "feature": "Temperature Domain", "external_ref": "pipeline:smoke-epic:a"},
-        {"task": "B", "status": "Ready", "feature": "Temperature Domain", "external_ref": "pipeline:smoke-epic:b"},
-        {"task": "C", "status": "Ready", "feature": "Other Epic", "external_ref": "pipeline:other-epic:c"},
-        {"task": "D", "status": "Ready", "feature": "Other Project", "external_ref": "pipeline:smoke-epic:d"},
+        {
+            "task": "A",
+            "status": "Done",
+            "feature": "Temperature Domain",
+            "external_ref": "pipeline:smoke-epic:a",
+        },
+        {
+            "task": "B",
+            "status": "Ready",
+            "feature": "Temperature Domain",
+            "external_ref": "pipeline:smoke-epic:b",
+        },
+        {
+            "task": "C",
+            "status": "Ready",
+            "feature": "Other Epic",
+            "external_ref": "pipeline:other-epic:c",
+        },
+        {
+            "task": "D",
+            "status": "Ready",
+            "feature": "Other Project",
+            "external_ref": "pipeline:smoke-epic:d",
+        },
     ]
     # Filter out rows not matching epic prefix — only smoke-epic rows should appear
     # (project filter applied in _query_tasks, epic filter applied here)
-    filtered = [r for r in mock_rows if str(r.get("external_ref", "")).startswith("pipeline:smoke-epic:")]
+    filtered = [
+        r for r in mock_rows if str(r.get("external_ref", "")).startswith("pipeline:smoke-epic:")
+    ]
     assert len(filtered) == 3  # A, B, D — C is excluded by epic prefix
     assert any(r["task"] == "A" and r["status"] == "Done" for r in filtered)  # Done included
 
