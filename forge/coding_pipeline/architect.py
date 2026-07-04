@@ -431,9 +431,7 @@ class ReplanEnvelope(BaseModel):
     actions: list[ReplanAction] = []
 
 
-def deterministic_escalations(
-    report: WaveReport, attempts: dict[str, int]
-) -> list[EscalateAction]:
+def deterministic_escalations(report: WaveReport, attempts: dict[str, int]) -> list[EscalateAction]:
     """The pre-rule that never goes near a model: a failed leaf at the attempt cap escalates
     to a human, full stop.
 

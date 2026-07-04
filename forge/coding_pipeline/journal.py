@@ -222,27 +222,32 @@ def count_attempts_for_all(
 # ---------------------------------------------------------------------------
 
 
-def _in_progress_titles(feature: str) -> list[str]:
-    """Titles of Forge tasks currently In Progress for *feature* (real Nous read).
-
-    Filters on the Feature COLUMN NAME (e.g. "Coding Pipeline"), not the epic slug —
-    the two are related but not interchangeable.
+def _in_progress_titles(ref_prefix: str) -> list[str]:
+    """Titles of Forge tasks currently In Progress that belong to the epic (real Nous
+    read). Membership is the external_ref prefix ``pipeline:{epic}:`` — the same rule
+    as the wave planner, so reconcile sees exactly the leaves dispatch can see,
+    whatever Feature value they carry.
     """
     from nous_mcp.workflow import _query_tasks
 
     from agents.task_worker.nous_client import _read_db_content
 
-    rows = _query_tasks(_read_db_content(), feature=feature, status="In Progress", limit=None)
-    return [str(r.get("task", "")) for r in rows if str(r.get("task", "")).strip()]
+    rows = _query_tasks(_read_db_content(), status="In Progress", limit=None)
+    return [
+        str(r.get("task", ""))
+        for r in rows
+        if str(r.get("task", "")).strip()
+        and str(r.get("external_ref", "") or "").startswith(ref_prefix)
+    ]
 
 
 def reconcile(
-    feature: str,
+    epic_slug: str,
     *,
     in_progress: Callable[[str], list[str]] | None = None,
     update_status: Callable[..., None] | None = None,
 ) -> list[str]:
-    """Crash recovery: flip orphaned In Progress tasks for *feature* back to Ready.
+    """Crash recovery: flip the epic's orphaned In Progress tasks back to Ready.
 
     The orchestrator calls this at startup, BEFORE dispatching anything. Under the
     single-orchestrator invariant (one run per repo — the dispatch lockfile enforces
@@ -256,17 +261,19 @@ def reconcile(
 
     **Never touches the working copy** — the orchestrator owns VCS.
 
-    ``in_progress`` (feature -> titles) and ``update_status`` (task, status,
+    ``in_progress`` (ref-prefix -> titles) and ``update_status`` (task, status,
     notes=...) are injectable for tests; the defaults use the real daemon-backed
     Nous paths.
     """
+    from agents.coding_pipeline.waves import epic_ref_prefix
+
     if in_progress is None:
         in_progress = _in_progress_titles
     if update_status is None:
         from agents.task_worker.nous_client import update_task_status as update_status
 
     orphaned: list[str] = []
-    for title in in_progress(feature):
+    for title in in_progress(epic_ref_prefix(epic_slug)):
         update_status(
             title,
             "Ready",

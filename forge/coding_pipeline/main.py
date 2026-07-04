@@ -15,7 +15,6 @@ from pathlib import Path
 from agents.coding_pipeline.architect import (
     ArchitectError,
     decompose,
-    load_tree,
     persist_framing,
     persist_tree,
     propose_framing,
@@ -193,7 +192,10 @@ def _cmd_run(argv: list[str]) -> int:
     parser.add_argument(
         "--feature",
         default=None,
-        help="Feature name to scope leaves to (default: from the emitted tree.json).",
+        help=(
+            "Narrow the wave loop to one Feature value (default: the whole epic — "
+            "every leaf carrying the pipeline:<epic>: ref)."
+        ),
     )
     parser.add_argument(
         "--max-waves",
@@ -220,20 +222,11 @@ def _cmd_run(argv: list[str]) -> int:
 
     require_approved_framing(run_dir)  # fail fast with the gate's own message
 
-    feature = args.feature
-    if feature is None:
-        tree = load_tree(run_dir)
-        if tree:
-            feature = tree[0].feature
-    if not feature:
-        print("No --feature given and no tree.json to derive it from — emit the tree first.")
-        return 1
-
     result = run_epic(
         project=args.project,
-        feature=feature,
         epic_slug=args.epic_slug,
         repo=Path.cwd(),
+        feature=args.feature,
         max_waves=args.max_waves,
         wave_gate=args.wave_gate,
         dry_run=args.dry_run,

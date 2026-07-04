@@ -224,9 +224,13 @@ class BlockedLeaf(BaseModel):
 
 class WavePlan(BaseModel):
     """What the orchestrator may dispatch next, plus the counts it needs to tell
-    "dry" (epic exhausted → run the epic gate) from "waiting on humans"."""
+    "dry" (epic exhausted → run the epic gate) from "waiting on humans".
 
-    feature: str
+    Scope is the epic (external_ref-prefix membership); ``feature`` is the optional
+    narrowing filter that produced this plan, "" when the whole epic was planned."""
+
+    epic_slug: str = ""
+    feature: str = ""
     project: str
     dispatch: list[str] = []  # leaf titles in dispatch order, capped at wave_size
     ready_manual: int = 0  # Ready but human-owned (Manual, unblocked)

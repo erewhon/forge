@@ -74,7 +74,7 @@ class OrchestratorResult(BaseModel):
 
     status: ExitStatus
     epic_slug: str
-    feature: str
+    feature: str = ""  # the optional narrowing filter; "" = the whole epic
     waves_run: int = 0
     dispatched: list[str] = []
     notes: list[str] = []
@@ -149,9 +149,9 @@ def _apply_actions(
 def run_epic(
     *,
     project: str,
-    feature: str,
     epic_slug: str,
     repo: Path,
+    feature: str | None = None,
     max_waves: int | None = None,
     wave_gate: bool = False,
     dry_run: bool = False,
@@ -159,9 +159,11 @@ def run_epic(
 ) -> OrchestratorResult:
     """Run up to ``max_waves`` waves of the epic; re-run to continue (numbering resumes).
 
-    Requires a human-approved framing in the run dir (the A1 gate holds here too) and a
-    clean working copy (positioning is the epic-branch leaf's job). ``dry_run`` plans the
-    next wave and stops — no dispatch, no writes.
+    Scope is the whole epic (external_ref prefix ``pipeline:{epic_slug}:`` — every
+    feature the decomposition or a replan produced); ``feature`` narrows to one
+    Feature value when given. Requires a human-approved framing in the run dir (the
+    A1 gate holds here too) and a clean working copy (positioning is the epic-branch
+    leaf's job). ``dry_run`` plans the next wave and stops — no dispatch, no writes.
     """
     limit = max_waves if max_waves is not None else settings.max_waves
     run_dir = settings.runs_dir / epic_slug
@@ -169,9 +171,9 @@ def run_epic(
 
     framing = require_approved_framing(run_dir)
     tree = _load_tree(run_dir) or []
-    result = OrchestratorResult(status="max-waves", epic_slug=epic_slug, feature=feature)
+    result = OrchestratorResult(status="max-waves", epic_slug=epic_slug, feature=feature or "")
 
-    orphaned = reconcile(feature)
+    orphaned = reconcile(epic_slug)
     if orphaned:
         result.notes.append(f"reconciled orphaned In Progress tasks: {', '.join(orphaned)}")
         log(result.notes[-1])
@@ -186,7 +188,7 @@ def run_epic(
             return result
 
     while result.waves_run < limit:
-        plan = plan_wave(feature, project, wave_size=settings.wave_size)
+        plan = plan_wave(epic_slug, project, wave_size=settings.wave_size, feature=feature)
         if plan.dry:
             result.status = "dry"
             result.notes.append("tree exhausted — ready for the epic gate")

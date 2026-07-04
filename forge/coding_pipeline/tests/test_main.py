@@ -246,10 +246,10 @@ def test_run_requires_project():
     assert exc.value.code != 0
 
 
-def test_run_derives_feature_from_tree(tmp_path, _tmp_runs_dir):
-    """With no --feature, the feature comes from the emitted tree.json."""
-    from agents.coding_pipeline.architect import persist_tree
-    from agents.coding_pipeline.models import FramingProposal, LeafSpec
+def test_run_defaults_to_whole_epic_scope(tmp_path, _tmp_runs_dir):
+    """With no --feature, the wave loop covers the whole epic (feature=None passes
+    through) — decomposition legitimately spreads one epic across several features."""
+    from agents.coding_pipeline.models import FramingProposal
 
     run_dir = _tmp_runs_dir / "my-epic"
     run_dir.mkdir(parents=True)
@@ -262,7 +262,6 @@ def test_run_derives_feature_from_tree(tmp_path, _tmp_runs_dir):
             approved=True,
         ).model_dump_json()
     )
-    persist_tree([LeafSpec(title="a", content="s", feature="Toy Feature")], run_dir)
 
     seen = {}
     with patch(
@@ -273,7 +272,7 @@ def test_run_derives_feature_from_tree(tmp_path, _tmp_runs_dir):
     ):
         result = main(["run", "my-epic", "--project", "Meta"])
     assert result == 0
-    assert seen["feature"] == "Toy Feature"
+    assert seen["feature"] is None  # whole-epic scope, not one feature
     assert seen["project"] == "Meta"
 
 

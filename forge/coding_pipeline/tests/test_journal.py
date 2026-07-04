@@ -258,8 +258,8 @@ class TestReconcile:
             update_calls.append((task, status, notes))
 
         result = reconcile(
-            "Coding Pipeline",
-            in_progress=lambda feature: ["Task: Add parser", "Task: Add writer"],
+            "toy-epic",
+            in_progress=lambda prefix: ["Task: Add parser", "Task: Add writer"],
             update_status=fake_update,
         )
         assert result == ["Task: Add parser", "Task: Add writer"]
@@ -272,20 +272,21 @@ class TestReconcile:
     def test_nothing_in_progress_is_a_noop(self):
         update_calls: list = []
         result = reconcile(
-            "Coding Pipeline",
-            in_progress=lambda feature: [],
+            "toy-epic",
+            in_progress=lambda prefix: [],
             update_status=lambda *a, **k: update_calls.append(a),
         )
         assert result == []
         assert update_calls == []
 
-    def test_feature_name_passes_through_to_query(self):
-        """reconcile filters on the Feature column NAME, not the epic slug."""
+    def test_epic_ref_prefix_passes_through_to_query(self):
+        """reconcile scopes by the epic's external_ref prefix — the same membership
+        rule as the wave planner, whatever Feature value a leaf carries."""
         seen: list[str] = []
 
-        def fake_in_progress(feature: str) -> list[str]:
-            seen.append(feature)
+        def fake_in_progress(prefix: str) -> list[str]:
+            seen.append(prefix)
             return []
 
-        reconcile("Coding Pipeline", in_progress=fake_in_progress)
-        assert seen == ["Coding Pipeline"]
+        reconcile("toy-epic", in_progress=fake_in_progress)
+        assert seen == ["pipeline:toy-epic:"]

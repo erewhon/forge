@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from agents.coding_pipeline.models import LeafRow
-from agents.coding_pipeline.waves import _row_from_raw, plan_wave
+from agents.coding_pipeline.waves import _row_from_raw, epic_ref_prefix, is_epic_row, plan_wave
 
 
 def _row(task: str, **overrides) -> LeafRow:
@@ -13,7 +13,7 @@ def _row(task: str, **overrides) -> LeafRow:
 
 
 def _plan(rows, wave_size=4):
-    return plan_wave("Coding Pipeline", "Meta", wave_size=wave_size, rows=rows)
+    return plan_wave("toy-epic", "Meta", wave_size=wave_size, rows=rows)
 
 
 # --- dispatch ordering + cap -----------------------------------------------------
@@ -98,6 +98,40 @@ def test_dispatchable_leaves_mean_neither_dry_nor_waiting():
     assert plan.dispatch == ["go"]
     assert not plan.dry
     assert not plan.waiting_on_human
+
+
+# --- epic membership (ref-prefix scoping) ------------------------------------------
+# Regression for the e2e dry-run finding: decomposition split one epic across three
+# Feature values; feature-scoped planning hid real leaves from dispatch and from the
+# dry/exhausted logic. Membership is the pipeline's own ref prefix, whatever the
+# Feature column says.
+
+
+def test_is_epic_row_matches_on_ref_prefix_across_features():
+    tree_leaf = {"external_ref": "pipeline:toy-epic:temperature-domain-impl", "feature": "A"}
+    other_feature = {"external_ref": "pipeline:toy-epic:list-units-add", "feature": "B"}
+    fixup = {"external_ref": "pipeline:toy-epic:fix:off-by-one", "feature": "C"}
+    assert is_epic_row(tree_leaf, "toy-epic")
+    assert is_epic_row(other_feature, "toy-epic")
+    assert is_epic_row(fixup, "toy-epic")  # replan fix-ups are epic members too
+
+
+def test_is_epic_row_rejects_other_epics_and_unreffed_tasks():
+    assert not is_epic_row({"external_ref": "pipeline:other-epic:leaf"}, "toy-epic")
+    assert not is_epic_row({"external_ref": ""}, "toy-epic")
+    assert not is_epic_row({}, "toy-epic")
+    # a slug that merely PREFIXES another must not match (toy-epic vs toy-epic-2)
+    assert not is_epic_row({"external_ref": "pipeline:toy-epic-2:leaf"}, "toy-epic")
+
+
+def test_is_epic_row_feature_narrowing():
+    row = {"external_ref": "pipeline:toy-epic:x", "feature": "Temperature Domain"}
+    assert is_epic_row(row, "toy-epic", feature="Temperature Domain")
+    assert not is_epic_row(row, "toy-epic", feature="List Units Command")
+
+
+def test_epic_ref_prefix_shape():
+    assert epic_ref_prefix("toy-epic") == "pipeline:toy-epic:"
 
 
 # --- raw-row normalization -----------------------------------------------------------
