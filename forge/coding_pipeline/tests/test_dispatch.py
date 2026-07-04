@@ -162,3 +162,117 @@ def test_repo_lock_context_manager_writes_own_pid(tmp_path):
     with repo_lock(tmp_path) as lock_path:
         assert int(lock_path.read_text()) == os.getpid()
     assert not lock_path.exists()
+
+
+# --- epic-context injection (sibling contracts) --------------------------------
+
+
+def _task_with_deps(title: str, deps: list[str]) -> TaskInfo:
+    t = _task(title)
+    return t.model_copy(update={"deps": deps})
+
+
+def test_preamble_prepended_to_fetched_spec(wired):
+    seen: dict = {}
+
+    def fake_run(task, spec=None):
+        seen["spec"] = spec
+        return _done(task.task)
+
+    run_wave(
+        _plan("a"),
+        wired,
+        run_leaf=fake_run,
+        find=_task,
+        preamble_for=lambda task: "## Epic context\ncontracts here",
+        fetch_spec=lambda title: "## Task: a\nthe spec body",
+        log=lambda m: None,
+    )
+    assert seen["spec"].startswith("## Epic context")
+    assert "the spec body" in seen["spec"]
+
+
+def test_empty_preamble_dispatches_plain(wired):
+    seen: dict = {}
+
+    def fake_run(task, spec=None):
+        seen["spec"] = spec
+        return _done(task.task)
+
+    run_wave(
+        _plan("a"),
+        wired,
+        run_leaf=fake_run,
+        find=_task,
+        preamble_for=lambda task: "",
+        fetch_spec=lambda title: (_ for _ in ()).throw(AssertionError("no fetch on empty")),
+        log=lambda m: None,
+    )
+    assert seen["spec"] is None
+
+
+def test_preamble_failure_never_blocks_dispatch(wired, tmp_path):
+    """Context injection is best-effort by design: a crashing builder logs, journals
+    the error, and the leaf still runs plain."""
+
+    def boom(task):
+        raise RuntimeError("journal unreadable")
+
+    outcomes = run_wave(
+        _plan("a"),
+        wired,
+        journal_dir=tmp_path,
+        run_leaf=lambda t, spec=None: _done(t.task),
+        find=_task,
+        preamble_for=boom,
+        log=lambda m: None,
+    )
+    assert outcomes[0].status == "done"
+    journal = (tmp_path / "journal.jsonl").read_text()
+    assert "leaf_context" in journal and "journal unreadable" in journal
+
+
+def test_spec_fetch_failure_degrades_to_plain_dispatch(wired):
+    seen: dict = {}
+
+    def fake_run(task, spec=None):
+        seen["spec"] = spec
+        return _done(task.task)
+
+    def failing_fetch(title):
+        raise ConnectionError("daemon down")
+
+    outcomes = run_wave(
+        _plan("a"),
+        wired,
+        run_leaf=fake_run,
+        find=_task,
+        preamble_for=lambda task: "## Epic context\nstuff",
+        fetch_spec=failing_fetch,
+        log=lambda m: None,
+    )
+    assert outcomes[0].status == "done"
+    assert seen["spec"] is None  # worker fetches its own spec
+
+
+def test_injection_journaled_with_deps_and_size(wired, tmp_path):
+    import json as _json
+
+    run_wave(
+        _plan("a"),
+        wired,
+        journal_dir=tmp_path,
+        run_leaf=lambda t, spec=None: _done(t.task),
+        find=lambda title: _task_with_deps(title, ["landed dep", "unlanded dep"]),
+        preamble_for=lambda task: '## Epic context\n- "landed dep" (commit abc):\n  - x.py',
+        fetch_spec=lambda title: "spec",
+        log=lambda m: None,
+    )
+    records = [
+        _json.loads(line)
+        for line in (tmp_path / "journal.jsonl").read_text().splitlines()
+        if '"leaf_context"' in line
+    ]
+    assert len(records) == 1
+    assert records[0]["deps_landed"] == ["landed dep"]
+    assert records[0]["chars"] > 0

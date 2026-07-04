@@ -36,6 +36,7 @@ from agents.coding_pipeline.architect import (
 )
 from agents.coding_pipeline.architect import load_tree as _load_tree
 from agents.coding_pipeline.config import settings
+from agents.coding_pipeline.context import build_leaf_context
 from agents.coding_pipeline.dispatch import DispatchError, run_wave
 from agents.coding_pipeline.emit import emit_fixup
 from agents.coding_pipeline.journal import (
@@ -60,7 +61,7 @@ from agents.coding_pipeline.models import (
 )
 from agents.coding_pipeline.vcs_epic import ensure_epic_bookmark, update_epic_bookmark
 from agents.coding_pipeline.verify import verify_wave, wave_start_rev
-from agents.coding_pipeline.waves import fetch_feature_rows, plan_wave
+from agents.coding_pipeline.waves import fetch_epic_rows, fetch_feature_rows, plan_wave
 from agents.task_worker.nous_client import update_task_status
 from agents.task_worker.vcs import VCSError, get_changed_files
 
@@ -190,7 +191,11 @@ def run_epic(
             return result
 
     while result.waves_run < limit:
-        plan = plan_wave(epic_slug, project, wave_size=settings.wave_size, feature=feature)
+        # One Forge read per wave, shared by the planner and the epic-context builder.
+        epic_rows = fetch_epic_rows(project, epic_slug, feature=feature)
+        plan = plan_wave(
+            epic_slug, project, wave_size=settings.wave_size, feature=feature, rows=epic_rows
+        )
         if plan.dry:
             result.status = "dry"
             result.notes.append("tree exhausted — ready for the epic gate")
@@ -220,8 +225,17 @@ def run_epic(
             return result
         wave_start = wave_start_rev(repo)
 
+        def _preamble(task, _rows=epic_rows):
+            return build_leaf_context(
+                task,
+                run_dir=run_dir,
+                repo=repo,
+                epic_goal=framing.restated_goal,
+                siblings=_rows,
+            )
+
         try:
-            outcomes = run_wave(plan, repo, journal_dir=run_dir, log=log)
+            outcomes = run_wave(plan, repo, journal_dir=run_dir, preamble_for=_preamble, log=log)
         except DispatchError as e:
             append_gate_result(run_dir, "dispatch-preflight", False, details=str(e))
             result.status = "aborted"

@@ -24,11 +24,11 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from agents.coding_pipeline.journal import append_leaf_outcome
+from agents.coding_pipeline.journal import append_leaf_context, append_leaf_outcome
 from agents.coding_pipeline.models import LeafOutcome, WavePlan
 from agents.task_worker.main import run_one
 from agents.task_worker.models import RunOutcome, TaskInfo
-from agents.task_worker.nous_client import find_task
+from agents.task_worker.nous_client import find_task, get_task_spec
 from agents.task_worker.sandbox import make_sandbox
 from agents.task_worker.vcs import detect_vcs
 
@@ -104,13 +104,49 @@ def _to_leaf_outcome(title: str, outcome: RunOutcome) -> LeafOutcome:
     )
 
 
+def _augmented_spec(
+    task: TaskInfo,
+    preamble_for: Callable[[TaskInfo], str],
+    journal_dir: Path | None,
+    fetch_spec: Callable[[str], str],
+    log: Callable[[str], None],
+) -> str | None:
+    """Preamble + spec for the leaf, or ``None`` to dispatch plain.
+
+    Context injection must NEVER break dispatch: any failure (preamble build, spec
+    fetch) logs, journals the error, and falls back to the worker's own spec fetch.
+    """
+    try:
+        preamble = preamble_for(task)
+    except Exception as e:  # noqa: BLE001 — degrade path by design
+        log(f"  epic-context preamble failed ({e}) — dispatching plain")
+        if journal_dir is not None:
+            append_leaf_context(journal_dir, task.task, deps_landed=[], chars=0, error=str(e))
+        return None
+    if not preamble:
+        return None
+    try:
+        spec = fetch_spec(task.task)
+    except Exception as e:  # noqa: BLE001 — degrade path by design
+        log(f"  spec fetch for context injection failed ({e}) — dispatching plain")
+        if journal_dir is not None:
+            append_leaf_context(journal_dir, task.task, deps_landed=[], chars=0, error=str(e))
+        return None
+    if journal_dir is not None:
+        deps_landed = [d for d in task.deps if f'"{d}"' in preamble]
+        append_leaf_context(journal_dir, task.task, deps_landed=deps_landed, chars=len(preamble))
+    return f"{preamble}\n\n---\n\n{spec}"
+
+
 def run_wave(
     plan: WavePlan,
     repo: Path,
     *,
     journal_dir: Path | None = None,
-    run_leaf: Callable[[TaskInfo], RunOutcome] = run_one,
+    run_leaf: Callable[..., RunOutcome] = run_one,
     find: Callable[[str], TaskInfo | None] = find_task,
+    preamble_for: Callable[[TaskInfo], str] | None = None,
+    fetch_spec: Callable[[str], str] = get_task_spec,
     log: Callable[[str], None] = print,
 ) -> list[LeafOutcome]:
     """Dispatch ``plan.dispatch`` serially; return one ``LeafOutcome`` per leaf, in order.
@@ -118,6 +154,10 @@ def run_wave(
     Each outcome is journaled as it lands (when ``journal_dir`` is given), so a crash
     mid-wave loses nothing. Raises :class:`DispatchError` if preflight or the repo lock
     fails — in that case nothing was dispatched and Forge state is untouched.
+
+    ``preamble_for`` (the epic-context builder) prepends sibling-contract context to
+    the spec passed into ``run_leaf``; when absent, empty, or failing, the leaf runs
+    plain and the worker fetches its own spec — injection can never block a wave.
     """
     reason = _preflight(repo)
     if reason:
@@ -134,7 +174,13 @@ def run_wave(
                 )
             else:
                 log(f"dispatching leaf: {title}")
-                outcome = _to_leaf_outcome(title, run_leaf(task))
+                spec = None
+                if preamble_for is not None:
+                    spec = _augmented_spec(task, preamble_for, journal_dir, fetch_spec, log)
+                if spec is None:
+                    outcome = _to_leaf_outcome(title, run_leaf(task))
+                else:
+                    outcome = _to_leaf_outcome(title, run_leaf(task, spec=spec))
             outcomes.append(outcome)
             if journal_dir is not None:
                 append_leaf_outcome(journal_dir, title, outcome)

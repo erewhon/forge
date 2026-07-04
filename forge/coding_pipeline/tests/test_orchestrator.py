@@ -57,6 +57,7 @@ def wired(monkeypatch, tmp_path):
     monkeypatch.setattr(orc, "require_approved_framing", lambda run_dir: _framing())
     monkeypatch.setattr(orc, "_load_tree", lambda run_dir: [_leaf()])
     monkeypatch.setattr(orc, "reconcile", lambda feature: [])
+    monkeypatch.setattr(orc, "fetch_epic_rows", lambda *a, **k: [])
     monkeypatch.setattr(orc, "get_changed_files", lambda repo: [])
     monkeypatch.setattr(orc, "wave_start_rev", lambda repo: "c0")
 
@@ -165,6 +166,28 @@ def test_unapproved_framing_refuses_the_run(wired, monkeypatch):
     monkeypatch.setattr(orc, "require_approved_framing", refuse)
     with pytest.raises(FramingNotApprovedError):
         _run()
+
+
+def test_epic_rows_shared_between_planner_and_context_builder(wired, monkeypatch):
+    """One Forge read per wave: the same rows feed plan_wave AND the sibling list,
+    and dispatch receives a live preamble builder."""
+    rows_sentinel = ["ROWS"]
+    monkeypatch.setattr(orc, "fetch_epic_rows", lambda *a, **k: rows_sentinel)
+    seen = {}
+
+    plans = iter([_plan("leaf-a"), _plan(done=1)])
+    monkeypatch.setattr(
+        orc, "plan_wave", lambda *a, **k: seen.update(plan_rows=k.get("rows")) or next(plans)
+    )
+
+    def fake_run_wave(plan, repo, **k):
+        seen["preamble_for"] = k.get("preamble_for")
+        return [_done(t) for t in plan.dispatch]
+
+    monkeypatch.setattr(orc, "run_wave", fake_run_wave)
+    _run()
+    assert seen["plan_rows"] is rows_sentinel
+    assert callable(seen["preamble_for"])
 
 
 # --- the replan wiring ---------------------------------------------------------------

@@ -125,6 +125,28 @@ def append_replan_action(
     return _journal_path(run_dir)
 
 
+def append_leaf_context(
+    run_dir: Path,
+    leaf_title: str,
+    *,
+    deps_landed: list[str],
+    chars: int,
+    error: str = "",
+) -> Path:
+    """One-line audit record of the epic-context preamble injected at dispatch
+    (the preamble itself is ephemeral — it lives only in the dispatch spec file)."""
+    record: dict[str, Any] = {
+        "event": "leaf_context",
+        "leaf": leaf_title,
+        "deps_landed": deps_landed,
+        "chars": chars,
+    }
+    if error:
+        record["error"] = error
+    log_decision(record, _journal_path(run_dir))
+    return _journal_path(run_dir)
+
+
 def append_escalation(
     run_dir: Path,
     leaf_title: str,
