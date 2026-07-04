@@ -57,6 +57,7 @@ def _row_from_raw(raw: dict, blocked: bool, blocking: list[str]) -> LeafRow:
         priority=priority,
         blocked=blocked,
         blocked_by=list(blocking),
+        external_ref=str(raw.get("external_ref", "") or ""),
     )
 
 

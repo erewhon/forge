@@ -98,6 +98,20 @@ class TestStableRef:
         assert normal != fixup
         assert "fix:" in fixup
 
+    def test_fixup_keys_on_finding_slug_when_given(self):
+        """The FINDING is the stable identity across replans — the replan model invents
+        leaf titles freely, so two re-discoveries of one finding must share a ref
+        (dry-run Q2; this was the documented-but-dead finding_slug key)."""
+        finding_slug = "src-cli-py-list-units-crashes-on-empty-domain-table"
+        first = _leaf("Fix list-units crash on empty table", feature="core")
+        rediscovered = _leaf("Handle empty domain table in list-units", feature="cli")
+        ref_a = stable_ref("my-epic", first, fixup=True, finding_slug=finding_slug)
+        ref_b = stable_ref("my-epic", rediscovered, fixup=True, finding_slug=finding_slug)
+        assert ref_a == ref_b  # same finding -> same ref, whatever the titles
+        assert ref_a.startswith("pipeline:my-epic:fix:")
+        # finding_slug only applies to fix-ups; tree leaves keep the title key
+        assert "fix:" not in stable_ref("my-epic", first, finding_slug=finding_slug)
+
     def test_slug_truncation(self):
         """Long feature:title combos get truncated by slugify."""
         leaf = _leaf("x" * 60, feature="f" * 60)

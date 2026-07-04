@@ -217,6 +217,7 @@ class LeafRow(BaseModel):
     priority: int = 99
     blocked: bool = False
     blocked_by: list[str] = []
+    external_ref: str = ""  # lets consumers spot fix-up leaves (pipeline:<epic>:fix:*)
 
 
 class BlockedLeaf(BaseModel):
@@ -301,6 +302,12 @@ class WaveReport(BaseModel):
     outcomes: list[LeafOutcome] = []
     suite: SuiteResult | None = None
     findings: list[ReviewFinding] = []
+    # The review funnel: raw candidates collected, whether consolidation ran clean
+    # (False = fail-open passthrough), and candidates dropped as already covered by
+    # open fix-up leaves.
+    raw_findings: int = 0
+    consolidation_ok: bool = True
+    dropped_covered: list[str] = []
     diff_stat: str = ""
 
     @property

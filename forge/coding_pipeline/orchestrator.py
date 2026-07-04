@@ -99,7 +99,14 @@ def _apply_actions(
     halted = False
     for action in actions:
         if isinstance(action, FixupAction | IntegrationFixAction):
-            outcome = emit_fixup(action.leaf, project=project, epic_slug=epic_slug)
+            # Fix-ups key their ref on the finding's slug (stable across replans);
+            # integration fixes have no finding and fall back to the title slug.
+            outcome = emit_fixup(
+                action.leaf,
+                project=project,
+                epic_slug=epic_slug,
+                finding_slug=getattr(action, "finding_slug", None),
+            )
             append_replan_action(
                 run_dir, action.kind, leaf=action.leaf.title, ref=outcome.external_ref
             )
@@ -243,18 +250,31 @@ def run_epic(
             log(result.notes[-1])
             return result
 
-        report: WaveReport = verify_wave(repo, wave=wave_n, from_change=wave_start)
+        open_fixups = [
+            row.task
+            for row in epic_rows
+            if f":{epic_slug}:fix:" in row.external_ref and row.status.strip().lower() != "done"
+        ]
+        report: WaveReport = verify_wave(
+            repo, wave=wave_n, from_change=wave_start, existing_fixups=open_fixups
+        )
         report.outcomes = outcomes
         suite_tail = report.suite.output_tail if report.suite else ""
         append_gate_result(
             run_dir, "suite", report.suite_green, details="" if report.suite_green else suite_tail
         )
         confirmed = [f for f in report.findings if f.confirmed]
+        review_detail = (
+            f"{len(confirmed)} confirmed of {len(report.findings)} canonical "
+            f"(raw {report.raw_findings}, {len(report.dropped_covered)} covered by open fixups"
+            + ("" if report.consolidation_ok else ", consolidation FAILED OPEN")
+            + ")"
+        )
         append_gate_result(
             run_dir,
             "review",
             True,  # advisory: never blocks, findings feed replan
-            details=f"{len(confirmed)} confirmed finding(s) of {len(report.findings)}",
+            details=review_detail,
         )
 
         attempts = count_attempts_for_all(run_dir, [o.leaf for o in report.failed])

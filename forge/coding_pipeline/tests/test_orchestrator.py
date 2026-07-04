@@ -64,7 +64,7 @@ def wired(monkeypatch, tmp_path):
     plans = iter([_plan("leaf-a"), _plan(done=1)])  # one wave, then dry
     monkeypatch.setattr(orc, "plan_wave", lambda *a, **k: next(plans))
     monkeypatch.setattr(orc, "run_wave", lambda plan, repo, **k: [_done(t) for t in plan.dispatch])
-    monkeypatch.setattr(orc, "verify_wave", lambda repo, *, wave, from_change: _report(wave))
+    monkeypatch.setattr(orc, "verify_wave", lambda repo, *, wave, from_change, **k: _report(wave))
     monkeypatch.setattr(orc, "replan", lambda f, t, r, a: [])
     monkeypatch.setattr(orc, "update_task_status", lambda *a, **k: None)
     monkeypatch.setattr(orc, "emit_fixup", lambda *a, **k: None)
@@ -171,7 +171,9 @@ def test_unapproved_framing_refuses_the_run(wired, monkeypatch):
 def test_epic_rows_shared_between_planner_and_context_builder(wired, monkeypatch):
     """One Forge read per wave: the same rows feed plan_wave AND the sibling list,
     and dispatch receives a live preamble builder."""
-    rows_sentinel = ["ROWS"]
+    from agents.coding_pipeline.models import LeafRow
+
+    rows_sentinel = [LeafRow(task="done leaf", status="Done")]
     monkeypatch.setattr(orc, "fetch_epic_rows", lambda *a, **k: rows_sentinel)
     seen = {}
 
@@ -196,7 +198,7 @@ def test_epic_rows_shared_between_planner_and_context_builder(wired, monkeypatch
 def test_suite_red_report_reaches_replan_and_loop_continues(wired, monkeypatch):
     seen_reports = []
     monkeypatch.setattr(
-        orc, "verify_wave", lambda repo, *, wave, from_change: _report(wave, passed=False)
+        orc, "verify_wave", lambda repo, *, wave, from_change, **k: _report(wave, passed=False)
     )
     monkeypatch.setattr(orc, "replan", lambda f, t, r, a: seen_reports.append(r) or [])
     result = _run()
@@ -294,7 +296,9 @@ def test_fixup_action_emits_idempotently(wired, monkeypatch):
         action = "created"
 
     monkeypatch.setattr(
-        orc, "emit_fixup", lambda leaf, **k: emitted.append(leaf.title) or _Outcome()
+        orc,
+        "emit_fixup",
+        lambda leaf, **k: emitted.append((leaf.title, k.get("finding_slug"))) or _Outcome(),
     )
     monkeypatch.setattr(
         orc,
@@ -302,7 +306,8 @@ def test_fixup_action_emits_idempotently(wired, monkeypatch):
         lambda f, t, r, a: [FixupAction(finding_slug="x", leaf=_leaf("fix the thing"))],
     )
     _run()
-    assert emitted == ["fix the thing"]
+    # the finding's slug reaches emission — it keys the cross-replan-stable ref
+    assert emitted == [("fix the thing", "x")]
 
 
 def test_respec_action_reopens_with_revised_spec(wired, monkeypatch):

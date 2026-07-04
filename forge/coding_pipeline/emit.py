@@ -20,13 +20,20 @@ from agents.shared import forge_emit
 from agents.shared.automerge import log_decision, slugify
 
 
-def stable_ref(epic_slug: str, leaf: LeafSpec, *, fixup: bool = False) -> str:
+def stable_ref(
+    epic_slug: str, leaf: LeafSpec, *, fixup: bool = False, finding_slug: str | None = None
+) -> str:
     """Return a stable, idempotency-key external_ref for *leaf*.
 
-    Shape: ``pipeline:{epic-slug}:{leaf-slug}``, or ``pipeline:{epic-slug}:fix:{leaf-slug}``
-    for fix-up leaves generated during replanning. The epic slug stays in the fixup shape so
-    fix-ups from different epics can never collide.
+    Shape: ``pipeline:{epic-slug}:{leaf-slug}``, or ``pipeline:{epic-slug}:fix:{slug}`` for
+    fix-up leaves generated during replanning. Fix-ups key on the FINDING's slug when given —
+    the replan model invents leaf titles freely, so a title-derived ref would mint a duplicate
+    every time the same finding is re-discovered (dry-run Q2); the finding slug is the stable
+    identity. The epic slug stays in the fixup shape so fix-ups from different epics can never
+    collide.
     """
+    if fixup and finding_slug:
+        return f"pipeline:{epic_slug}:fix:{slugify(finding_slug, max_len=50)}"
     slug_source = f"{leaf.feature}:{leaf.title}"
     leaf_slug = slugify(slug_source, max_len=50)
     if fixup:
@@ -106,7 +113,9 @@ class EmitResult:
         )
 
 
-def _build_spec(leaf: LeafSpec, epic_slug: str, *, fixup: bool = False) -> forge_emit.EmitSpec:
+def _build_spec(
+    leaf: LeafSpec, epic_slug: str, *, fixup: bool = False, finding_slug: str | None = None
+) -> forge_emit.EmitSpec:
     """Build an EmitSpec from a LeafSpec.
 
     The architect's tags pass through VERBATIM — every LeafSpec field is concrete
@@ -117,7 +126,7 @@ def _build_spec(leaf: LeafSpec, epic_slug: str, *, fixup: bool = False) -> forge
     return forge_emit.EmitSpec(
         title=leaf.title,
         content=leaf.content,
-        external_ref=stable_ref(epic_slug, leaf, fixup=fixup),
+        external_ref=stable_ref(epic_slug, leaf, fixup=fixup, finding_slug=finding_slug),
         task_type=leaf.task_type,
         estimate=leaf.estimate,
         complexity=leaf.complexity,
@@ -206,15 +215,18 @@ def emit_fixup(
     *,
     project: str,
     epic_slug: str,
+    finding_slug: str | None = None,
     dry_run: bool = False,
     log: Callable[[str], None] | None = None,
 ) -> forge_emit.EmitOutcome:
     """Emit a single fix-up leaf (generated during replan from confirmed findings).
 
-    Uses the ``pipeline:{epic-slug}:fix:{slug}`` ref shape; the leaf's own tags pass
-    through exactly like tree emission (the replan stage decides fix-up autonomy).
+    Uses the ``pipeline:{epic-slug}:fix:{slug}`` ref shape, keyed on ``finding_slug``
+    when given (stable across replans; the leaf title is model-invented). The leaf's
+    own tags pass through exactly like tree emission (the replan stage decides fix-up
+    autonomy).
     """
-    spec = _build_spec(leaf, epic_slug, fixup=True)
+    spec = _build_spec(leaf, epic_slug, fixup=True, finding_slug=finding_slug)
     summary = forge_emit.emit_tasks([spec], project=project, dry_run=dry_run, log=log)
     for bucket in (summary.created, summary.skipped, summary.planned):
         if bucket:

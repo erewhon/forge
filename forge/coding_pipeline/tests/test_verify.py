@@ -215,3 +215,133 @@ def test_wave_start_rev_sees_worker_style_commits(tmp_path):
     diff = v.wave_diff(tmp_path, start)
     assert "b.txt" in diff, f"wave diff must contain the landed change, got: {diff!r}"
     assert "a.txt" not in diff  # pre-wave state is the basis, not part of the diff
+
+
+# --- consolidation (the recipe's dedup stage) ---------------------------------------
+
+
+def _env(findings=(), covered=()):
+    return v.ConsolidationEnvelope(
+        findings=[v.CanonicalFinding(**f) for f in findings],
+        covered=[v.CoveredFinding(**c) for c in covered],
+    )
+
+
+def _structured_returning(monkeypatch, value):
+    calls = []
+
+    def fake_structured(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(value=value, error=None if value else "boom")
+
+    monkeypatch.setattr(v, "structured", fake_structured)
+    monkeypatch.setattr(v, "rotation_pool", lambda slots, role: object())
+    return calls
+
+
+def test_consolidate_merges_paraphrase_twins(monkeypatch):
+    twins = [
+        _finding("list-units crashes on empty domain table", "src/cli.py"),
+        _finding("list-units crashes when the domain table is empty", "src/cli.py"),
+        _finding("list-units crashes on empty domain table", None),  # file omitted
+    ]
+    _structured_returning(
+        monkeypatch,
+        _env(
+            findings=[
+                {
+                    "summary": "list-units crashes on empty domain table",
+                    "file": "src/cli.py",
+                    "severity": "high",
+                    "merged_slugs": [f.slug for f in twins],
+                }
+            ]
+        ),
+    )
+    canonical, ok, dropped = v.consolidate_findings(twins)
+    assert ok and dropped == []
+    assert len(canonical) == 1  # three phrasings -> one canonical finding
+    assert canonical[0].severity == "high"
+    assert canonical[0].slug == v.stable_slug("src/cli.py", canonical[0].summary)
+
+
+def test_consolidate_drops_candidates_covered_by_open_fixups(monkeypatch):
+    finding = _finding("temperature offset applied twice", "src/temp.py")
+    _structured_returning(
+        monkeypatch,
+        _env(covered=[{"slug": finding.slug, "by_task": "Fix double offset in K->F"}]),
+    )
+    canonical, ok, dropped = v.consolidate_findings(
+        [finding, _finding()], ["Fix double offset in K->F"]
+    )
+    assert ok
+    assert dropped == [f"{finding.slug} (covered by: Fix double offset in K->F)"]
+
+
+def test_consolidate_fails_open_on_llm_failure(monkeypatch):
+    findings = [_finding("a", "a.py"), _finding("b", "b.py")]
+    _structured_returning(monkeypatch, None)
+    canonical, ok, dropped = v.consolidate_findings(findings)
+    assert not ok
+    assert canonical == findings  # raw passthrough, wave never blocked
+
+
+def test_consolidate_fails_open_when_consolidator_invents_findings(monkeypatch):
+    findings = [_finding("only one", "a.py")]
+    _structured_returning(
+        monkeypatch,
+        _env(
+            findings=[
+                {"summary": "only one", "file": "a.py", "severity": "low", "merged_slugs": []},
+                {
+                    "summary": "invented extra",
+                    "file": "b.py",
+                    "severity": "high",
+                    "merged_slugs": [],
+                },
+            ]
+        ),
+    )
+    canonical, ok, _ = v.consolidate_findings(findings, ["some open fixup"])
+    assert not ok
+    assert canonical == findings  # a consolidator may reduce work, never invent it
+
+
+def test_consolidate_skips_llm_when_nothing_to_merge(monkeypatch):
+    calls = _structured_returning(monkeypatch, _env())
+    single = [_finding()]
+    canonical, ok, dropped = v.consolidate_findings(single)
+    assert (canonical, ok, dropped) == (single, True, [])
+    assert calls == []  # no candidates to merge, no open fixups -> no call
+    assert v.consolidate_findings([]) == ([], True, [])
+
+
+def test_consolidate_normalizes_unknown_severity(monkeypatch):
+    _structured_returning(
+        monkeypatch,
+        _env(
+            findings=[
+                {"summary": "s", "file": None, "severity": "catastrophic", "merged_slugs": []}
+            ]
+        ),
+    )
+    canonical, ok, _ = v.consolidate_findings([_finding("s1"), _finding("s2")])
+    assert ok and canonical[0].severity == "medium"
+
+
+def test_verify_wave_routes_findings_through_consolidation(wired, monkeypatch):
+    seen = {}
+
+    def fake_consolidate(findings, existing=None):
+        seen["raw"] = list(findings)
+        seen["existing"] = existing
+        return [findings[0]], True, ["dead-slug (covered by: Open fixup)"]
+
+    monkeypatch.setattr(v, "consolidate_findings", fake_consolidate)
+    monkeypatch.setattr(v, "collect_findings", lambda diff: [_finding("x"), _finding("y")])
+    report = v.verify_wave(Path("/repo"), wave=9, from_change="abc", existing_fixups=["Open fixup"])
+    assert seen["existing"] == ["Open fixup"]
+    assert report.raw_findings == 2
+    assert report.consolidation_ok is True
+    assert report.dropped_covered == ["dead-slug (covered by: Open fixup)"]
+    assert len(report.findings) == 1  # confirm ran on the canonical set

@@ -6,17 +6,20 @@ Two gates, per dry-run design input #2 (gates are mandatory regardless of doer t
   Red means the wave does not advance; the failure tail goes into the ``WaveReport`` for replan.
 - **Advisory**: a cross-family review of the wave diff. Each active pr_review provider
   independently lists findings (structured JSON, not prose — the same move autotest made for its
-  sign-off), then every candidate finding faces a **confirm vote** across the same roster: it is
-  ``confirmed`` only when a strict majority of *responding* providers judge it real. Zero
-  responders = unconfirmed (advisory stays advisory; only confirmed findings become fix-up
-  leaves, so the action path fails closed).
+  sign-off); a **consolidation pass** merges semantically-equivalent candidates (cross-provider
+  paraphrase is the norm — the dry-run's epic gate phrased one blocker three ways in a single
+  verdict) and drops candidates already covered by the epic's OPEN fix-up leaves; then every
+  canonical finding faces a **confirm vote** across the roster: it is ``confirmed`` only when a
+  strict majority of *responding* providers judge it real. Zero responders = unconfirmed
+  (advisory stays advisory; only confirmed findings become fix-up leaves, so the action path
+  fails closed).
 
-Dedup is deterministic, not an LLM stage: findings collapse on a stable slug derived from
-(file, summary head) — the same slug keys the fix-up leaf's external_ref
-(``pipeline:{epic}:fix:{slug}``), so re-discovered findings dedup at emission across replans
-too. Differently-worded duplicates can survive to the vote; the emission cap and idempotent
-refs bound the damage. (Candidate refinement: an LLM consolidation pass like
-``recipe.discover_dedup_verify`` uses.)
+Dedup layers (dry-run Q2): the deterministic stable slug catches near-verbatim twins and keys
+the fix-up leaf's external_ref (``pipeline:{epic}:fix:{finding_slug}``) for exact cross-replan
+dedup; the consolidator (the ``recipe.discover_dedup_verify`` dedup stage, same fail-open
+semantics) catches paraphrase and re-worded re-discovery. Consolidation failure or a suspicious
+output (more canonical findings than raw) passes the raw findings through unchanged — the
+consolidator can reduce work, never invent it, and never blocks the wave.
 """
 
 from __future__ import annotations
@@ -28,9 +31,9 @@ from pydantic import BaseModel
 
 from agents.coding_pipeline.config import settings
 from agents.coding_pipeline.models import ReviewFinding, SuiteResult, WaveReport
-from agents.pr_review_ensemble.providers import build_reviewer_slots
+from agents.pr_review_ensemble.providers import build_reviewer_slots, rotation_pool
 from agents.shared.automerge import slugify
-from agents.shared.panel import PanelMember, PanelResult, run_member_panel, verify_each
+from agents.shared.panel import PanelMember, PanelResult, run_member_panel, structured, verify_each
 from agents.task_worker.tester import run_tests
 from agents.task_worker.vcs import VCSError, detect_vcs
 
@@ -164,6 +167,93 @@ def collect_findings(diff: str) -> list[ReviewFinding]:
     return ordered[: settings.review_max_findings]
 
 
+# --- consolidation (the recipe's dedup stage) ----------------------------------------
+
+CONSOLIDATE_SYSTEM = """You are consolidating code-review findings from SEVERAL independent
+reviewers of ONE diff. Different reviewers phrase the same underlying problem differently;
+your job is to merge duplicates, never to review.
+
+Rules:
+- Group candidates that describe the SAME underlying problem (same defect, even if worded
+  differently or one omits the file). Emit ONE canonical finding per group: the clearest
+  summary, the most specific file, the highest severity among members.
+- List every merged candidate's slug in merged_slugs, including the canonical's own source.
+- If a candidate is ALREADY COVERED by one of the existing open fix-up tasks listed, do not
+  emit it — record it under covered instead.
+- Never invent findings, never split one candidate into several, never editorialize summaries
+  beyond picking the clearest existing phrasing.
+
+Respond with ONLY a JSON object:
+{"findings": [{"summary": str, "file": str|null,
+               "severity": "critical"|"high"|"medium"|"low", "merged_slugs": [str]}],
+ "covered": [{"slug": str, "by_task": str}]}"""
+
+
+class CanonicalFinding(BaseModel):
+    summary: str
+    file: str | None = None
+    severity: str = "medium"
+    merged_slugs: list[str] = []
+
+
+class CoveredFinding(BaseModel):
+    slug: str
+    by_task: str
+
+
+class ConsolidationEnvelope(BaseModel):
+    findings: list[CanonicalFinding] = []
+    covered: list[CoveredFinding] = []
+
+
+def consolidate_findings(
+    findings: list[ReviewFinding],
+    existing_fixups: list[str] | None = None,
+) -> tuple[list[ReviewFinding], bool, list[str]]:
+    """Merge paraphrase twins and drop candidates covered by open fix-up leaves.
+
+    Returns ``(canonical, ok, dropped_covered)``. Fail-open by contract: a failed call
+    or a suspicious envelope (more canonical findings than raw — a consolidator may
+    reduce work, never invent it) returns the input unchanged with ``ok=False``. With
+    at most one candidate and no open fix-ups there is nothing to merge — no LLM call.
+    """
+    existing = existing_fixups or []
+    if len(findings) <= 1 and not existing:
+        return findings, True, []
+
+    parts = ["## Candidate findings (one per line: slug | severity | file | summary)"]
+    parts += [f"- {f.slug} | {f.severity} | {f.file or '-'} | {f.summary}" for f in findings]
+    if existing:
+        parts.append("\n## Existing OPEN fix-up tasks for this epic (already-known work)")
+        parts += [f"- {title}" for title in existing]
+
+    result = structured(
+        pool=rotation_pool(build_reviewer_slots(), role="review:consolidate"),
+        schema=ConsolidationEnvelope,
+        system=CONSOLIDATE_SYSTEM,
+        user="\n".join(parts),
+        max_tokens=settings.review_max_tokens,
+        timeout=settings.review_timeout,
+    )
+    if result.value is None or len(result.value.findings) > len(findings):
+        return findings, False, []
+
+    known = {"critical", "high", "medium", "low"}
+    canonical: list[ReviewFinding] = []
+    for c in result.value.findings:
+        severity = c.severity if c.severity in known else "medium"
+        canonical.append(
+            ReviewFinding(
+                slug=stable_slug(c.file, c.summary),
+                summary=c.summary,
+                severity=severity,
+                file=c.file,
+            )
+        )
+    dropped = [f"{c.slug} (covered by: {c.by_task})" for c in result.value.covered]
+    return canonical, True, dropped
+
+
 def _majority_real(_finding: ReviewFinding, panel: PanelResult) -> bool:
     """Strict majority of RESPONDING skeptics; zero responders fails closed."""
     real_votes = sum(1 for r in panel.responses if r.get("real") is True)
@@ -204,25 +294,37 @@ def verify_wave(
     wave: int,
     from_change: str,
     skip_review: bool = False,
+    existing_fixups: list[str] | None = None,
 ) -> WaveReport:
     """Run both wave gates and assemble the ``WaveReport`` replan consumes.
 
-    The suite is the hard gate (``report.suite_green``); review findings ride along with their
-    ``confirmed`` flags — only confirmed ones may become fix-up leaves downstream. The
-    orchestrator fills ``report.outcomes`` from dispatch. An empty wave diff skips the review
-    (nothing to judge).
+    The suite is the hard gate (``report.suite_green``); review findings flow
+    collect → consolidate → confirm, and ride along with their ``confirmed`` flags —
+    only confirmed ones may become fix-up leaves downstream. ``existing_fixups`` (the
+    epic's open fix-up leaf titles) lets the consolidator drop re-discovered issues.
+    The orchestrator fills ``report.outcomes`` from dispatch. An empty wave diff skips
+    the review (nothing to judge).
     """
     passed, output = run_tests(repo)
     suite = SuiteResult(passed=passed, output_tail=output[-2000:])
 
     diff = wave_diff(repo, from_change)
     findings: list[ReviewFinding] = []
+    raw_count = 0
+    consolidation_ok = True
+    dropped: list[str] = []
     if diff.strip() and not skip_review:
-        findings = confirm_findings(diff, collect_findings(diff))
+        raw = collect_findings(diff)
+        raw_count = len(raw)
+        canonical, consolidation_ok, dropped = consolidate_findings(raw, existing_fixups)
+        findings = confirm_findings(diff, canonical)
 
     return WaveReport(
         wave=wave,
         suite=suite,
         findings=findings,
+        raw_findings=raw_count,
+        consolidation_ok=consolidation_ok,
+        dropped_covered=dropped,
         diff_stat=_diff_stat(diff) if diff.strip() else "empty diff",
     )
