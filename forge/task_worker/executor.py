@@ -117,10 +117,14 @@ def execute_task_with_opencode(
     spec_path = _write_spec(project_dir, task, spec)
     rel_spec = spec_path.relative_to(project_dir).as_posix()
 
+    # No backticks/quotes/metacharacters in this prompt: gaol dx run re-joins argv
+    # into an unquoted shell string (gaol-cli dx.rs), so backticks would be executed
+    # as command substitution and the spec path silently deleted from the prompt
+    # (observed: workers glob-hunting for the spec and failing leaves).
     prompt = (
-        f"Read the task spec at `{rel_spec}` and execute the task it describes. "
+        f"Read the task spec at {rel_spec} and execute the task it describes. "
         f"Follow the rules stated in the spec file. Do not modify the spec file "
-        f"itself or anything under `.task_worker/`."
+        f"itself or anything under .task_worker/ directory."
     )
 
     # Inside the container: `opencode run -m llm/<tier> --dangerously-skip-permissions <prompt>`
