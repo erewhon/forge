@@ -58,7 +58,12 @@ def test_gaol_dx_delegates_to_dx_helpers(tmp_path, monkeypatch):
     assert box.preflight() == (True, "dx status: running")
     result = box.run(["echo", "hi"], timeout=5)
     assert result.stdout == "done"
-    assert seen == {"repo": tmp_path, "cmd": ["echo", "hi"], "timeout": 5}
+    assert seen["repo"] == tmp_path
+    # the command is wrapped in a container-side timeout so it can't outlive the call
+    # (orphaned in-container processes keep writing into the bind-mounted repo)
+    assert seen["cmd"] == ["timeout", "--kill-after=30", "5s", "echo", "hi"]
+    # host-side kill is a delayed backstop — it must never fire before the inner timeout
+    assert seen["timeout"] == 5 + GaolDxSandbox._HOST_GRACE_S
 
 
 def test_gaol_dx_run_tests_delegates_to_tester(tmp_path, monkeypatch):

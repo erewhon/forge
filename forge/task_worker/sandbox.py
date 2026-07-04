@@ -33,7 +33,11 @@ class Sandbox(Protocol):
         ...
 
     def run(self, cmd: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
-        """Run *cmd* inside the sandbox. May raise TimeoutExpired/FileNotFoundError."""
+        """Run *cmd* inside the sandbox. May raise TimeoutExpired/FileNotFoundError.
+
+        Implementations MUST ensure the command cannot outlive this call inside the
+        sandbox — an orphaned process keeps writing into the shared repo (see
+        GaolDxSandbox.run for the incident that proved it)."""
         ...
 
     def run_tests(self) -> tuple[bool, str]:
@@ -44,6 +48,11 @@ class Sandbox(Protocol):
 class GaolDxSandbox:
     """The local-lab sandbox: a running `gaol dx` container with the repo bind-mounted."""
 
+    # Host-side grace beyond the container-side timeout, and the SIGKILL follow-up
+    # after the container-side SIGTERM.
+    _HOST_GRACE_S = 60
+    _KILL_AFTER_S = 30
+
     def __init__(self, repo: Path) -> None:
         self.repo = repo
 
@@ -51,7 +60,14 @@ class GaolDxSandbox:
         return check_dx_ready(self.repo)
 
     def run(self, cmd: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
-        return dx_run(self.repo, cmd, timeout=timeout)
+        # The timeout must die INSIDE the container: killing the host-side gaol client
+        # (subprocess timeout) orphans the in-container process, which keeps running and
+        # keeps writing into the bind-mounted repo — a zombie OpenCode overwrote the
+        # working copy half an hour after its worker run was reverted (dogfood find).
+        # coreutils `timeout` enforces the budget in-container; the host-side kill is a
+        # delayed backstop that should never fire first.
+        guarded = ["timeout", f"--kill-after={self._KILL_AFTER_S}", f"{timeout}s", *cmd]
+        return dx_run(self.repo, guarded, timeout=timeout + self._HOST_GRACE_S)
 
     def run_tests(self) -> tuple[bool, str]:
         from agents.task_worker import tester  # local import: tester uses make_sandbox
