@@ -90,9 +90,10 @@ def _apply_actions(
 ) -> bool:
     """Apply replan actions through the idempotent/append-only paths. Returns True on halt.
 
-    Escalation flips status to Spec Needed — that alone removes the leaf from worker
-    eligibility (the gate requires Ready); the execution-mode flip is a human triage nicety
-    the current status-update path doesn't carry.
+    Escalation flips status to Spec Needed AND execution mode to Manual: Spec Needed
+    alone removes worker eligibility (the gate requires Ready), but without the mode
+    flip a human re-arming the task to Ready would silently re-enter the auto pool —
+    the design doc's "Spec Needed + Manual" is now what actually lands in Forge.
     """
     halted = False
     for action in actions:
@@ -121,6 +122,7 @@ def _apply_actions(
                     "Escalated by the pipeline at the attempt cap — needs a human.\n\n"
                     f"Diagnostics:\n\n{action.diagnostics}"
                 ),
+                execution_mode="Manual",
             )
             append_escalation(run_dir, action.leaf_title, action.diagnostics)
             log(f"replan escalate: {action.leaf_title} -> Spec Needed")

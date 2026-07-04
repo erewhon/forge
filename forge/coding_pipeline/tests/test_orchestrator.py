@@ -212,7 +212,9 @@ def test_replan_failure_degrades_to_deterministic_escalations(wired, monkeypatch
     monkeypatch.setattr(orc, "replan", boom)
     status_writes = []
     monkeypatch.setattr(
-        orc, "update_task_status", lambda t, s, notes="": status_writes.append((t, s))
+        orc,
+        "update_task_status",
+        lambda t, s, notes="", execution_mode=None: status_writes.append((t, s)),
     )
 
     result = _run()
@@ -243,10 +245,12 @@ def test_replan_failure_under_cap_degrades_to_no_actions(wired, monkeypatch):
     assert (wired / "toy-epic" / "wave-0001.json").exists()
 
 
-def test_escalation_action_flips_task_to_spec_needed(wired, monkeypatch):
+def test_escalation_action_flips_task_to_spec_needed_and_manual(wired, monkeypatch):
     status_writes = []
     monkeypatch.setattr(
-        orc, "update_task_status", lambda t, s, notes="": status_writes.append((t, s))
+        orc,
+        "update_task_status",
+        lambda t, s, notes="", execution_mode=None: status_writes.append((t, s, execution_mode)),
     )
     monkeypatch.setattr(
         orc,
@@ -254,7 +258,9 @@ def test_escalation_action_flips_task_to_spec_needed(wired, monkeypatch):
         lambda f, t, r, a: [EscalateAction(leaf_title="leaf-a", diagnostics="boom")],
     )
     _run()
-    assert ("leaf-a", "Spec Needed") in status_writes
+    # Spec Needed removes worker eligibility; Manual keeps a human re-arm from
+    # silently re-entering the auto pool (design doc: "Spec Needed + Manual").
+    assert ("leaf-a", "Spec Needed", "Manual") in status_writes
 
 
 def test_fixup_action_emits_idempotently(wired, monkeypatch):

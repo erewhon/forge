@@ -365,11 +365,16 @@ def _resolve_task_page(daemon: NousDaemonClient, task_name: str) -> dict:
         return daemon.resolve_page(settings.notebook_id, task_name)
 
 
-def update_task_status(task: str, status: str, notes: str = "") -> None:
+def update_task_status(
+    task: str, status: str, notes: str = "", execution_mode: str | None = None
+) -> None:
     """Update a task's status in both the page tags and the database row.
 
     Optionally appends an Implementation Notes block to the task page.
     When setting to Done, auto-sets the Completed cell to today.
+    ``execution_mode`` additionally updates the autonomy gate cell — the
+    pipeline's escalation path flips it to Manual so a human re-arming the
+    task doesn't silently re-enter the auto pool.
     """
     from nous_mcp.markdown import markdown_to_blocks
 
@@ -395,6 +400,8 @@ def update_task_status(task: str, status: str, notes: str = "") -> None:
         update_cells: dict[str, Any] = {"Status": status}
         if status.lower() == "done":
             update_cells["Completed"] = date.today().isoformat()
+        if execution_mode is not None:
+            update_cells["Execution Mode"] = execution_mode
         daemon.update_database_rows(
             notebook_id,
             settings.database_id,
