@@ -121,11 +121,11 @@ def test_runner_with_fake_executor_repeats(tmp_path: Path):
     """Runner loads gold cases, runs repeats via fake executor, grades, aggregates."""
     # Create a minimal goldset with a "boundedness" step (no file inputs needed beyond case.yaml)
     # We need a case that has at least one input file.
-    goldsets = tmp_path / "goldsets" / "boundedness"
-    goldsets.mkdir(parents=True)
+    case_dir = tmp_path / "goldsets" / "boundedness" / "shaped-leaf"
+    case_dir.mkdir(parents=True)
 
     # Write a dummy input file that the boundedness adapter needs
-    (goldsets / "leaf.json").write_text(
+    (case_dir / "leaf.json").write_text(
         json.dumps(
             {
                 "title": "test leaf",
@@ -138,7 +138,7 @@ def test_runner_with_fake_executor_repeats(tmp_path: Path):
         )
     )
 
-    (goldsets / "case.yaml").write_text(
+    (case_dir / "case.yaml").write_text(
         yaml.safe_dump(
             {
                 "schema_version": 1,
@@ -167,7 +167,7 @@ def test_runner_with_fake_executor_repeats(tmp_path: Path):
     result = run_scorecard(
         model="test-model",
         steps=["boundedness"],
-        goldsets_root=goldsets.parent,
+        goldsets_root=case_dir.parents[1],
         repeats=repeats,
         executor_factory=lambda: fake,
     )
@@ -178,7 +178,7 @@ def test_runner_with_fake_executor_repeats(tmp_path: Path):
     assert step_score.step == "boundedness"
     assert len(step_score.cases) == 1
     case_score = step_score.cases[0]
-    assert case_score.case_id == "boundedness"
+    assert case_score.case_id == "shaped-leaf"
     assert len(case_score.repeats) == repeats
     # All repeats should have passed (valid JSON, worker_shaped matches)
     for r in case_score.repeats:
@@ -325,10 +325,11 @@ def test_write_scorecard_creates_files(tmp_path: Path):
     json_path = write_scorecard(sc, tmp_path)
 
     assert json_path.exists()
-    assert json_path.parent == tmp_path / "test-model"
+    # Output dir is <UTC-stamp>-<model> so successive runs never overwrite.
+    assert json_path.parent == tmp_path / "20260101T000000Z-test-model"
     assert json_path.name == "scorecard.json"
 
-    md_path = tmp_path / "test-model" / "scorecard.md"
+    md_path = json_path.parent / "scorecard.md"
     assert md_path.exists()
     assert md_path.name == "scorecard.md"
 

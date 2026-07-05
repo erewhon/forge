@@ -28,7 +28,11 @@ VALID_STEPS: list[str] = [
 ]
 
 BASELINES_DIR = Path(__file__).resolve().parent / "baselines"
-BASELINE_FILE = BASELINES_DIR / ".json"
+
+
+def _baseline_file(model: str) -> Path:
+    """The checked-in baseline scorecard for *model* (one file per model)."""
+    return BASELINES_DIR / f"{model.replace('/', '-')}.json"
 
 
 def _common_parser() -> argparse.ArgumentParser:
@@ -95,8 +99,7 @@ def _cmd_run(argv: list[str]) -> int:
         repeats=args.repeats,
     )
 
-    output_dir = args.goldsets.parent if args.goldsets else settings.goldsets_dir.parent
-    json_path = write_scorecard(sc, output_dir)
+    json_path = write_scorecard(sc, settings.runs_dir)
     print(render_scorecard(sc))
     print(f"\nScorecard written to: {json_path}")
     return 0
@@ -121,8 +124,9 @@ def _cmd_baseline(argv: list[str]) -> int:
     if isinstance(steps, int):
         return 1
 
-    if BASELINE_FILE.exists() and not args.force:
-        print(f"Baseline already exists at {BASELINE_FILE}. Pass --force to overwrite.")
+    baseline_file = _baseline_file(args.model)
+    if baseline_file.exists() and not args.force:
+        print(f"Baseline already exists at {baseline_file}. Pass --force to overwrite.")
         return 1
 
     sc = run_scorecard(
@@ -133,8 +137,8 @@ def _cmd_baseline(argv: list[str]) -> int:
     )
 
     BASELINES_DIR.mkdir(parents=True, exist_ok=True)
-    BASELINE_FILE.write_text(sc.model_dump_json(indent=2), encoding="utf-8")
-    print(f"Baseline written to: {BASELINE_FILE}")
+    baseline_file.write_text(sc.model_dump_json(indent=2), encoding="utf-8")
+    print(f"Baseline written to: {baseline_file}")
     print(render_scorecard(sc))
     return 0
 
@@ -153,11 +157,12 @@ def _cmd_compare(argv: list[str]) -> int:
     if isinstance(steps, int):
         return 1
 
-    if not BASELINE_FILE.exists():
-        print(f"No baseline found at {BASELINE_FILE}. Run `meta evals baseline` first.")
+    baseline_file = _baseline_file(args.model)
+    if not baseline_file.exists():
+        print(f"No baseline found at {baseline_file}. Run `meta evals baseline` first.")
         return 2
 
-    baseline_data = json.loads(BASELINE_FILE.read_text())
+    baseline_data = json.loads(baseline_file.read_text())
 
     sc = run_scorecard(
         model=args.model,

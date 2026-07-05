@@ -27,21 +27,21 @@ agents/evals/
 
 ## Gold-set directory layout
 
-Each gold case lives in its own directory under the gold-set root
-(default ``/agents/evals/goldsets``, overridden by ``--goldsets`` or
-``EVALS_GOLDETS_DIR``).
+Each gold case lives in its own directory under a step directory in the gold-set root
+(default ``agents/evals/goldsets`` inside the package, overridden by ``--goldsets`` or
+``EVALS_GOLDSETS_DIR``).
 
 ```
 goldsets/
 └── <step-name>/         # directory name = step key (e.g. ``replan``, ``decompose``)
-    ├── case.yaml        # metadata + schema version + expected block
-    ├── <input-file-1>   # referenced by inputs; arbitrary format (json, yaml, patch, md, txt)
-    ├── <input-file-2>
-    └── ...
+    └── <case-id>/       # one directory per case; the name is the case_id
+        ├── case.yaml    # metadata + schema version + expected block
+        ├── <input-file> # referenced by inputs; arbitrary format (json, yaml, patch, md, txt)
+        └── ...
 ```
 
-The directory name **is** the step key. Every grader expects its cases in a subdirectory keyed by the
-step it grades. A single directory contains one case.
+The step directory name **is** the step key and holds any number of case directories;
+``case.yaml``'s ``step`` field must match its step directory.
 
 ### case.yaml fields
 
@@ -91,7 +91,7 @@ expected:
     - kind: fixup
       finding_slug: seeded-bug-login
   forbid_kinds:
-    - split
+    - split_subtree
   forbid_targets:
     - "Legacy auth module"
   allow_extra: false
@@ -120,10 +120,10 @@ Each key maps to one production prompt surface and one grader module:
 
 ## How to add a gold case
 
-1. Create a subdirectory under the gold-set root whose **name matches the step key**:
+1. Create a case directory under the step directory whose **name matches the step key**:
 
    ```bash
-   mkdir -p /agents/evals/goldsets/replan/my-new-case
+   mkdir -p agents/evals/goldsets/replan/my-new-case
    ```
 
 2. Gather the input files that the step adapter needs (the adapter imports from the agent modules
@@ -135,7 +135,10 @@ Each key maps to one production prompt surface and one grader module:
 4. Validate the fixture:
 
    ```bash
-   python -c "from agents.evals.fixtures import load_goldsets; print(load_goldsets('/agents/evals/goldsets'))"
+   uv run python -c "
+   from pathlib import Path
+   from agents.evals.fixtures import load_goldsets
+   print(load_goldsets(Path('agents/evals/goldsets')))"
    ```
 
    Any missing file, schema mismatch, or step name mismatch raises ``EvalFixtureError``.
@@ -174,10 +177,10 @@ Prefixed with ``EVALS_`` (loaded via ``pydantic-settings``):
 
 | Variable | Default | Description |
 |---|---|---|
-| ``EVALS_GOLDETS_DIR`` | ``/agents/evals/goldsets`` | Root directory for gold-set fixtures |
-| ``EVALS_RUNS_DIR`` | ``/eval-runs`` | Where scorecard JSON/Markdown outputs are written |
+| ``EVALS_GOLDSETS_DIR`` | ``agents/evals/goldsets`` (in-package) | Root directory for gold-set fixtures |
+| ``EVALS_RUNS_DIR`` | ``eval-runs/`` (repo root) | Where scorecard JSON/Markdown outputs are written |
 | ``EVALS_OPENAI_BASE_URL`` | ``http://localhost:4010/v1`` | LLM router endpoint |
-| ``EVALS_OPENAI_API_KEY`` | ``sk-litemaster`` | Router API key |
+| ``EVALS_OPENAI_API_KEY`` | ``sk-local-router`` | Router API key |
 | ``EVALS_MODEL`` | ``coder`` | Default model identifier |
 | ``EVALS_REPEATS`` | ``3`` | Number of repeats per case |
 | ``EVALS_TEMPERATURE`` | ``0.0`` | Temperature for determinism |

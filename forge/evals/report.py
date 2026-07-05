@@ -7,6 +7,7 @@ under ``runs_dir/<model>/``).
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 from agents.evals.models import Scorecard
@@ -72,14 +73,16 @@ def render_scorecard(sc: Scorecard) -> str:
 def write_scorecard(sc: Scorecard, runs_dir: Path) -> Path:
     """Persist *scorecard* as ``scorecard.json`` + ``scorecard.md``.
 
-    Files are written under ``runs_dir/<model>/``.
+    Files are written under ``runs_dir/<UTC-stamp>-<model>/`` so successive runs
+    never overwrite each other — the run history is part of the record.
 
     Returns
     -------
     Path
         The path to the ``scorecard.json`` file.
     """
-    output_dir = runs_dir / sc.model
+    stamp = datetime.fromisoformat(sc.timestamp).strftime("%Y%m%dT%H%M%SZ")
+    output_dir = runs_dir / f"{stamp}-{sc.model.replace('/', '-')}"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Write JSON

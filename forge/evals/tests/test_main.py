@@ -33,12 +33,7 @@ def _patch_paths(tmp_path: Path):
     with patch.object(settings, "goldsets_dir", goldsets):
         with patch.object(settings, "runs_dir", tmp_path / "runs"):
             with patch.object(_mod, "BASELINES_DIR", tmp_path / "baselines"):
-                with patch.object(
-                    _mod,
-                    "BASELINE_FILE",
-                    tmp_path / "baselines" / ".json",
-                ):
-                    yield
+                yield
 
 
 @pytest.fixture()
@@ -79,6 +74,8 @@ def test_run_writes_and_prints(mock_scorecard: Scorecard, tmp_path: Path):
         goldsets_root=goldsets,
         repeats=None,
     )
+    # Scorecards land in runs_dir — never inside the package next to the goldsets.
+    mock_write.assert_called_once_with(mock_scorecard, settings.runs_dir)
     assert any("Scorecard written to:" in s for s in captured)
 
 
@@ -90,9 +87,9 @@ def test_run_writes_and_prints(mock_scorecard: Scorecard, tmp_path: Path):
 def test_baseline_refuses_overwrite_without_force(mock_scorecard: Scorecard, tmp_path: Path):
     """Baseline refuses to overwrite existing file without --force."""
     goldsets = settings.goldsets_dir
-    baseline_dir = _evals_main.BASELINE_FILE.parent
-    baseline_dir.mkdir(parents=True, exist_ok=True)
-    _evals_main.BASELINE_FILE.write_text("{}", encoding="utf-8")
+    baseline_file = _evals_main._baseline_file("test-model")
+    baseline_file.parent.mkdir(parents=True, exist_ok=True)
+    baseline_file.write_text("{}", encoding="utf-8")
 
     captured = []
 
@@ -115,9 +112,9 @@ def test_baseline_refuses_overwrite_without_force(mock_scorecard: Scorecard, tmp
 def test_baseline_overwrites_with_force(mock_scorecard: Scorecard, tmp_path: Path):
     """Baseline overwrites existing file when --force is passed."""
     goldsets = settings.goldsets_dir
-    baseline_dir = _evals_main.BASELINE_FILE.parent
-    baseline_dir.mkdir(parents=True, exist_ok=True)
-    _evals_main.BASELINE_FILE.write_text("{}", encoding="utf-8")
+    baseline_file = _evals_main._baseline_file("test-model")
+    baseline_file.parent.mkdir(parents=True, exist_ok=True)
+    baseline_file.write_text("{}", encoding="utf-8")
 
     with patch("agents.evals.main.run_scorecard", return_value=mock_scorecard) as mock_run:
         captured = []
@@ -130,8 +127,8 @@ def test_baseline_overwrites_with_force(mock_scorecard: Scorecard, tmp_path: Pat
 
     assert rc == 0
     mock_run.assert_called_once()
-    assert _evals_main.BASELINE_FILE.exists()
-    data = json.loads(_evals_main.BASELINE_FILE.read_text())
+    assert baseline_file.exists()
+    data = json.loads(baseline_file.read_text())
     assert data["model"] == "test-model"
 
 
@@ -143,20 +140,32 @@ def test_baseline_overwrites_with_force(mock_scorecard: Scorecard, tmp_path: Pat
 def test_baseline_creates_baselines_dir(mock_scorecard: Scorecard, tmp_path: Path):
     """Baseline creates the baselines directory if it doesn't exist."""
     goldsets = settings.goldsets_dir
-    baseline_dir = _evals_main.BASELINE_FILE.parent
-    # Ensure it doesn't exist
-    if baseline_dir.exists():
-        import shutil
-
-        shutil.rmtree(baseline_dir)
+    baseline_file = _evals_main._baseline_file("test-model")
+    assert not baseline_file.parent.exists()
 
     with patch("agents.evals.main.run_scorecard", return_value=mock_scorecard):
         with patch("builtins.print"):
             rc = _cmd_baseline(["--model", "test-model", "--goldsets", str(goldsets)])
 
     assert rc == 0
-    assert baseline_dir.exists()
-    assert _evals_main.BASELINE_FILE.exists()
+    assert baseline_file.exists()
+
+
+def test_baselines_are_per_model(mock_scorecard: Scorecard, tmp_path: Path):
+    """Each model gets its own baseline file — one model's baseline never
+    blocks or overwrites another's."""
+    goldsets = settings.goldsets_dir
+    other = _evals_main._baseline_file("other-model")
+    other.parent.mkdir(parents=True, exist_ok=True)
+    other.write_text("{}", encoding="utf-8")
+
+    with patch("agents.evals.main.run_scorecard", return_value=mock_scorecard):
+        with patch("builtins.print"):
+            rc = _cmd_baseline(["--model", "test-model", "--goldsets", str(goldsets)])
+
+    assert rc == 0  # other-model's existing baseline is irrelevant
+    assert _evals_main._baseline_file("test-model").exists()
+    assert other.read_text() == "{}"  # untouched
 
 
 # ---------------------------------------------------------------------------
@@ -167,12 +176,7 @@ def test_baseline_creates_baselines_dir(mock_scorecard: Scorecard, tmp_path: Pat
 def test_compare_exits_2_without_baseline(tmp_path: Path):
     """Compare exits 2 when no baseline file exists."""
     goldsets = settings.goldsets_dir
-    baseline_file = _evals_main.BASELINE_FILE
-    # Ensure baseline does not exist
-    if baseline_file.parent.exists():
-        import shutil
-
-        shutil.rmtree(baseline_file.parent)
+    assert not _evals_main._baseline_file("test-model").exists()
 
     captured = []
 
@@ -194,8 +198,8 @@ def test_compare_exits_2_without_baseline(tmp_path: Path):
 def test_compare_renders_deltas_with_one_step(mock_scorecard: Scorecard, tmp_path: Path):
     """Compare renders a per-step delta table with one baseline step."""
     goldsets = settings.goldsets_dir
-    baseline_dir = _evals_main.BASELINE_FILE.parent
-    baseline_dir.mkdir(parents=True, exist_ok=True)
+    baseline_file = _evals_main._baseline_file("test-model")
+    baseline_file.parent.mkdir(parents=True, exist_ok=True)
 
     baseline_data = {
         "model": "test-model",
@@ -210,7 +214,7 @@ def test_compare_renders_deltas_with_one_step(mock_scorecard: Scorecard, tmp_pat
             }
         ],
     }
-    _evals_main.BASELINE_FILE.write_text(json.dumps(baseline_data), encoding="utf-8")
+    baseline_file.write_text(json.dumps(baseline_data), encoding="utf-8")
 
     fresh = Scorecard(
         model="test-model",

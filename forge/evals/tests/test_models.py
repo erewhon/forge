@@ -28,8 +28,10 @@ def test_settings_defaults():
     assert s.timeout == 240.0
     assert s.max_tokens == 16_000
     assert s.openai_base_url == "http://localhost:4010/v1"
-    assert s.goldsets_dir == Path("/agents/evals/goldsets")
-    assert s.runs_dir == Path("/eval-runs")
+    # Package-relative defaults: goldsets ship inside the package, runs land at repo root.
+    package_dir = Path(__file__).resolve().parents[1]
+    assert s.goldsets_dir == package_dir / "goldsets"
+    assert s.runs_dir == package_dir.parents[1] / "eval-runs"
 
 
 def test_settings_env_override(monkeypatch):
