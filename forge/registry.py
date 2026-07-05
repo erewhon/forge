@@ -113,4 +113,10 @@ REGISTRY: list[AgentCommand] = [
         module="agents.dashboard.main",
         exposes_mcp=False,
     ),
+    AgentCommand(
+        name="evals",
+        summary="Judgment eval harness: score models against frozen gold sets.",
+        module="agents.evals.main",
+        exposes_mcp=False,
+    ),
 ]
