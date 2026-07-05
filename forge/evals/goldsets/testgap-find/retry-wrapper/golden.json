@@ -1,0 +1,18 @@
+{
+  "gaps": [
+    {
+      "target": "retrylib/retry.py::retry_call exhaustion path",
+      "gap_type": "error-path",
+      "why_it_matters": "RetryExhausted is never exercised: a permanent failure is the function's whole reason to exist, and nothing asserts it raises after exactly `retries` attempts with the last error chained",
+      "suggested_test": "fn that always raises; assert RetryExhausted after exactly 3 attempts and `__cause__` is the last ValueError",
+      "severity": "high"
+    },
+    {
+      "target": "retrylib/retry.py::retry_call retries=0",
+      "gap_type": "edge-case",
+      "why_it_matters": "retries=0 means fn is never called and RetryExhausted raises from None \u2014 documented but untested boundary of the attempt loop",
+      "suggested_test": "retry_call(fn, retries=0): assert fn was never invoked and RetryExhausted raises with __cause__ None",
+      "severity": "medium"
+    }
+  ]
+}

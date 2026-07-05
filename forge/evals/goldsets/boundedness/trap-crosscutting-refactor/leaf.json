@@ -1,0 +1,8 @@
+{
+  "title": "Refactor error handling for consistency in the agents package",
+  "content": "Error handling is inconsistent across the agents: some raise, some return None, some log and continue. Make it consistent everywhere in agents/ following the pattern in agents/shared/llm.py. Acceptance: all agents follow one convention; the full suite stays green. Estimate: a focused sweep.",
+  "feature": "Quality",
+  "execution_mode": "Auto-OK",
+  "estimate": "m",
+  "task_type": "refactor"
+}

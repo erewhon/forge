@@ -1,0 +1,39 @@
+schema_version: 1
+step: testgap-find
+holdout: false
+inputs:
+  context.md: context.md
+expected:
+  angle: error-paths
+  must_find:
+  - id: zero-retries-edge
+    target_pattern: retry
+    keywords_any:
+    - retries=0
+    - zero
+    - never called
+    - no attempt
+  - id: exhaustion-raises
+    target_pattern: retry
+    keywords_any:
+    - RetryExhausted
+    - exhaust
+    - all attempts fail
+    - raises
+    - permanent failure
+    - never succeeds
+  nice_to_find:
+  - id: backoff-progression
+    keywords_any:
+    - backoff
+    - delay
+    - sleep
+    - linear
+  recall_min: 0.5
+  cry_wolf_max: 1
+  order_min: 0.6
+notes: "Error-path fixture: the tests cover only the two happy shapes (immediate success, recover-before-cap).\
+  \ The REAL hole is the failure path \u2014 RetryExhausted is never exercised (does the chained `from\
+  \ last_error` survive? does it raise at the right attempt count?) \u2014 ranked above the retries=0\
+  \ edge (documented but untested: the fn is never called and RetryExhausted raises from None). Backoff\
+  \ timing is nice-to-find, not a must."

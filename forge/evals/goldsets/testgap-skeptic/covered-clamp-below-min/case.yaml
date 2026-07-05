@@ -1,0 +1,11 @@
+schema_version: 1
+step: testgap-skeptic
+holdout: false
+inputs:
+  context.md: context.md
+  gap.json: gap.json
+expected:
+  real: false
+notes: "The coverage-truth decoy: the suggested test IS row two of the existing parametrize table ((-1,\
+  \ 0, 10, 0)). The lens's load-bearing question \u2014 is it actually already covered? \u2014 answered\
+  \ by reading the tests."

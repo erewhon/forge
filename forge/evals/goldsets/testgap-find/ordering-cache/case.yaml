@@ -1,0 +1,41 @@
+schema_version: 1
+step: testgap-find
+holdout: true
+inputs:
+  context.md: context.md
+expected:
+  angle: concurrency
+  must_find:
+  - id: eviction-order
+    target_pattern: put|evict|Bounded
+    keywords_any:
+    - evict
+    - oldest
+    - capacity
+    - insertion order
+    - re-put
+    - update
+  - id: prune-mutates-while-iterating
+    target_pattern: prune
+    keywords_any:
+    - RuntimeError
+    - mutat
+    - while iterating
+    - during iteration
+    - changes size
+    - del during
+  nice_to_find:
+  - id: shared-across-workers
+    keywords_any:
+    - thread
+    - race
+    - concurrent
+    - lock
+  recall_min: 0.5
+  cry_wolf_max: 1
+  order_min: 0.6
+notes: "Ordering/shared-state fixture, least->most severe: eviction-order (updating an existing key\
+  \ then overflowing evicts the WRONG entry relative to the documented oldest-inserted contract \u2014\
+  \ untested), then prune (deletes from the dict while iterating it \u2014 RuntimeError on the first\
+  \ real match; the tests never call prune at all). The docstring even hangs a question mark on thread-safety\
+  \ \u2014 sharing across async workers is the nice-to-find."

@@ -1,0 +1,9 @@
+schema_version: 1
+step: boundedness
+holdout: false
+inputs:
+  leaf.json: leaf.json
+expected:
+  worker_shaped: true
+notes: 'Real positive from the smoke epic: one module, affine conversions, named files, anchor-identity
+  acceptance criteria a suite can check.'

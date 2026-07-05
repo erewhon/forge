@@ -1,0 +1,47 @@
+schema_version: 1
+step: testgap-find
+holdout: true
+inputs:
+  context.md: context.md
+expected:
+  angle: edge-cases
+  must_find:
+  - id: empty-string
+    target_pattern: slug
+    keywords_any:
+    - empty
+    - '""'
+    - no characters
+    - blank
+  - id: unicode-input
+    target_pattern: slug
+    keywords_any:
+    - unicode
+    - non-ascii
+    - accents
+    - "\xE9moji"
+    - emoji
+    - "\xFC"
+  - id: max-len-boundary
+    target_pattern: slug
+    keywords_any:
+    - max_len
+    - boundary
+    - exactly
+    - trailing dash
+    - rstrip
+    - cut
+  nice_to_find:
+  - id: already-slug
+    keywords_any:
+    - idempotent
+    - already
+    - no-op
+  recall_min: 0.6
+  cry_wolf_max: 1
+  order_min: 0.6
+notes: "Edge-case fixture, least->most severe: empty input (returns '' \u2014 harmless but untested),\
+  \ unicode (the regex only knows a-z0-9, so 'caf\xE9' becomes 'caf-' \u2014 surprising and untested),\
+  \ and the max_len boundary (the trim + rstrip('-') interaction at exactly max_len is where the off-by-one\
+  \ would live; the existing trim test only asserts <= 40 on one shape). The boundary outranks unicode\
+  \ because the documented invariant ('never a trailing dash') is exactly what the untested branch protects."

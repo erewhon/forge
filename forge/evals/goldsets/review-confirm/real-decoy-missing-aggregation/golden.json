@@ -1,0 +1,4 @@
+{
+  "real": false,
+  "reason": "pass_rate and overall_pass_rate are computed properties on StepScore/Scorecard; the runner only assembles cases and the render path reads the properties \u2014 nothing is missing."
+}

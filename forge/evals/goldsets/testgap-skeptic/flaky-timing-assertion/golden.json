@@ -1,0 +1,6 @@
+{
+  "real": false,
+  "confidence": "high",
+  "severity": "low",
+  "reasoning": "A 5ms wall-clock bound is machine- and load-dependent \u2014 the proposed test is inherently flaky, not a deterministic guard; no functional gap is identified."
+}

@@ -1,0 +1,5 @@
+{
+  "summary": "BASELINE_FILE is built as BASELINES_DIR / '.json' at module level \u2014 the model name is missing, so baselines for different models all read and overwrite one literal .json file",
+  "file": "agents/evals/main.py",
+  "severity": "critical"
+}

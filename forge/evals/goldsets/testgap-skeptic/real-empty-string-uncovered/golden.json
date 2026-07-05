@@ -1,0 +1,6 @@
+{
+  "real": true,
+  "confidence": "high",
+  "severity": "low",
+  "reasoning": "No existing test passes empty or all-punctuation input; the strip('-') path returning '' is unexercised. Real, though low value."
+}

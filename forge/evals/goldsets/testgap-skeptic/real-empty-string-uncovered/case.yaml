@@ -1,0 +1,10 @@
+schema_version: 1
+step: testgap-skeptic
+holdout: false
+inputs:
+  context.md: context.md
+  gap.json: gap.json
+expected:
+  real: true
+notes: "Real but minor: nothing in the suite exercises empty or all-punctuation input. Confirms that\
+  \ 'real' is about coverage truth, not severity \u2014 a low-severity gap is still a gap."

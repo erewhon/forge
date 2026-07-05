@@ -1,0 +1,4 @@
+{
+  "real": false,
+  "reason": "_check_deps_resolve delegates to _validate_deps, which is an iterative Kahn topological sort \u2014 no recursion exists anywhere on the path, so no base case is missing."
+}

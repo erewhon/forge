@@ -1,0 +1,8 @@
+schema_version: 1
+step: boundedness
+holdout: false
+inputs:
+  leaf.json: leaf.json
+expected:
+  worker_shaped: true
+notes: 'Small docs positive: one file, xs, concrete acceptance (named sections exist).'

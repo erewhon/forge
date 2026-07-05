@@ -1,0 +1,10 @@
+schema_version: 1
+step: testgap-skeptic
+holdout: true
+inputs:
+  context.md: context.md
+  gap.json: gap.json
+expected:
+  real: true
+notes: 'Real and severe: dict mutation during iteration raises on first match; prune has zero test coverage.
+  The skeptic should confirm at high confidence.'

@@ -1,0 +1,13 @@
+schema_version: 1
+step: review-findings
+holdout: false
+inputs:
+  diff.patch: diff.patch
+expected:
+  must_find: []
+  precision_min: 1.0
+notes: "Precision discipline on a REAL clean diff: the temperature-knob commit (ed76eaad) \u2014 additive\
+  \ optional field, byte-identical requests when unset, tests capturing kwargs for both backends. The\
+  \ right shipped set is EMPTY ('don't manufacture issues'). The funnel may save an over-eager finder\
+  \ here (skeptic kills nits), which is exactly what ships \u2014 precision_min 1.0 tolerates zero confirmed\
+  \ false alarms."

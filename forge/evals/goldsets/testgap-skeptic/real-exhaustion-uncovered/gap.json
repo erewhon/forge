@@ -1,0 +1,7 @@
+{
+  "target": "retrylib/retry.py::retry_call exhaustion path",
+  "gap_type": "error-path",
+  "why_it_matters": "RetryExhausted is never exercised by any test",
+  "suggested_test": "always-failing fn; assert RetryExhausted after exactly 3 attempts",
+  "severity": "high"
+}

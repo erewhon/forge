@@ -1,0 +1,37 @@
+{
+  "project": "Pipeline-Smoke",
+  "repo": "/home/user/Projects/erewhon/pipeline-smoke",
+  "tree": "specs/\n  dev-pipeline-smoke.yaml\nsrc/\n  unitconv/\n    __init__.py\n    cli.py\n    length.py\n    mass.py\ntests/\n  test_cli.py\n  test_length.py\n  test_mass.py\npyproject.toml\nREADME.md\nuv.lock",
+  "key_files": [
+    {
+      "path": "README.md",
+      "head": "# unitconv\n\nA tiny unit conversion library and CLI. Fixture repo for the meta coding\npipeline's end-to-end dry-run (\"Pipeline Smoke\") \u2014 throwaway, not a real\nproduct.\n\n```\nuv run unitconv convert 3 ft m\n```\n\nSupported domains: length (m, km, cm, mm, ft, in, mi) and mass (kg, g, mg,\nlb, oz, t).\n\nRun tests with `uv run pytest`.\n"
+    },
+    {
+      "path": "pyproject.toml",
+      "head": "[project]\nname = \"unitconv\"\nversion = \"0.1.0\"\ndescription = \"Tiny unit conversion CLI (pipeline dry-run fixture)\"\nrequires-python = \">=3.11\"\ndependencies = []\n\n[dependency-groups]\ndev = [\"pytest>=8.0\"]\n\n[build-system]\nrequires = [\"hatchling\"]\nbuild-backend = \"hatchling.build\"\n\n[tool.hatch.build.targets.wheel]\npackages = [\"src/unitconv\"]\n\n[tool.pytest.ini_options]\ntestpaths = [\"tests\"]\n\n[tool.ruff]\nline-length = 100\n"
+    }
+  ],
+  "modules": [
+    "specs",
+    "src",
+    "tests"
+  ],
+  "test_layout": [
+    "tests"
+  ],
+  "toolchain": [
+    "uv/python",
+    "python (pyproject)"
+  ],
+  "existing_tasks": [],
+  "overlaps": [
+    "src/unitconv",
+    "src/unitconv/length.py",
+    "src/unitconv/mass.py",
+    "tests",
+    "tests/test_length.py",
+    "tests/test_mass.py"
+  ],
+  "truncated": 0
+}

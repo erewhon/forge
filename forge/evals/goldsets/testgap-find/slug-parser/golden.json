@@ -1,0 +1,25 @@
+{
+  "gaps": [
+    {
+      "target": "textlib/slug.py::slugify max_len boundary",
+      "gap_type": "edge-case",
+      "why_it_matters": "The trim branch's interaction of slug[:max_len] with rstrip('-') at exactly the boundary is the documented no-trailing-dash invariant, and no test pins it (the existing test only asserts <= 40 on one input)",
+      "suggested_test": "inputs crafted so the cut lands on a dash: assert result length and no trailing '-' for max_len in {1, 5, 40}",
+      "severity": "high"
+    },
+    {
+      "target": "textlib/slug.py::slugify unicode input",
+      "gap_type": "edge-case",
+      "why_it_matters": "The regex only preserves ascii a-z0-9, so unicode letters vanish into dashes ('caf\u00e9' -> 'caf') \u2014 surprising behavior with zero coverage",
+      "suggested_test": "assert slugify('caf\u00e9 \u00fcmlaut') documents the ascii-only contract",
+      "severity": "medium"
+    },
+    {
+      "target": "textlib/slug.py::slugify empty string",
+      "gap_type": "edge-case",
+      "why_it_matters": "slugify('') and all-punctuation inputs return '' \u2014 untested",
+      "suggested_test": "assert slugify('') == '' and slugify('!!!') == ''",
+      "severity": "low"
+    }
+  ]
+}

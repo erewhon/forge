@@ -1,0 +1,10 @@
+schema_version: 1
+step: testgap-skeptic
+holdout: false
+inputs:
+  context.md: context.md
+  gap.json: gap.json
+expected:
+  real: true
+notes: 'Genuinely uncovered: both existing tests end in success; no test ever reaches the raise. The
+  skeptic must confirm despite the suite ''looking'' reasonable.'

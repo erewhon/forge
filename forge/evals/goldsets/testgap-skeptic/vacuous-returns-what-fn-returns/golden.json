@@ -1,0 +1,6 @@
+{
+  "real": false,
+  "confidence": "high",
+  "severity": "low",
+  "reasoning": "test_success_first_try already asserts retry_call returns fn's value; the proposed test duplicates existing coverage with a different constant."
+}

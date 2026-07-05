@@ -1,0 +1,37 @@
+schema_version: 1
+step: review-findings
+holdout: true
+inputs:
+  diff.patch: diff.patch
+expected:
+  must_find:
+  - id: dispatch-inverted
+    file_pattern: temperature\.py
+    keywords_any:
+    - swap
+    - invert
+    - wrong direction
+    - f_to_c
+    - c_to_f
+    - reversed
+    - backwards
+    - wrong converter
+  - id: test-asserts-bug
+    file_pattern: test
+    keywords_any:
+    - assert the bug
+    - asserts the wrong
+    - locks in
+    - wrong expected
+    - '37.7'
+    - '212'
+    - test is wrong
+    - encode the bug
+    - asserts the inverted
+  recall_min: 0.5
+  precision_min: 0.5
+notes: "Seeded semantic inversion \u2014 the known auto-tier failure signature: the functions are individually\
+  \ CORRECT; the dispatch table wires them backwards, and the tests assert the buggy behavior (100C\
+  \ -> 37.8F is what the inverted table produces). A reviewer who only reads the functions sees nothing;\
+  \ the defect is in the wiring plus the misleading tests. Both findings must survive the confirm vote\
+  \ to count."

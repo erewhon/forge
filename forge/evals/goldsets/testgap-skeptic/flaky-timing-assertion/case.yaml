@@ -1,0 +1,11 @@
+schema_version: 1
+step: testgap-skeptic
+holdout: false
+inputs:
+  context.md: context.md
+  gap.json: gap.json
+expected:
+  real: false
+notes: "Testability decoy: a wall-clock assertion on a pure string function is nondeterministic across\
+  \ hosts and load \u2014 the suggested test is flaky by construction, so the gap is not useful even\
+  \ if latency mattered."

@@ -1,0 +1,16 @@
+{
+  "title": "Implement temperature conversion module with affine logic",
+  "content": "Create `src/unitconv/temperature.py` to handle temperature conversions (C, F, K). Unlike length/mass which use multiplicative factors, temperature requires affine transformations (offset + scale). Implement `convert(value, from_unit, to_unit)` logic. Supported units: 'c', 'f', 'k'. Include helper constants for offsets. This is the core domain logic. Do not modify existing length/mass modules.\n\nAcceptance Criteria:\n- `src/unitconv/temperature.py` exists and is importable.\n- `convert(0, 'c', 'f')` returns 32.0.\n- `convert(100, 'c', 'f')` returns 212.0.\n- `convert(0, 'k', 'c')` returns -273.15.\n- `convert(32, 'f', 'c')` returns 0.0.\n- `convert(100, 'c', 'c')` returns 100.0.\n- Module has no external dependencies.\n\nTarget Files:\n- `src/unitconv/temperature.py`",
+  "feature": "Temperature Domain",
+  "depends_on": [],
+  "priority": 2,
+  "phase": "Feature",
+  "status": "Ready",
+  "execution_mode": "Auto-OK",
+  "complexity": "routine",
+  "estimate": "s",
+  "task_type": "feature",
+  "requires_tests": true,
+  "max_files": 2,
+  "model_tier": "auto"
+}

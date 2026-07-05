@@ -1,0 +1,11 @@
+schema_version: 1
+step: review-confirm
+holdout: true
+inputs:
+  diff.patch: diff.patch
+  candidate.json: candidate.json
+expected:
+  real: true
+notes: 'Second should-have-shipped positive: the per-model baseline file lost its model interpolation.
+  Visible in two lines of the diff; a semantic hole no test covered because the tests monkeypatched
+  the constant.'

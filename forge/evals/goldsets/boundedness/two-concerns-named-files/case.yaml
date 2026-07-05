@@ -1,0 +1,14 @@
+schema_version: 1
+step: boundedness
+holdout: true
+inputs:
+  leaf.json: leaf.json
+expected:
+  worker_shaped: false
+  criteria:
+    single_concern: false
+    files_named: true
+notes: "Discrimination case for per-criterion judgment: files ARE named, estimate fits, acceptance is\
+  \ testable \u2014 but 'migrate the schema AND rewrite the flow' is two concerns with an unresolved\
+  \ sequencing decision between them; expected.criteria pins single_concern=false while files_named\
+  \ stays true. worker_shaped: false. The right move is two leaves with a depends_on edge."

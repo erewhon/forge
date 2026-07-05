@@ -1,0 +1,11 @@
+schema_version: 1
+step: review-confirm
+holdout: true
+inputs:
+  diff.patch: diff.patch
+  candidate.json: candidate.json
+expected:
+  real: false
+notes: "REAL captured decoy from wave 4: pass rates are computed properties ON the Pydantic models (StepScore.pass_rate,\
+  \ Scorecard.overall_pass_rate) \u2014 the runner is not supposed to calculate them. The finder pattern-matched\
+  \ 'no aggregation code here' without reading the models; green tests refuted it."

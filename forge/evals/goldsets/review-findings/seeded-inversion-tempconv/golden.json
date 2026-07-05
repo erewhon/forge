@@ -1,0 +1,14 @@
+{
+  "findings": [
+    {
+      "summary": "The CONVERSIONS dispatch table wires the converters backwards: ('C','F') maps to f_to_c and ('F','C') to c_to_f, so every cross-unit conversion runs in the wrong direction even though both functions are correct",
+      "file": "unitconv/temperature.py",
+      "severity": "critical"
+    },
+    {
+      "summary": "The new tests assert the inverted behavior (convert(100,'C','F') == 37.78 and convert(100,'F','C') == 212) \u2014 they lock in the dispatch bug instead of catching it",
+      "file": "tests/test_temperature.py",
+      "severity": "high"
+    }
+  ]
+}

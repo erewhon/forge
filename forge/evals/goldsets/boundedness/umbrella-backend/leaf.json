@@ -1,0 +1,8 @@
+{
+  "title": "Implement the backend",
+  "content": "Build the backend for the service: API, database layer, auth, and background jobs. Should be production quality and well tested.",
+  "feature": "Backend",
+  "execution_mode": "Auto-OK",
+  "estimate": "xl",
+  "task_type": "feature"
+}

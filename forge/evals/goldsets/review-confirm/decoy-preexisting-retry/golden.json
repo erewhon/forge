@@ -1,0 +1,4 @@
+{
+  "real": false,
+  "reason": "The diff introduces an optional temperature kwarg only; any backoff/jitter behavior is pre-existing code outside this change \u2014 not a problem this diff introduces."
+}

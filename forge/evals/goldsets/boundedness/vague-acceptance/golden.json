@@ -1,0 +1,9 @@
+{
+  "leaf_title": "Improve list-units output readability",
+  "single_concern": true,
+  "bounded_diff": true,
+  "small_estimate": true,
+  "testable_acceptance": false,
+  "files_named": true,
+  "notes": "One file and small \u2014 but acceptance is aesthetic, not suite-checkable."
+}

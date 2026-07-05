@@ -1,0 +1,9 @@
+{
+  "leaf_title": "Refactor error handling for consistency in the agents package",
+  "single_concern": false,
+  "bounded_diff": false,
+  "small_estimate": false,
+  "testable_acceptance": true,
+  "files_named": true,
+  "notes": "Cross-cutting sweep dressed as routine; unbounded diff, hidden design choices."
+}

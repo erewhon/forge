@@ -1,0 +1,5 @@
+{
+  "summary": "Critical typo in configuration variable name 'EVALS_GOLDETS_DIR' (missing 'S') creates a disconnect between documentation/config and actual code",
+  "file": "agents/evals/README.md",
+  "severity": "critical"
+}

@@ -1,0 +1,4 @@
+{
+  "real": true,
+  "reason": "BASELINE_FILE = BASELINES_DIR / '.json' contains no model component and every subcommand uses the same constant, so two models cannot have distinct baselines."
+}

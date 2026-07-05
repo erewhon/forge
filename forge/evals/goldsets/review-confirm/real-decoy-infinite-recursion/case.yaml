@@ -1,0 +1,12 @@
+schema_version: 1
+step: review-confirm
+holdout: false
+inputs:
+  diff.patch: diff.patch
+  candidate.json: candidate.json
+expected:
+  real: false
+notes: "REAL captured decoy: a wave-2 finder raised this against the decomposition grader and the confirm\
+  \ vote correctly rejected it \u2014 _validate_deps is Kahn's algorithm over a worklist, not recursion;\
+  \ there is no recursive call to lack a base case. The plausible-but-wrong candidate class the skeptic\
+  \ must keep killing."

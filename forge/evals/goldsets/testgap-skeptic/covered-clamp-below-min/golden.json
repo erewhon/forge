@@ -1,0 +1,6 @@
+{
+  "real": false,
+  "confidence": "high",
+  "severity": "low",
+  "reasoning": "The parametrized table already contains (-1, 0, 10, 0) \u2014 the exact below-range case the gap proposes; it is directly covered."
+}

@@ -1,0 +1,9 @@
+{
+  "leaf_title": "Implement temperature conversion module with affine logic",
+  "single_concern": true,
+  "bounded_diff": true,
+  "small_estimate": true,
+  "testable_acceptance": true,
+  "files_named": true,
+  "notes": "Single module concern with concrete conversion acceptance identities."
+}

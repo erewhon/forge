@@ -1,0 +1,5 @@
+{
+  "summary": "README formatting is inconsistent: some literals use double backticks and some use single backticks, which reads poorly",
+  "file": "agents/evals/README.md",
+  "severity": "low"
+}

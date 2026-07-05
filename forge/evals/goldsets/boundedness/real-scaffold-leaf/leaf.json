@@ -1,0 +1,16 @@
+{
+  "title": "Evals: package scaffold with config and result models",
+  "content": "**What/why.** Create the `agents/evals/` package skeleton: settings and the typed result models every other eval leaf builds on. This is the eval harness that scores local models against frozen gold sets (see `distill-fable-brief.md` and `pipeline-runs/distill-evals/framing.md`).\n\n**Files.** `agents/evals/__init__.py` (empty), `agents/evals/config.py`, `agents/evals/models.py`, `agents/evals/tests/__init__.py`, `agents/evals/tests/test_models.py`.\n\n**config.py** \u2014 `EvalsSettings(BaseSettings)` with `env_prefix=\"EVALS_\"`, mirroring `agents/coding_pipeline/config.py` style: `goldsets_dir: Path` (default `<repo>/agents/evals/goldsets`), `runs_dir: Path` (default `<repo>/eval-runs`), `openai_base_url: str = \"http://localhost:4010/v1\"`, `openai_api_key: str = \"sk-local-router\"`, `model: str = \"coder\"`, `repeats: int = 3`, `temperature: float = 0.0`, `timeout: float = 240.0`, `max_tokens: int = 16_000`. Module-level `settings` instance.\n\n**models.py** \u2014 Pydantic models:\n- `GoldCase`: `step: Literal[\"replan\" | \"decompose\" | \"boundedness\" | \"review-findings\" | \"review-confirm\" | \"testgap-find\" | \"testgap-skeptic\"]`, `case_id: str` (lowercase slug, validated), `case_dir: Path`, `schema_version: int`, `holdout: bool = False`, `inputs: dict[str, str]` (logical name -> filename inside case_dir), `expected: dict`, `notes: str = \"\"`.\n- `GradeCheck`: `name: str`, `passed: bool`, `detail: str = \"\"`.\n- `GradeResult`: `case_id`, `step`, `passed: bool`, `score: float` (0..1), `checks: list[GradeCheck]`, `error: str | None = None` (transport/parse-level failure).\n- `CaseScore`: `case_id`, `holdout: bool`, `repeats: list[GradeResult]`, plus computed properties `passed_majority: bool` (strict majority of non-error repeats) and `mean_score: float`.\n- `StepScore`: `step`, `cases: list[CaseScore]`, properties `pass_rate`, `holdout_pass_rate` (None-safe when no holdout cases), `error_repeats: int`.\n- `Scorecard`: `model: str`, `timestamp: str`, `steps: list[StepScore]`, `notes: str = \"\"`, property `overall_pass_rate`.\n\n**Acceptance criteria.**\n- All models construct, validate, and JSON round-trip; `case_id` rejects non-slug values.\n- `CaseScore.passed_majority` and the rate properties are unit-tested including the zero-cases / all-error edge cases (no ZeroDivisionError).\n- `uv run pytest agents/evals` green; ruff clean (100-char lines).\n",
+  "feature": "Eval Harness",
+  "depends_on": [],
+  "priority": 2,
+  "phase": "Infrastructure",
+  "status": "Ready",
+  "execution_mode": "Auto-OK",
+  "complexity": "routine",
+  "estimate": "s",
+  "task_type": "feature",
+  "requires_tests": true,
+  "max_files": 5,
+  "model_tier": "coder"
+}

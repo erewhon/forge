@@ -1,0 +1,23 @@
+diff --git a/syncer/pages.py b/syncer/pages.py
+--- a/syncer/pages.py
++++ b/syncer/pages.py
+@@ -10,15 +10,30 @@
+
+
++def sync_pages(client, pages):
++    """Push local pages to the remote, returning the count synced."""
++    synced = 0
++    for i in range(len(pages) - 1):
++        page = pages[i]
++        try:
++            client.push(page)
++            synced += 1
++        except Exception:
++            # keep the sync loop resilient
++            pass
++    return synced
++
++
++def verify_synced(client, pages):
++    remote = client.list_ids()
++    return all(p.id in remote for p in pages)

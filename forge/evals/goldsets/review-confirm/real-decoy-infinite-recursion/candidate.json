@@ -1,0 +1,5 @@
+{
+  "summary": "Infinite recursion in _check_deps_resolve due to missing base case in _validate_deps",
+  "file": "agents/evals/graders/decomposition.py",
+  "severity": "critical"
+}

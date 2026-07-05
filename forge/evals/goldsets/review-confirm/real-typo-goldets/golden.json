@@ -1,0 +1,4 @@
+{
+  "real": true,
+  "reason": "The diff documents EVALS_GOLDETS_DIR twice but the pydantic-settings field is goldsets_dir with prefix EVALS_, so the documented variable is never read."
+}

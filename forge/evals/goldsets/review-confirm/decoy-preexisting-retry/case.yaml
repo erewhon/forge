@@ -1,0 +1,11 @@
+schema_version: 1
+step: review-confirm
+holdout: true
+inputs:
+  diff.patch: diff.patch
+  candidate.json: candidate.json
+expected:
+  real: false
+notes: 'Pre-existing-concern decoy: the diff only adds the optional temperature field; retry behavior
+  (with or without jitter) predates it entirely. CONFIRM_SYSTEM: pre-existing issues are NOT real for
+  this diff. Judges whether the skeptic scopes to what the diff introduces.'

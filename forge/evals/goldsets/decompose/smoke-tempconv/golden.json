@@ -1,0 +1,158 @@
+{
+  "leaves": [
+    {
+      "title": "Implement temperature conversion module with affine logic",
+      "content": "Create `src/unitconv/temperature.py` to handle temperature conversions (C, F, K). Unlike length/mass which use multiplicative factors, temperature requires affine transformations (offset + scale). Implement `convert(value, from_unit, to_unit)` logic. Supported units: 'c', 'f', 'k'. Include helper constants for offsets. This is the core domain logic. Do not modify existing length/mass modules.\n\nAcceptance Criteria:\n- `src/unitconv/temperature.py` exists and is importable.\n- `convert(0, 'c', 'f')` returns 32.0.\n- `convert(100, 'c', 'f')` returns 212.0.\n- `convert(0, 'k', 'c')` returns -273.15.\n- `convert(32, 'f', 'c')` returns 0.0.\n- `convert(100, 'c', 'c')` returns 100.0.\n- Module has no external dependencies.\n\nTarget Files:\n- `src/unitconv/temperature.py`",
+      "feature": "Temperature Domain",
+      "depends_on": [],
+      "priority": 2,
+      "phase": "Feature",
+      "status": "Ready",
+      "execution_mode": "Auto-OK",
+      "complexity": "routine",
+      "estimate": "s",
+      "task_type": "feature",
+      "requires_tests": true,
+      "max_files": 2,
+      "model_tier": "auto",
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "The task is well-scoped. It explicitly names the single file to be created, provides concrete acceptance criteria covering the affine math (C->F, K->C, identity), and restricts scope to a new module without affecting existing code. The estimate is low ('s') and justified by the simplicity of the math. No external dependencies are introduced. This is a safe, atomic leaf."
+      }
+    },
+    {
+      "title": "Extend CLI router to support temperature domain",
+      "content": "Modify `src/unitconv/cli.py` to recognize temperature units ('c', 'f', 'k') and route the `convert` subcommand to the new `temperature.convert` function. The CLI currently probes length/mass tables. Add a check: if `from_unit` or `to_unit` is in {'c', 'f', 'k'}, use the temperature module. Ensure existing length/mass routing remains untouched. Update help text if necessary.\n\nAcceptance Criteria:\n- Running `unitconv convert 100 c f` outputs `212.0`.\n- Running `unitconv convert 32 f c` outputs `0.0`.\n- Existing commands like `unitconv convert 1 m ft` still work.\n- Invalid units still raise appropriate errors.\n\nTarget Files:\n- `src/unitconv/cli.py`",
+      "feature": "Temperature Domain",
+      "depends_on": [
+        "Implement temperature conversion module with affine logic"
+      ],
+      "priority": 3,
+      "phase": "Feature",
+      "status": "Ready",
+      "execution_mode": "Auto-OK",
+      "complexity": "routine",
+      "estimate": "s",
+      "task_type": "feature",
+      "requires_tests": true,
+      "max_files": 2,
+      "model_tier": "auto",
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "Acceptance criteria imply a temperature conversion module (e.g., src/unitconv/temperature.py) must already exist or be created in a separate task. If it doesn't exist, this task fails at runtime because the import will break. Ensure the module is present before execution or split into creation + routing."
+      }
+    },
+    {
+      "title": "Add integration test for temperature conversion CLI",
+      "content": "Add tests to `tests/test_cli.py` to verify the new temperature CLI functionality. Test standard conversions (C->F, F->C, K->C, etc.) and edge cases (0 Kelvin, same-unit conversion). Also add a test to ensure existing length/mass commands still pass.\n\nAcceptance Criteria:\n- `tests/test_cli.py` contains a test class/function for temperature.\n- Test covers `c` to `f`, `f` to `c`, `k` to `c`.\n- Test asserts exact float values (within reasonable precision).\n- Existing length/mass CLI tests still pass in the full suite.\n\nTarget Files:\n- `tests/test_cli.py`",
+      "feature": "Temperature Domain",
+      "depends_on": [
+        "Extend CLI router to support temperature domain"
+      ],
+      "priority": 3,
+      "phase": "Feature",
+      "status": "Ready",
+      "execution_mode": "Manual",
+      "complexity": "novel",
+      "estimate": "s",
+      "task_type": "test",
+      "requires_tests": true,
+      "max_files": 2,
+      "model_tier": "auto",
+      "boundedness": {
+        "single_concern": false,
+        "bounded_diff": false,
+        "small_estimate": false,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "Violates single responsibility by mixing new feature verification with regression testing of existing 'length/mass' commands. This couples unrelated concerns in one execution unit. The scope (multiple conversion types, edge cases, AND existing regression) is too broad for a single atomic task. The estimate 's' is unrealistic given the need to verify multiple distinct logical paths and regression stability."
+      }
+    },
+    {
+      "title": "Add list-units CLI subcommand with domain grouping",
+      "content": "Implement the `list-units` subcommand in `src/unitconv/cli.py`. It should print all available units grouped by their domain (length, mass, temperature). Since we are not refactoring to a unified registry yet, hardcode the mapping for now: length=['m','km','cm','mm','ft','in','mi'], mass=['kg','g','mg','lb','oz','t'], temperature=['c','f','k']. Output format: Domain Name:\\n  - unit1\\n  - unit2. This is a minimal viable implementation.\n\nAcceptance Criteria:\n- `unitconv list-units` prints all units from length, mass, and temperature.\n- Units are grouped under headers like 'Length', 'Mass', 'Temperature'.\n- Output is plain text, human-readable.\n- No new dependencies.\n\nTarget Files:\n- `src/unitconv/cli.py`",
+      "feature": "List Units Command",
+      "depends_on": [
+        "Implement temperature conversion module with affine logic"
+      ],
+      "priority": 2,
+      "phase": "Feature",
+      "status": "Ready",
+      "execution_mode": "Auto-OK",
+      "complexity": "routine",
+      "estimate": "s",
+      "task_type": "feature",
+      "requires_tests": true,
+      "max_files": 2,
+      "model_tier": "auto",
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "Scope is tight and implementation details (hardcoded mapping, specific format) are clear. Adding a CLI subcommand and printing static data is low-risk. Ensure the CLI parser actually wires this new subcommand in, though that is likely trivial given the 'Auto-OK' mode and limited file scope."
+      }
+    },
+    {
+      "title": "Format list-units output for readability",
+      "content": "Refine the output of `list-units` in `src/unitconv/cli.py` to ensure consistent formatting. Ensure spaces, newlines, and capitalization are clean. Optionally sort units alphabetically within each group. This is a polish step following the implementation.\n\nAcceptance Criteria:\n- Output is cleanly aligned.\n- Units within each domain are sorted alphabetically.\n- No trailing whitespace.\n\nTarget Files:\n- `src/unitconv/cli.py`",
+      "feature": "List Units Command",
+      "depends_on": [
+        "Add list-units CLI subcommand with domain grouping"
+      ],
+      "priority": 4,
+      "phase": "Polish",
+      "status": "Ready",
+      "execution_mode": "Manual",
+      "complexity": "novel",
+      "estimate": "xs",
+      "task_type": "refactor",
+      "requires_tests": true,
+      "max_files": 1,
+      "model_tier": "auto",
+      "boundedness": {
+        "single_concern": false,
+        "bounded_diff": false,
+        "small_estimate": true,
+        "testable_acceptance": false,
+        "files_named": true,
+        "notes": "Violates single-responsibility principle by combining layout formatting, string normalization, and data sorting. Ambiguous requirements: 'cleanly aligned' and 'capitation are clean' are subjective and impossible to assertively test without rigid spec. Sorting is a functional change, not just formatting. High risk of subjective review failure or regression if 'clean' is interpreted differently than expected."
+      }
+    },
+    {
+      "title": "Update README with temperature and list-units docs",
+      "content": "Update `README.md` to document the new temperature domain support and the `list-units` command. Add examples for `unitconv convert 100 c f` and `unitconv list-units`. Ensure the Supported domains section is updated.\n\nAcceptance Criteria:\n- README mentions Temperature (C, F, K).\n- README includes an example for temperature conversion.\n- README documents the `list-units` command.\n\nTarget Files:\n- `README.md`",
+      "feature": "Documentation",
+      "depends_on": [
+        "Format list-units output for readability"
+      ],
+      "priority": 5,
+      "phase": "Polish",
+      "status": "Ready",
+      "execution_mode": "Manual",
+      "complexity": "novel",
+      "estimate": "xs",
+      "task_type": "docs",
+      "requires_tests": true,
+      "max_files": 1,
+      "model_tier": "auto",
+      "boundedness": {
+        "single_concern": false,
+        "bounded_diff": false,
+        "small_estimate": true,
+        "testable_acceptance": false,
+        "files_named": true,
+        "notes": "Violates single-concern principle by merging two distinct documentation updates (temperature domain support vs. list-units command). Lacks a bounded diff (no input file or current state provided, forcing the worker to fetch and diff against upstream/master, which introduces race conditions and dependency on external state). Acceptance criteria are descriptive (text presence) rather than executable tests (e.g., parsing the markdown or running a linter), making verification ambiguous for an autonomous agent."
+      }
+    }
+  ]
+}

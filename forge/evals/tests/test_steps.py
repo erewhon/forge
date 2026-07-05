@@ -467,23 +467,12 @@ def _make_testgap_find_fixtures(tmp_path: Path) -> GoldCase:
         "## SOURCE\n\ndef foo(): pass\n\n## EXISTING TESTS\n\ndef test_foo(): pass",
     )
 
-    # case.yaml is also read as YAML for the "angle" key
-    with open(tmp_path / "case.yaml", "w") as f:
-        f.write(
-            "step: testgap-find\n"
-            "case_id: test-testgap-find\n"
-            "schema_version: 1\n"
-            "inputs:\n  context.md: context.md\n"
-            "angle: error-paths\n"
-        )
-
+    # The angle rides in the expected block (loader-carried case config).
     case = _make_gold_case(
         "testgap-find",
         tmp_path,
-        {
-            "context.md": "context.md",
-            "case.yaml": "case.yaml",
-        },
+        {"context.md": "context.md"},
+        expected={"angle": "error-paths"},
     )
     return case
 

@@ -1,0 +1,5 @@
+{
+  "summary": "Logic error in fixup-confirmed-only grader ignores report.json when findings exist but none are confirmed",
+  "file": "agents/evals/graders/replan.py",
+  "severity": "high"
+}

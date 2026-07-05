@@ -1,0 +1,6 @@
+{
+  "real": true,
+  "confidence": "high",
+  "severity": "high",
+  "reasoning": "Both existing tests return successfully; no test drives retry_call to exhaustion, so the RetryExhausted raise and its error chaining are unexercised."
+}

@@ -1,0 +1,11 @@
+schema_version: 1
+step: review-confirm
+holdout: false
+inputs:
+  diff.patch: diff.patch
+  candidate.json: candidate.json
+expected:
+  real: false
+notes: "REAL captured decoy from wave 2: when report.json exists with zero confirmed findings, confirmed_slugs\
+  \ is empty and every fixup correctly FAILS the check \u2014 the early-pass branch only fires when\
+  \ report.json does not exist at all. The finder misread the guard condition; the vote rejected it."

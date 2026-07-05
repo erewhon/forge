@@ -1,0 +1,13 @@
+schema_version: 1
+step: boundedness
+holdout: true
+inputs:
+  leaf.json: leaf.json
+expected:
+  worker_shaped: false
+  criteria:
+    bounded_diff: false
+    files_named: false
+    testable_acceptance: false
+notes: 'Unbounded sweep: no file list can exist (''across the repo''), the diff has no ceiling, and
+  ''much better'' is not checkable. A worker handed this burns its attempts walking the tree.'

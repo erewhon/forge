@@ -1,0 +1,32 @@
+schema_version: 1
+step: decompose
+holdout: false
+inputs:
+  framing.json: framing.json
+  inventory.json: inventory.json
+expected:
+  rubric:
+  - id: r-min-leaves
+    kind: min_leaves
+    n: 4
+  - id: r-max-leaves
+    kind: max_leaves
+    n: 12
+  - id: r-affine-module
+    kind: require_leaf
+    content_pattern: (?i)affine
+  - id: r-listunits
+    kind: require_leaf
+    title_pattern: (?i)list.?units
+  - id: r-router-depends-on-module
+    kind: require_dep
+    from_pattern: (?i)router|cli
+    to_pattern: (?i)temperature|conversion|affine
+  - id: r-no-umbrella
+    kind: forbid_leaf
+    title_pattern: (?i)^(implement|add|build) (everything|the (whole|full|entire))
+notes: "Real framing+inventory from the tempconv smoke epic. The frozen judgment: the affine temperature\
+  \ domain is its own module leaf (the framing's central design point \u2014 affine is NOT the factor\
+  \ table); the CLI router leaf depends on it, never the reverse; list-units is a separate feature slice;\
+  \ and nothing sprawls into an umbrella. 4-12 leaves is the honest size for this epic \u2014 fewer\
+  \ means umbrellas, more means confetti."

@@ -1,0 +1,8 @@
+{
+  "title": "Add all missing tests across the repo",
+  "content": "Go through the repository and add tests for everything that lacks coverage. Acceptance: coverage is much better.",
+  "feature": "Quality",
+  "execution_mode": "Auto-OK",
+  "estimate": "l",
+  "task_type": "test"
+}

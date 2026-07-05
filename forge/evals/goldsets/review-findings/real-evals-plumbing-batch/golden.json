@@ -1,0 +1,24 @@
+{
+  "findings": [
+    {
+      "summary": "load_goldsets walks only one directory level, so each step directory is treated as a single case (case_id == step) \u2014 the goldsets/<step>/<case-id>/ layout is collapsed to one case per step and any second case is unreachable",
+      "file": "agents/evals/fixtures.py",
+      "severity": "critical"
+    },
+    {
+      "summary": "BASELINE_FILE is BASELINES_DIR / '.json' \u2014 the model name was dropped, so every model reads and overwrites the same literal .json baseline file",
+      "file": "agents/evals/main.py",
+      "severity": "critical"
+    },
+    {
+      "summary": "Default paths are bogus absolute roots: goldsets_dir=/agents/evals/goldsets and runs_dir=/eval-runs do not exist on any host; defaults only work when every caller overrides them",
+      "file": "agents/evals/config.py",
+      "severity": "high"
+    },
+    {
+      "summary": "_cmd_run writes scorecards next to the goldsets inside the package (settings.goldsets_dir.parent) instead of runs_dir, and write_scorecard uses runs_dir/<model>/ so successive runs overwrite each other",
+      "file": "agents/evals/main.py",
+      "severity": "high"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "target": "mathlib/clamp.py::clamp below-range input",
+  "gap_type": "coverage",
+  "why_it_matters": "values below low may not be clamped correctly",
+  "suggested_test": "assert clamp(-1, 0, 10) == 0",
+  "severity": "medium"
+}

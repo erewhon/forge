@@ -1,0 +1,14 @@
+{
+  "findings": [
+    {
+      "summary": "sync_pages iterates range(len(pages) - 1) so the last page is never pushed \u2014 an off-by-one that silently under-syncs every call",
+      "file": "syncer/pages.py",
+      "severity": "high"
+    },
+    {
+      "summary": "The bare `except Exception: pass` swallows every push failure without logging or re-raising, so the returned count over-reports and failures are invisible",
+      "file": "syncer/pages.py",
+      "severity": "high"
+    }
+  ]
+}

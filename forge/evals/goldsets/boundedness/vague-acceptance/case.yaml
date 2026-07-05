@@ -1,0 +1,12 @@
+schema_version: 1
+step: boundedness
+holdout: false
+inputs:
+  leaf.json: leaf.json
+expected:
+  worker_shaped: false
+  criteria:
+    testable_acceptance: false
+notes: "Single concern, one named file, s estimate \u2014 but 'looks good and users find it clearer'\
+  \ cannot be checked by any suite. Untestable acceptance alone sinks worker-shape; the fix is concrete\
+  \ assertions (column alignment, group headers, golden output)."

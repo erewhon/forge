@@ -1,0 +1,9 @@
+{
+  "title": "Migrate the session schema and rewrite the login flow",
+  "content": "Migrate sessions to the new schema (db/migrations/012_sessions.sql, app/models/session.py) and rewrite the login flow to use it (app/auth/login.py, tests/test_login.py). Acceptance: migration applies cleanly; login tests pass against the new schema.",
+  "feature": "Auth",
+  "execution_mode": "Auto-OK",
+  "estimate": "m",
+  "task_type": "feature",
+  "max_files": 4
+}

@@ -218,8 +218,10 @@ def _build_testgap_find(case: GoldCase) -> PromptSpec:
     from agents.testing_ensemble.prompts import FINDER_ANGLES, finder_system
 
     context = read_input(case, "context.md")
-    case_data = _read_yaml(case, "case.yaml") or {}
-    angle_key = case_data.get("angle", "coverage")
+    # The angle rides in the expected block (case config the loader already
+    # carries) — a self-referencing "case.yaml" input entry is not a contract
+    # the loader supports.
+    angle_key = (case.expected or {}).get("angle", "coverage")
 
     # Find the matching angle directive from FINDER_ANGLES
     angle_directive = ""

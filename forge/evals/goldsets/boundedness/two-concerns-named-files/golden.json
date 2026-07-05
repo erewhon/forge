@@ -1,0 +1,9 @@
+{
+  "leaf_title": "Migrate the session schema and rewrite the login flow",
+  "single_concern": false,
+  "bounded_diff": true,
+  "small_estimate": true,
+  "testable_acceptance": true,
+  "files_named": true,
+  "notes": "Everything checks except single concern: schema migration + flow rewrite are two leaves."
+}

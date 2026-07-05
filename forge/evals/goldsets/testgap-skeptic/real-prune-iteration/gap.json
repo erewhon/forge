@@ -1,0 +1,7 @@
+{
+  "target": "cachelib/bounded.py::prune",
+  "gap_type": "error-path",
+  "why_it_matters": "prune mutates the dict during iteration and no test calls prune",
+  "suggested_test": "prune(lambda v: True) over 3 entries; pin the intended behavior",
+  "severity": "high"
+}

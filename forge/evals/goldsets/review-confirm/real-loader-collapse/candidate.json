@@ -1,0 +1,5 @@
+{
+  "summary": "load_goldsets treats each step directory as one case: it reads case.yaml directly under goldsets/<step>/ and sets case_id to the step name, so a step can never hold more than one case and the documented <step>/<case-id>/ layout is unreachable",
+  "file": "agents/evals/fixtures.py",
+  "severity": "critical"
+}

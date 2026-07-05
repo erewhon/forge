@@ -1,0 +1,34 @@
+schema_version: 1
+step: review-findings
+holdout: true
+inputs:
+  diff.patch: diff.patch
+expected:
+  must_find:
+  - id: swallowed-exception
+    file_pattern: pages\.py
+    keywords_any:
+    - swallow
+    - except
+    - silently
+    - suppress
+    - pass
+    - hides
+    - no logging
+    - error is lost
+  - id: off-by-one-last-page
+    file_pattern: pages\.py
+    keywords_any:
+    - off-by-one
+    - last page
+    - len(pages) - 1
+    - skips
+    - never synced
+    - final element
+    - range
+  recall_min: 0.5
+  precision_min: 0.5
+notes: "Seeded error-path pair on one small function: `range(len(pages) - 1)` silently skips the final\
+  \ page, and the bare `except Exception: pass` (dressed up as 'resilient') hides every push failure\
+  \ while still reporting a happy count. verify_synced would even catch it \u2014 nothing calls it.\
+  \ Classic swallowed-error + boundary combination."

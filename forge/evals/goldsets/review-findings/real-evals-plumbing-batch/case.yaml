@@ -1,0 +1,58 @@
+schema_version: 1
+step: review-findings
+holdout: false
+inputs:
+  diff.patch: diff.patch
+expected:
+  must_find:
+  - id: loader-one-level
+    file_pattern: fixtures\.py
+    keywords_any:
+    - one case
+    - single case
+    - per step
+    - one level
+    - case_id
+    - two-level
+    - nested
+    - subdirector
+    - layout
+  - id: baseline-file-no-model
+    file_pattern: main\.py
+    keywords_all:
+    - baseline
+    keywords_any:
+    - model
+    - .json
+    - constant
+    - shared
+    - same file
+  - id: config-absolute-paths
+    file_pattern: config\.py
+    keywords_any:
+    - absolute
+    - /agents
+    - /eval-runs
+    - does not exist
+    - root
+    - hardcoded path
+    - wrong path
+  - id: run-output-into-package
+    file_pattern: (main|report)\.py
+    keywords_any:
+    - goldsets
+    - package
+    - runs_dir
+    - overwrit
+    - output dir
+    - next to
+    - wrong directory
+  recall_min: 0.5
+  precision_min: 0.4
+notes: "THE anchor: the real forward diffs that introduced the f559315d bug batch (loader one-level\
+  \ collapse, baselines/.json with the model name dropped, bogus absolute config defaults, scorecards\
+  \ written into the package). Wave forensics: all four were finder-RECALL misses \u2014 waves 1 and\
+  \ 5 raised ZERO candidates, wave 2's five candidates missed the loader collapse entirely, while the\
+  \ confirm vote correctly rejected all 12 plausible-but-wrong candidates. Production's shipped recall\
+  \ on this batch was 0/4. Thresholds are the improvement bar: shipped recall >= 0.5 (2 of 4) with precision\
+  \ >= 0.4. Fixed by f559315d; provenance in the epic journal."

@@ -1,0 +1,14 @@
+schema_version: 1
+step: testgap-find
+holdout: false
+inputs:
+  context.md: context.md
+expected:
+  angle: coverage
+  must_find: []
+  cry_wolf_max: 0
+  recall_min: 0.0
+notes: "The cry-wolf fixture: a seven-row boundary table (inside/below/above/both boundaries/degenerate/signed\
+  \ zero) plus the error path \u2014 this suite is thorough for a three-line function. The correct answer\
+  \ is no gaps (the prompt says 'return an empty gaps list if the existing tests are thorough' and 'do\
+  \ not invent gaps to fill a quota'). cry_wolf_max=0: a single high/critical invention fails the case."

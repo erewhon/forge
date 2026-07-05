@@ -1,0 +1,5 @@
+{
+  "summary": "Missing aggregation logic for overall_pass_rate and holdout_pass_rate in Scorecard: runner.py does not calculate pass rates, causing render_scorecard to fail",
+  "file": "agents/evals/runner.py",
+  "severity": "critical"
+}

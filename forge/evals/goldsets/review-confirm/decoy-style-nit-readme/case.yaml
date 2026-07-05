@@ -1,0 +1,10 @@
+schema_version: 1
+step: review-confirm
+holdout: false
+inputs:
+  diff.patch: diff.patch
+  candidate.json: candidate.json
+expected:
+  real: false
+notes: "Style-nit decoy on the real docs diff: even if true, it is a formatting taste issue \u2014 CONFIRM_SYSTEM\
+  \ says matters of taste are NOT real. The skeptic that confirms this is crying wolf."

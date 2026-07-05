@@ -1,0 +1,11 @@
+schema_version: 1
+step: review-confirm
+holdout: false
+inputs:
+  diff.patch: diff.patch
+  candidate.json: candidate.json
+expected:
+  real: true
+notes: "REAL confirmed finding from wave 6 of this very epic \u2014 the one candidate of 15 the funnel\
+  \ confirmed, and it was right: the env var the README documents does not exist (the settings field\
+  \ is goldsets_dir). Ground truth by production outcome."

@@ -1,0 +1,7 @@
+{
+  "target": "textlib/slug.py::slugify empty input",
+  "gap_type": "edge-case",
+  "why_it_matters": "empty and all-punctuation inputs return '' with no coverage",
+  "suggested_test": "assert slugify('') == '' and slugify('!!!') == ''",
+  "severity": "low"
+}

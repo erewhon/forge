@@ -1,0 +1,9 @@
+{
+  "leaf_title": "Evals: package scaffold with config and result models",
+  "single_concern": true,
+  "bounded_diff": true,
+  "small_estimate": true,
+  "testable_acceptance": true,
+  "files_named": true,
+  "notes": "Named files, testable acceptance, s estimate \u2014 worker-shaped on all five."
+}

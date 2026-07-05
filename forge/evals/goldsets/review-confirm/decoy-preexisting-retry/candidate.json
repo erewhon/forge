@@ -1,0 +1,5 @@
+{
+  "summary": "ApiExecutor has no retry backoff jitter, so concurrent failures retry in lockstep and can thundering-herd the router",
+  "file": "agents/shared/ensemble/executor.py",
+  "severity": "medium"
+}

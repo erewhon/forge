@@ -1,0 +1,8 @@
+{
+  "title": "Improve list-units output readability",
+  "content": "The list-units output is hard to scan. Improve it in unitconv/cli/list_units.py so it feels cleaner and easier to read. Acceptance: the output looks good and users find it clearer.",
+  "feature": "List Units Command",
+  "execution_mode": "Auto-OK",
+  "estimate": "s",
+  "task_type": "feature"
+}

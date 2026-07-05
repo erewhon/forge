@@ -1,0 +1,7 @@
+{
+  "target": "retrylib/retry.py::retry_call return value",
+  "gap_type": "coverage",
+  "why_it_matters": "the wrapper might not return what fn returns",
+  "suggested_test": "call retry_call with a fn returning a sentinel and assert it comes back",
+  "severity": "medium"
+}

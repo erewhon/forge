@@ -1,0 +1,9 @@
+{
+  "title": "Document the retry policy in the worker README",
+  "content": "Add a 'Retry policy' section to agents/task_worker/README.md documenting the two-attempt cap, what counts as a retryable failure, and the escalation path. Acceptance: the section exists with the three named subsections and the existing README examples still render. Files: agents/task_worker/README.md.",
+  "feature": "Docs",
+  "execution_mode": "Auto-OK",
+  "estimate": "xs",
+  "task_type": "docs",
+  "requires_tests": false
+}

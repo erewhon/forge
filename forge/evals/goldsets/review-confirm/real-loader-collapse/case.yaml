@@ -1,0 +1,12 @@
+schema_version: 1
+step: review-confirm
+holdout: false
+inputs:
+  diff.patch: diff.patch
+  candidate.json: candidate.json
+expected:
+  real: true
+notes: "The finding the funnel SHOULD have shipped: this is the loader-collapse bug written the way\
+  \ a competent reviewer would write it, paired with the exact diff that introduced it (wave 2). No\
+  \ finder ever surfaced it, so the confirm stage never saw it \u2014 this case gives the skeptic the\
+  \ chance history denied it."

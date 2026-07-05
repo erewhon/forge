@@ -1,0 +1,18 @@
+{
+  "gaps": [
+    {
+      "target": "cachelib/bounded.py::prune",
+      "gap_type": "error-path",
+      "why_it_matters": "prune deletes from self._data while iterating it \u2014 the first matching entry raises RuntimeError: dictionary changed size during iteration; zero tests call prune",
+      "suggested_test": "populate 3 entries, prune(lambda v: True): assert behavior (currently raises RuntimeError) and pin the intended contract",
+      "severity": "high"
+    },
+    {
+      "target": "cachelib/bounded.py::put eviction order",
+      "gap_type": "regression",
+      "why_it_matters": "The oldest-INSERTED contract is untested around re-puts: updating an existing key keeps its original position, so the next overflow evicts an entry callers just refreshed",
+      "suggested_test": "capacity=2: put a, put b, put a again, put c \u2014 assert which key was evicted matches the documented contract",
+      "severity": "medium"
+    }
+  ]
+}

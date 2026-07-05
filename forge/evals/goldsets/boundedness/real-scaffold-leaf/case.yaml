@@ -1,0 +1,10 @@
+schema_version: 1
+step: boundedness
+holdout: false
+inputs:
+  leaf.json: leaf.json
+expected:
+  worker_shaped: true
+notes: "Real worker-shaped positive from the distill-evals tree: single concern (package skeleton +\
+  \ models), files named explicitly, estimate s, suite-checkable acceptance. The wave loop landed it\
+  \ autonomously first try \u2014 ground truth by execution."

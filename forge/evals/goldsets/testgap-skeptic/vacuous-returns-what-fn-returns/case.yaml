@@ -1,0 +1,11 @@
+schema_version: 1
+step: testgap-skeptic
+holdout: true
+inputs:
+  context.md: context.md
+  gap.json: gap.json
+expected:
+  real: false
+notes: "Vacuous duplicate: test_success_first_try already asserts the sentinel round-trip ('done').\
+  \ Re-asserting the same behavior with a different sentinel adds nothing \u2014 not a useful gap (testability\
+  \ lens)."

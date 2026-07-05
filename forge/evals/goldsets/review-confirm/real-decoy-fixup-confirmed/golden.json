@@ -1,0 +1,4 @@
+{
+  "real": false,
+  "reason": "The early return requires `not confirmed_slugs and not report_path.exists()`; with a report present but nothing confirmed, the loop still runs and any fixup is flagged \u2014 the claimed ignore path cannot be reached."
+}

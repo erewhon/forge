@@ -1,0 +1,4 @@
+{
+  "real": true,
+  "reason": "The loop iterates root.iterdir() once, expects case.yaml directly inside each step directory, and assigns case_id = dir_name \u2014 one case per step by construction; the two-level layout in the docstring is never walked."
+}

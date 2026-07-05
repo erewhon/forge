@@ -1,0 +1,7 @@
+{
+  "target": "textlib/slug.py::slugify performance",
+  "gap_type": "regression",
+  "why_it_matters": "slugify could get slow on long inputs and nothing guards latency",
+  "suggested_test": "assert slugify('word ' * 10000) completes in under 5 milliseconds",
+  "severity": "high"
+}

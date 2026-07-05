@@ -1,0 +1,9 @@
+{
+  "leaf_title": "Document the retry policy in the worker README",
+  "single_concern": true,
+  "bounded_diff": true,
+  "small_estimate": true,
+  "testable_acceptance": true,
+  "files_named": true,
+  "notes": "One file, one concern, checkable by presence of named sections."
+}

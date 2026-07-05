@@ -1,0 +1,14 @@
+schema_version: 1
+step: boundedness
+holdout: false
+inputs:
+  leaf.json: leaf.json
+expected:
+  worker_shaped: false
+  criteria:
+    bounded_diff: false
+    single_concern: false
+notes: "The plausible trap: reads like a routine refactor (a pattern file is even named!) but 'everywhere\
+  \ in agents/' is a cross-cutting sweep \u2014 the diff is unbounded, the 'one convention' hides a\
+  \ design decision per call-site class, and m is wishful. This is the optimistic-pass case BOUNDEDNESS_SYSTEM\
+  \ warns costs a blown worker run."

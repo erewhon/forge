@@ -1,0 +1,6 @@
+{
+  "real": true,
+  "confidence": "high",
+  "severity": "high",
+  "reasoning": "No existing test calls prune, and deleting from self._data inside `for key in self._data` raises RuntimeError on the first match \u2014 uncovered and broken."
+}
