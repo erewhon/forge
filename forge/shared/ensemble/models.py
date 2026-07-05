@@ -38,6 +38,9 @@ class Prompt(BaseModel):
     system: str = ""
     user: str
     max_tokens: int = 4096
+    # None = provider default (the request carries no temperature key at all); the eval
+    # harness pins 0.0 so scorecard runs are comparable across time.
+    temperature: float | None = None
 
 
 class ExecResult(BaseModel):

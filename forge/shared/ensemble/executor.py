@@ -78,6 +78,7 @@ class ApiExecutor:
         # ``asyncio.run`` loops, and a client left open gets GC'd against an already-closed loop —
         # the harmless-but-noisy "RuntimeError: Event loop is closed" at interpreter shutdown.
         # Closing it here silences that.
+        sampling = {} if prompt.temperature is None else {"temperature": prompt.temperature}
         if self.kind == "anthropic":
             import anthropic
 
@@ -88,6 +89,7 @@ class ApiExecutor:
                     max_tokens=prompt.max_tokens,
                     system=prompt.system,
                     messages=[{"role": "user", "content": prompt.user}],
+                    **sampling,
                 )
             for block in response.content:
                 if block.type == "text":
@@ -102,6 +104,6 @@ class ApiExecutor:
         messages.append({"role": "user", "content": prompt.user})
         async with openai.AsyncOpenAI(base_url=self.base_url, api_key=self.api_key) as client:
             response = await client.chat.completions.create(
-                model=self.model, max_tokens=prompt.max_tokens, messages=messages
+                model=self.model, max_tokens=prompt.max_tokens, messages=messages, **sampling
             )
         return response.choices[0].message.content or ""
