@@ -180,6 +180,17 @@ def _build_review_findings(case: GoldCase) -> PromptSpec:
 # ---------------------------------------------------------------------------
 
 
+def build_confirm_user(diff: str, summary: str, file: str | None, severity: str) -> str:
+    """Mirror the ``make_user`` lambda in ``verify.confirm_findings`` exactly.
+
+    Shared by the review-confirm adapter and the runner's review pipeline flow
+    so the eval's confirm calls render byte-identically to production's."""
+    return (
+        f"Finding: {summary}\nFile: {file or 'unspecified'} "
+        f"(severity claimed: {severity})\n\nWave diff:\n\n{diff}"
+    )
+
+
 def _build_review_confirm(case: GoldCase) -> PromptSpec:
     from agents.coding_pipeline.verify import (
         CONFIRM_SYSTEM,
@@ -188,11 +199,11 @@ def _build_review_confirm(case: GoldCase) -> PromptSpec:
     diff = read_input(case, "diff.patch")
     candidate = _read_json(case, "candidate.json")
 
-    user = (
-        f"Finding: {candidate.get('summary', '')}\n"
-        f"File: {candidate.get('file', 'unspecified')} "
-        f"(severity claimed: {candidate.get('severity', 'medium')})\n\n"
-        f"Wave diff:\n\n{diff}"
+    user = build_confirm_user(
+        diff,
+        candidate.get("summary", ""),
+        candidate.get("file"),
+        candidate.get("severity", "medium"),
     )
 
     return PromptSpec(system=CONFIRM_SYSTEM, user=user, schema=ConfirmVerdict)

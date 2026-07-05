@@ -25,6 +25,7 @@ from agents.coding_pipeline.architect import _validate_deps
 # ---------------------------------------------------------------------------
 from agents.coding_pipeline.models import LeafSpec, TaskTree
 from agents.evals.fixtures import EvalFixtureError
+from agents.evals.graders._governance import floor_to_shipped
 from agents.evals.models import GoldCase, GradeCheck, GradeResult
 from agents.shared.llm import extract_json
 
@@ -77,7 +78,10 @@ def grade_decompose(case: GoldCase, raw: str) -> GradeResult:
     if not tree:
         return _result(case.case_id, case.step, checks)
 
-    leaves = tree.leaves
+    # Grade production-equivalent output: decompose() runs
+    # _apply_conservative_tags on the model's tree before anything ships, so
+    # shape/tag checks run on the floored leaves (validity stayed raw above).
+    leaves = floor_to_shipped(tree.leaves, case.case_dir)
 
     # -- Structural check 2: deps-resolve ------------------------------------
     checks.append(_check_deps_resolve(leaves))
@@ -192,7 +196,12 @@ def _check_estimates_bounded(leaves: list[LeafSpec]) -> GradeCheck:
 
 def _check_auto_floors(leaves: list[LeafSpec]) -> GradeCheck:
     """Structural check 5: non-Manual leaves need requires_tests=true and
-    (max_files null or >= 3)."""
+    max_files in [3, 5].
+
+    Leaves arrive here already floored by governance, so requires_tests /
+    max_files<3 violations are invariant guards that should never fire; the
+    real model signal is max_files > 5 — governance never lowers an oversized
+    cap, and DECOMPOSE_SYSTEM demands diffs of 5 or fewer files."""
     violations: list[str] = []
     for leaf in leaves:
         if leaf.execution_mode == "Manual":
@@ -205,6 +214,8 @@ def _check_auto_floors(leaves: list[LeafSpec]) -> GradeCheck:
         mf = leaf.max_files
         if mf is not None and mf < 3:
             violations.append(f"leaf '{leaf.title}' max_files={mf} < 3")
+        if mf is not None and mf > 5:
+            violations.append(f"leaf '{leaf.title}' max_files={mf} > 5")
     if violations:
         return GradeCheck(
             name="auto-floors",

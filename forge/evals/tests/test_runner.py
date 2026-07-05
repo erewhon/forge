@@ -455,3 +455,61 @@ def test_overall_pass_rate_calculation():
         ],
     )
     assert sc.overall_pass_rate == 0.5
+
+
+# ---------------------------------------------------------------------------
+# Test: review-findings runs the full finder -> confirm pipeline
+# ---------------------------------------------------------------------------
+
+
+def test_review_pipeline_flow(tmp_path: Path):
+    """The review-findings step makes one finder call plus one confirm call per
+    candidate, and grades the confirmed (shipped) set."""
+    case_dir = tmp_path / "goldsets" / "review-findings" / "one-bug"
+    case_dir.mkdir(parents=True)
+    (case_dir / "diff.patch").write_text("--- a/x.c\n+++ b/x.c\n+bug here\n")
+    (case_dir / "case.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "step": "review-findings",
+                "inputs": {"diff.patch": "diff.patch"},
+                "expected": {
+                    "must_find": [{"id": "npd", "keywords_any": ["null pointer"]}],
+                    "recall_min": 1.0,
+                    "precision_min": 1.0,
+                },
+            }
+        )
+    )
+
+    finder_output = json.dumps(
+        {
+            "findings": [
+                {"summary": "Null pointer dereference", "file": "x.c", "severity": "high"},
+                {"summary": "Style nit only", "file": "x.c", "severity": "low"},
+            ]
+        }
+    )
+    confirm_real = json.dumps({"real": True, "reason": "clearly shown"})
+    confirm_decoy = json.dumps({"real": False, "reason": "matter of taste"})
+    # Call order: finder, then confirms in severity order (high before low).
+    fake = FakeExecutor(outputs=[finder_output, confirm_real, confirm_decoy])
+
+    result = run_scorecard(
+        model="test-model",
+        steps=["review-findings"],
+        goldsets_root=case_dir.parents[1],
+        repeats=1,
+        executor_factory=lambda: fake,
+    )
+
+    assert fake.call_count == 3  # 1 finder + 2 confirm votes
+    case_score = result.steps[0].cases[0]
+    grade = case_score.repeats[0]
+    by_name = {c.name: c for c in grade.checks}
+    assert by_name["finder-valid"].passed is True
+    assert by_name["candidate-recall"].passed is True
+    assert by_name["confirmed-recall"].passed is True  # real bug survived the vote
+    assert by_name["confirmed-precision"].passed is True  # decoy was killed
+    assert grade.passed is True

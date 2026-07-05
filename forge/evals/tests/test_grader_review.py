@@ -22,6 +22,7 @@ Shape:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -59,41 +60,81 @@ def _make_confirm_gold_case(
     )
 
 
+def _artifact(findings_raw: str, confirmed: list | None = None) -> str:
+    """Wrap an old-style finder envelope string into a runner pipeline artifact.
+
+    By default the confirmed set equals the candidate set (a confirm stage that
+    approves everything) so matching-semantics tests grade the shipped set."""
+    data = json.loads(findings_raw)
+    candidates = [
+        {
+            "slug": f"slug-{i}",
+            "summary": f.get("summary", ""),
+            "file": f.get("file"),
+            "severity": f.get("severity", "medium"),
+        }
+        for i, f in enumerate(data.get("findings", []))
+    ]
+    return json.dumps(
+        {
+            "finder_valid": True,
+            "finder_raw": findings_raw,
+            "candidates": candidates,
+            "confirmed": candidates if confirmed is None else confirmed,
+            "votes": [],
+            "confirm_errors": 0,
+        }
+    )
+
+
+def _invalid_finder_artifact(finder_raw: str) -> str:
+    """Artifact for a finder call whose output never validated."""
+    return json.dumps(
+        {
+            "finder_valid": False,
+            "finder_raw": finder_raw,
+            "candidates": [],
+            "confirmed": [],
+            "votes": [],
+            "confirm_errors": 0,
+        }
+    )
+
+
 # ---------------------------------------------------------------------------
 # review-findings: parsing
 # ---------------------------------------------------------------------------
 
 
-def test_findings_invalid_json_fails_parse():
-    """Non-parseable output fails findings-parse check."""
+def test_findings_invalid_finder_output_fails():
+    """A finder whose output never validated fails finder-valid and stops."""
     case = _make_gold_case()
-    result = grade_findings(case, "not json {{{")
+    result = grade_findings(case, _invalid_finder_artifact("not json {{{"))
 
     assert isinstance(result, GradeResult)
     assert result.passed is False
     assert result.score == pytest.approx(0.0)
     assert len(result.checks) == 1
-    assert result.checks[0].name == "findings-parse"
+    assert result.checks[0].name == "finder-valid"
     assert result.checks[0].passed is False
 
 
-def test_findings_invalid_schema_fails_parse():
-    """JSON with unexpected field that is not valid FindingsEnvelope fails."""
+def test_findings_unreadable_artifact_fails():
+    """Junk that is not a runner artifact at all fails finder-valid."""
     case = _make_gold_case()
-    # "findings" must be a list, not a string
-    result = grade_findings(case, '{"findings": "bad"}')
+    result = grade_findings(case, "not json {{{")
 
     assert result.passed is False
-    assert result.checks[0].name == "findings-parse"
+    assert result.checks[0].name == "finder-valid"
     assert result.checks[0].passed is False
 
 
 def test_findings_valid_empty_envelope():
-    """An empty findings envelope parses fine."""
+    """An empty candidate set from a valid finder passes finder-valid."""
     case = _make_gold_case()
-    result = grade_findings(case, '{"findings": []}')
+    result = grade_findings(case, _artifact('{"findings": []}'))
 
-    assert result.checks[0].name == "findings-parse"
+    assert result.checks[0].name == "finder-valid"
     assert result.checks[0].passed is True
 
 
@@ -126,12 +167,12 @@ def test_findings_perfect_match():
         '"file": "io.c", "severity": "high"}'
         "]}"
     )
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
     assert result.passed is True
     assert result.score == pytest.approx(1.0)
-    recall_check = [c for c in result.checks if c.name == "recall-threshold"][0]
-    precision_check = [c for c in result.checks if c.name == "precision-threshold"][0]
+    recall_check = [c for c in result.checks if c.name == "confirmed-recall"][0]
+    precision_check = [c for c in result.checks if c.name == "confirmed-precision"][0]
     assert recall_check.passed is True
     assert precision_check.passed is True
 
@@ -160,9 +201,9 @@ def test_findings_paraphrase_matched_via_keywords():
         '"file": "auth.c", "severity": "high"}'
         "]}"
     )
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
-    recall_check = [c for c in result.checks if c.name == "recall-threshold"][0]
+    recall_check = [c for c in result.checks if c.name == "confirmed-recall"][0]
     assert recall_check.passed is True
     assert "1/1" in recall_check.detail
 
@@ -185,9 +226,9 @@ def test_findings_keywords_all_match():
         '"file": "auth/handler.py", "severity": "medium"}'
         "]}"
     )
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
-    recall_check = [c for c in result.checks if c.name == "recall-threshold"][0]
+    recall_check = [c for c in result.checks if c.name == "confirmed-recall"][0]
     assert recall_check.passed is True
 
 
@@ -210,9 +251,9 @@ def test_findings_keywords_all_miss():
         '"file": "auth/handler.py", "severity": "medium"}'
         "]}"
     )
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
-    recall_check = [c for c in result.checks if c.name == "recall-threshold"][0]
+    recall_check = [c for c in result.checks if c.name == "confirmed-recall"][0]
     assert recall_check.passed is False
 
 
@@ -238,9 +279,9 @@ def test_findings_miss_drops_recall_below_floor():
         '{"summary": "Null pointer in auth module", "file": "auth.c", "severity": "high"}'
         "]}"
     )
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
-    recall_check = [c for c in result.checks if c.name == "recall-threshold"][0]
+    recall_check = [c for c in result.checks if c.name == "confirmed-recall"][0]
     assert recall_check.passed is False
 
 
@@ -265,9 +306,9 @@ def test_findings_hallucinated_finding_drops_precision():
         '{"summary": "Unused variable in utils", "file": "utils.c", "severity": "low"}'
         "]}"
     )
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
-    precision_check = [c for c in result.checks if c.name == "precision-threshold"][0]
+    precision_check = [c for c in result.checks if c.name == "confirmed-precision"][0]
     assert "0.50" in precision_check.detail
     # precision 0.5 >= 0.5 (default precision_min) => passes threshold
     assert precision_check.passed is True
@@ -295,13 +336,13 @@ def test_findings_greedy_no_double_count():
         '{"summary": "Null pointer in parser", "file": "parser.c", "severity": "critical"}'
         "]}"
     )
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
     # Candidate 0 matches both refs (memory, leak). Greedy assigns it to ref-1 (tie, first wins).
     # Candidate 1 matches neither (no "leak").
     # recall = 1/2 = 0.5 (only ref-1 matched), precision = 1/2 = 0.5 (only 1 candidate matched)
-    recall_check = [c for c in result.checks if c.name == "recall-threshold"][0]
-    precision_check = [c for c in result.checks if c.name == "precision-threshold"][0]
+    recall_check = [c for c in result.checks if c.name == "confirmed-recall"][0]
+    precision_check = [c for c in result.checks if c.name == "confirmed-precision"][0]
     assert "1/2" in recall_check.detail
     assert "1/2" in precision_check.detail
 
@@ -322,10 +363,10 @@ def test_findings_greedy_candidate_claimed_by_one_ref_only():
         '{"summary": "Memory corruption found", "file": "main.c", "severity": "high"}'
         "]}"
     )
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
     # recall = 1/2 = 0.5 (only one ref can be matched to the single candidate)
-    recall_check = [c for c in result.checks if c.name == "recall-threshold"][0]
+    recall_check = [c for c in result.checks if c.name == "confirmed-recall"][0]
     assert "1/2" in recall_check.detail
     assert recall_check.passed is False
 
@@ -338,9 +379,9 @@ def test_findings_greedy_candidate_claimed_by_one_ref_only():
 def test_findings_empty_empty_edge():
     """No must_find and no candidates => precision 1.0, F1 should be 1.0."""
     case = _make_gold_case(expected={"must_find": []})
-    result = grade_findings(case, '{"findings": []}')
+    result = grade_findings(case, _artifact('{"findings": []}'))
 
-    precision_check = [c for c in result.checks if c.name == "precision-threshold"][0]
+    precision_check = [c for c in result.checks if c.name == "confirmed-precision"][0]
     assert "no candidates and no references" in precision_check.detail
     assert result.score == pytest.approx(1.0)
     assert result.passed is True
@@ -350,9 +391,9 @@ def test_findings_empty_must_find_with_candidates():
     """No must_find but candidate findings exist => precision 0."""
     case = _make_gold_case(expected={"must_find": []})
     raw = '{"findings": [{"summary": "Some finding", "file": "x.c", "severity": "low"}]}'
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
-    precision_check = [c for c in result.checks if c.name == "precision-threshold"][0]
+    precision_check = [c for c in result.checks if c.name == "confirmed-precision"][0]
     # With no references but candidates present, precision = 0
     assert "0.00" in precision_check.detail
     assert precision_check.passed is False
@@ -377,9 +418,9 @@ def test_findings_file_pattern_match():
         }
     )
     raw = '{"findings": [{"summary": "Auth bug in handler", "file": "auth.c", "severity": "high"}]}'
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
-    recall_check = [c for c in result.checks if c.name == "recall-threshold"][0]
+    recall_check = [c for c in result.checks if c.name == "confirmed-recall"][0]
     assert recall_check.passed is True
 
 
@@ -399,9 +440,9 @@ def test_findings_file_pattern_no_match():
     raw = (
         '{"findings": [{"summary": "Auth bug in handler", "file": "parser.c", "severity": "high"}]}'
     )
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
-    recall_check = [c for c in result.checks if c.name == "recall-threshold"][0]
+    recall_check = [c for c in result.checks if c.name == "confirmed-recall"][0]
     assert recall_check.passed is False
 
 
@@ -419,9 +460,9 @@ def test_findings_null_file_with_pattern_fails():
         }
     )
     raw = '{"findings": [{"summary": "Auth bug in handler", "file": null, "severity": "high"}]}'
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
-    recall_check = [c for c in result.checks if c.name == "recall-threshold"][0]
+    recall_check = [c for c in result.checks if c.name == "confirmed-recall"][0]
     assert recall_check.passed is False
 
 
@@ -438,9 +479,9 @@ def test_findings_null_file_without_pattern_ok():
         }
     )
     raw = '{"findings": [{"summary": "Auth bug in handler", "file": null, "severity": "high"}]}'
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
-    recall_check = [c for c in result.checks if c.name == "recall-threshold"][0]
+    recall_check = [c for c in result.checks if c.name == "confirmed-recall"][0]
     assert recall_check.passed is True
 
 
@@ -456,7 +497,7 @@ def test_findings_max_findings_passes():
         [f'{{"summary": "finding {i}", "file": "x.c", "severity": "medium"}}' for i in range(5)]
     )
     raw = f'{{"findings": [{findings}]}}'
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
     max_check = [c for c in result.checks if c.name == "max-findings"][0]
     assert max_check.passed is True
@@ -469,7 +510,7 @@ def test_findings_max_findings_exceeded():
         [f'{{"summary": "finding {i}", "file": "x.c", "severity": "medium"}}' for i in range(6)]
     )
     raw = f'{{"findings": [{findings}]}}'
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
     max_check = [c for c in result.checks if c.name == "max-findings"][0]
     assert max_check.passed is False
@@ -492,7 +533,7 @@ def test_findings_severity_legal_all_pass():
         '{"summary": "f4", "file": "w.c", "severity": "low"}'
         "]}"
     )
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
     sev_check = [c for c in result.checks if c.name == "severity-legal"][0]
     assert sev_check.passed is True
@@ -507,7 +548,7 @@ def test_findings_severity_illegal_fails():
         '{"summary": "f2", "file": "y.c", "severity": "extreme"}'
         "]}"
     )
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
     sev_check = [c for c in result.checks if c.name == "severity-legal"][0]
     assert sev_check.passed is False
@@ -538,10 +579,10 @@ def test_findings_score_is_f1():
         '{"summary": "Bug c found", "file": "c.c", "severity": "low"}'
         "]}"
     )
-    result = grade_findings(case, raw)
+    result = grade_findings(case, _artifact(raw))
 
-    recall_check = [c for c in result.checks if c.name == "recall-threshold"][0]
-    precision_check = [c for c in result.checks if c.name == "precision-threshold"][0]
+    recall_check = [c for c in result.checks if c.name == "confirmed-recall"][0]
+    precision_check = [c for c in result.checks if c.name == "confirmed-precision"][0]
     # recall = 2/2 = 1.0, precision = 2/3 = 0.667
     assert "2/2" in recall_check.detail
     assert "2/3" in precision_check.detail
@@ -660,3 +701,42 @@ def test_confirm_grade_result_shape():
     assert len(result.checks) >= 1
     assert isinstance(result.checks[0], GradeCheck)
     assert result.error is None
+
+
+# ---------------------------------------------------------------------------
+# Pipeline localization: finder vs verify
+# ---------------------------------------------------------------------------
+
+
+def test_findings_verify_kill_localized():
+    """The finder surfaced the bug but the confirm vote killed it: the
+    candidate-recall check passes (finder fine) while confirmed-recall fails
+    (verify miscalibrated) — the split that tells prompt work where to aim."""
+    case = _make_gold_case(
+        expected={"must_find": [{"id": "ref-1", "keywords_any": ["null pointer"]}]}
+    )
+    raw = (
+        '{"findings": [{"summary": "Null pointer dereference in parser", '
+        '"file": "parser.c", "severity": "critical"}]}'
+    )
+    result = grade_findings(case, _artifact(raw, confirmed=[]))
+
+    cand = [c for c in result.checks if c.name == "candidate-recall"][0]
+    shipped = [c for c in result.checks if c.name == "confirmed-recall"][0]
+    assert cand.passed is True
+    assert shipped.passed is False
+    assert result.passed is False
+    assert result.score == pytest.approx(0.0)  # shipped F1 is what scores
+
+
+def test_findings_finder_miss_fails_both_layers():
+    """A finder miss fails candidate-recall AND confirmed-recall — worse than
+    a verify kill, and the checks say so."""
+    case = _make_gold_case(
+        expected={"must_find": [{"id": "ref-1", "keywords_any": ["null pointer"]}]}
+    )
+    raw = '{"findings": [{"summary": "Style nit", "file": "a.c", "severity": "low"}]}'
+    result = grade_findings(case, _artifact(raw, confirmed=[]))
+
+    assert [c for c in result.checks if c.name == "candidate-recall"][0].passed is False
+    assert [c for c in result.checks if c.name == "confirmed-recall"][0].passed is False

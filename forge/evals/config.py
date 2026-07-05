@@ -22,6 +22,9 @@ class EvalsSettings(BaseSettings):
     temperature: float = 0.0
     timeout: float = 240.0
     max_tokens: int = 16_000
+    # Cap on finder candidates entering the confirm stage of the review
+    # pipeline flow — mirrors coding_pipeline's review_max_findings.
+    review_max_candidates: int = 12
 
 
 settings = EvalsSettings()

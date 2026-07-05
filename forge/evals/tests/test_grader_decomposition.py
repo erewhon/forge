@@ -273,15 +273,17 @@ def test_xl_estimate_fails_check_4():
 # ---------------------------------------------------------------------------
 
 
-def test_auto_leaf_max_files_1_fails_check_5():
-    """An Auto leaf with max_files=1 fails auto-floors."""
+def test_auto_leaf_governed_fields_are_floored_before_grading():
+    """Production-equivalent grading: max_files=1 and requires_tests=False on an
+    Auto leaf are governance-owned — _apply_conservative_tags floors them before
+    the check, so they never fail (they never ship that way either)."""
     leaves = [
         {
             "title": "small auto leaf",
             "content": "File: small.py",
             "feature": "F",
             "execution_mode": "Auto-OK",
-            "requires_tests": True,
+            "requires_tests": False,
             "max_files": 1,
             "estimate": "s",
         },
@@ -289,19 +291,20 @@ def test_auto_leaf_max_files_1_fails_check_5():
     case = _make_gold_case()
     result = grade_decompose(case, json.dumps({"leaves": leaves}))
     floors_check = [c for c in result.checks if c.name == "auto-floors"][0]
-    assert floors_check.passed is False
+    assert floors_check.passed is True
 
 
-def test_auto_leaf_no_tests_fails_check_5():
-    """An Auto leaf without requires_tests fails auto-floors."""
+def test_auto_leaf_oversized_max_files_fails_check_5():
+    """max_files > 5 is NOT governed (governance only floors upward) — real
+    model signal, fails auto-floors."""
     leaves = [
         {
-            "title": "no tests leaf",
-            "content": "File: test.py",
+            "title": "sprawling auto leaf",
+            "content": "File: big.py",
             "feature": "F",
             "execution_mode": "Auto-OK",
-            "requires_tests": False,
-            "max_files": 3,
+            "requires_tests": True,
+            "max_files": 8,
             "estimate": "s",
         },
     ]
@@ -309,6 +312,7 @@ def test_auto_leaf_no_tests_fails_check_5():
     result = grade_decompose(case, json.dumps({"leaves": leaves}))
     floors_check = [c for c in result.checks if c.name == "auto-floors"][0]
     assert floors_check.passed is False
+    assert "> 5" in floors_check.detail
 
 
 # ---------------------------------------------------------------------------

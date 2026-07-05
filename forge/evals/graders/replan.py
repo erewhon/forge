@@ -59,6 +59,7 @@ from agents.coding_pipeline.models import (
     RespecAction,
     SplitSubtreeAction,
 )
+from agents.evals.graders._governance import floor_to_shipped
 from agents.evals.models import GoldCase, GradeCheck, GradeResult
 from agents.shared.llm import extract_json
 
@@ -83,6 +84,14 @@ def grade(case: GoldCase, raw: str) -> GradeResult:
 
     envelope: ReplanEnvelope = check_valid._envelope  # type: ignore[attr-defined]
     actions: list[ReplanAction] = envelope.actions
+
+    # Grade production-equivalent output: floor the emitted leaves through the
+    # same deterministic governance replan() runs (_apply_conservative_tags)
+    # before any shape/tag check. Kind, target, and validity stayed raw above.
+    floor_to_shipped(
+        [leaf for leaf in (_action_leaf(a) for a in actions) if leaf is not None],
+        case.case_dir,
+    )
 
     # -- Step 2: must-actions -------------------------------------------------
     checks.append(_check_must_actions(actions, must))

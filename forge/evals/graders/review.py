@@ -12,12 +12,12 @@ Contract
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from agents.coding_pipeline.verify import FindingsEnvelope
 from agents.evals.models import GoldCase, GradeCheck, GradeResult
 from agents.shared.llm import extract_json
 
@@ -37,7 +37,12 @@ class _ConfirmVerdict(BaseModel):
 
 
 def grade_findings(case: GoldCase, raw: str) -> GradeResult:
-    """Grade a single review-findings raw output against *case*.
+    """Grade one review PIPELINE artifact against *case*.
+
+    ``raw`` is the runner's pipeline artifact (JSON): ``finder_valid`` (bool),
+    ``finder_raw`` (str), ``candidates`` (finder output after the production
+    slug-dedup/severity-cap), ``confirmed`` (what survived the confirm votes —
+    the set that actually ships), ``confirm_errors`` (int).
 
     Expected block keys in ``case.expected``
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -50,6 +55,18 @@ def grade_findings(case: GoldCase, raw: str) -> GradeResult:
           in the candidate ``summary``
     * ``recall_min`` (float, default 0.7): minimum acceptable recall
     * ``precision_min`` (float, default 0.5): minimum acceptable precision
+
+    Checks
+    ^^^^^^
+    1. ``finder-valid``       -- the finder call produced a valid envelope.
+    2. ``candidate-recall``   -- FINDER recall vs must_find (localizes a miss
+       to the finder even when the pipeline number also fails).
+    3. ``confirmed-recall``   -- SHIPPED recall: the confirmed set vs must_find.
+    4. ``confirmed-precision``-- SHIPPED precision of the confirmed set.
+    5. ``max-findings``       -- finder respected the prompt's cap of 5.
+    6. ``severity-legal``     -- candidate severities in the legal set.
+
+    ``score`` = F1 of the CONFIRMED set (what ships); ``passed`` = all checks.
     """
     expected: dict[str, Any] = case.expected or {}
     must_find: list[dict[str, Any]] = expected.get("must_find") or []
@@ -58,74 +75,80 @@ def grade_findings(case: GoldCase, raw: str) -> GradeResult:
 
     checks: list[GradeCheck] = []
 
-    # -- Step 1: parse envelope -----------------------------------------------
-    check_parse = _check_parse_envelope(raw)
-    checks.append(check_parse)
+    # -- Step 0: parse the pipeline artifact ----------------------------------
+    artifact = _parse_artifact(raw)
+    if artifact is None:
+        checks.append(
+            GradeCheck(name="finder-valid", passed=False, detail="unreadable pipeline artifact")
+        )
+        return _result(case.case_id, case.step, checks, f1=0.0)
 
-    if not check_parse.passed:
-        return _result(case.case_id, case.step, checks, recall=None, precision=None)
+    candidates: list[dict] = artifact.get("candidates") or []
+    confirmed: list[dict] = artifact.get("confirmed") or []
 
-    envelope: FindingsEnvelope = check_parse._envelope  # type: ignore[attr-defined]
-    candidate_findings = envelope.findings
+    # -- Check 1: finder produced a valid envelope ----------------------------
+    finder_valid = bool(artifact.get("finder_valid"))
+    checks.append(
+        GradeCheck(
+            name="finder-valid",
+            passed=finder_valid,
+            detail="" if finder_valid else "finder output never validated as FindingsEnvelope",
+        )
+    )
+    if not finder_valid:
+        return _result(case.case_id, case.step, checks, f1=0.0)
 
-    # -- Step 2: matching (precision/recall) ----------------------------------
+    # -- Check 2: candidate (finder) recall — the localization layer ----------
+    cand_recall, _, cand_recall_detail, _ = _compute_precision_recall(candidates, must_find)
+    checks.append(
+        GradeCheck(
+            name="candidate-recall",
+            passed=cand_recall >= recall_min,
+            detail=f"finder: {cand_recall_detail} >= {recall_min}?",
+        )
+    )
+
+    # -- Checks 3+4: shipped (confirmed) recall / precision --------------------
     recall, precision, recall_detail, precision_detail = _compute_precision_recall(
-        candidate_findings, must_find
+        confirmed, must_find
     )
-
-    # -- Step 3: max-findings cap ---------------------------------------------
-    checks.append(_check_max_findings(candidate_findings))
-
-    # -- Step 4: severity values legal ----------------------------------------
-    checks.append(_check_severity_legal(candidate_findings))
-
-    # -- Step 5: threshold checks ---------------------------------------------
-    recall_met = recall >= recall_min
-    precision_met = precision >= precision_min
     checks.append(
         GradeCheck(
-            name="recall-threshold",
-            passed=recall_met,
-            detail=f"{recall_detail} >= {recall_min}?",
+            name="confirmed-recall",
+            passed=recall >= recall_min,
+            detail=f"shipped: {recall_detail} >= {recall_min}?",
         )
     )
     checks.append(
         GradeCheck(
-            name="precision-threshold",
-            passed=precision_met,
-            detail=f"{precision_detail} >= {precision_min}?",
+            name="confirmed-precision",
+            passed=precision >= precision_min,
+            detail=f"shipped: {precision_detail} >= {precision_min}?",
         )
     )
 
-    # Score = F1 = 2 * (precision * recall) / (precision + recall)
+    # -- Check 5: max-findings cap (finder discipline) -------------------------
+    checks.append(_check_max_findings(candidates))
+
+    # -- Check 6: severity values legal ----------------------------------------
+    checks.append(_check_severity_legal(candidates))
+
+    # Score = F1 of the confirmed (shipped) set.
     if precision + recall > 0:
         f1 = 2 * precision * recall / (precision + recall)
     else:
         f1 = 0.0
 
-    return _result(case.case_id, case.step, checks, recall=recall, precision=precision, f1=f1)
+    return _result(case.case_id, case.step, checks, f1=f1)
 
 
-def _check_parse_envelope(raw: str) -> GradeCheck:
-    """Check 1: parses as FindingsEnvelope."""
+def _parse_artifact(raw: str) -> dict | None:
+    """The pipeline artifact is runner-produced JSON; anything else is a bug."""
     try:
-        data = extract_json(raw)
-        if not data:
-            return GradeCheck(
-                name="findings-parse",
-                passed=False,
-                detail="raw output is not valid JSON",
-            )
-        envelope = FindingsEnvelope.model_validate(data)
-        check = GradeCheck(name="findings-parse", passed=True)
-        check._envelope = envelope  # type: ignore[attr-defined]
-        return check
-    except ValidationError as exc:
-        return GradeCheck(
-            name="findings-parse",
-            passed=False,
-            detail=f"schema validation failed: {exc}",
-        )
+        data = json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def _compute_precision_recall(
@@ -191,6 +214,13 @@ def _compute_precision_recall(
     return recall, precision, recall_detail, precision_detail
 
 
+def _cand_get(cand: Any, key: str, default: Any = None) -> Any:
+    """Candidates are dicts in the pipeline artifact; keep attr access for tests."""
+    if isinstance(cand, dict):
+        return cand.get(key, default)
+    return getattr(cand, key, default)
+
+
 def _candidate_matches_ref(cand: Any, ref: dict[str, Any]) -> bool:
     """Does *cand* satisfy a reference *ref*?
 
@@ -198,8 +228,8 @@ def _candidate_matches_ref(cand: Any, ref: dict[str, Any]) -> bool:
     Candidate file may be null only if pattern is absent.
     Keywords: case-insensitive substring matching on summary.
     """
-    cand_file = getattr(cand, "file", None)
-    cand_summary = getattr(cand, "summary", "")
+    cand_file = _cand_get(cand, "file")
+    cand_summary = _cand_get(cand, "summary", "")
 
     # File pattern check
     file_pattern = ref.get("file_pattern")
@@ -231,19 +261,19 @@ def _candidate_matches_ref(cand: Any, ref: dict[str, Any]) -> bool:
 def _match_score(cand: Any, ref: dict[str, Any]) -> int:
     """Score for greedy matching: higher = better match."""
     score = 0
-    cand_file = getattr(cand, "file", None)
+    cand_file = _cand_get(cand, "file")
     file_pattern = ref.get("file_pattern")
     if file_pattern and cand_file and re.search(file_pattern, cand_file):
         score += 10  # bonus for file match
 
     keywords_all: list[str] | None = ref.get("keywords_all")
     if keywords_all:
-        summary_lower = getattr(cand, "summary", "").lower()
+        summary_lower = _cand_get(cand, "summary", "").lower()
         score += len([kw for kw in keywords_all if kw.lower() in summary_lower])
     else:
         keywords_any: list[str] | None = ref.get("keywords_any")
         if keywords_any:
-            summary_lower = getattr(cand, "summary", "").lower()
+            summary_lower = _cand_get(cand, "summary", "").lower()
             score += len([kw for kw in keywords_any if kw.lower() in summary_lower])
 
     return score
@@ -266,7 +296,7 @@ def _check_severity_legal(candidates: list[Any]) -> GradeCheck:
     legal = {"critical", "high", "medium", "low"}
     violations: list[str] = []
     for i, cand in enumerate(candidates):
-        sev = getattr(cand, "severity", None)
+        sev = _cand_get(cand, "severity")
         if sev not in legal:
             violations.append(f"finding {i}: severity '{sev}' not in {legal}")
     if violations:
@@ -348,8 +378,6 @@ def _result(
     case_id: str,
     step: str,
     checks: list[GradeCheck],
-    recall: float | None = None,
-    precision: float | None = None,
     f1: float | None = None,
 ) -> GradeResult:
     """Build a GradeResult from a list of checks, applying thresholds
@@ -358,18 +386,14 @@ def _result(
     for c in checks:
         clean_checks.append(GradeCheck(name=c.name, passed=c.passed, detail=c.detail))
 
-    # When F1 is provided (findings grading), score is F1.
-    # When not provided, score is passed_checks / total_checks.
+    # When F1 is provided (findings grading), score is the shipped-set F1 —
+    # but passed always means EVERY check (thresholds included) passed.
     if f1 is not None:
-        score = round(f1, 4)
-        # For findings grading, we don't use passed/failed from checks directly.
-        # The spec says score = F1. We pass when F1 > 0 (both precision and recall are > 0).
-        all_passed = score > 0
         return GradeResult(
             case_id=case_id,
             step=step,  # type: ignore[arg-type]
-            passed=all_passed,
-            score=score,
+            passed=all(c.passed for c in clean_checks),
+            score=round(f1, 4),
             checks=clean_checks,
         )
 

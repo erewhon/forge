@@ -384,8 +384,10 @@ def test_leaf_short_content_violation_fails():
     assert "content" in floors_check.detail.lower()
 
 
-def test_leaf_non_manual_no_tests_fails():
-    """A non-Manual leaf without requires_tests=true fails leaf-floors."""
+def test_leaf_non_manual_no_tests_is_floored_to_shipped():
+    """Production-equivalent grading: replan() floors requires_tests on
+    non-Manual leaves via _apply_conservative_tags before anything ships, so
+    the grader must not penalize it (the false-negative the live smoke hit)."""
     case = _make_gold_case(
         expected={"must": [{"kind": "fixup"}]},
     )
@@ -408,8 +410,30 @@ def test_leaf_non_manual_no_tests_fails():
     result = grade(case, raw)
 
     floors_check = [c for c in result.checks if c.name == "leaf-floors"][0]
-    assert floors_check.passed is False
-    assert "requires_tests" in floors_check.detail.lower()
+    assert floors_check.passed is True
+
+
+def test_novel_auto_leaf_floored_to_manual_matches_tag_constraint():
+    """Governance demotes a novel leaf to Manual before shipping; a
+    leaf_execution_mode=Manual must-entry therefore matches the shipped state
+    even when the model emitted Auto-OK."""
+    case = _make_gold_case(
+        expected={
+            "must": [
+                {
+                    "kind": "integration_fix",
+                    "leaf_execution_mode": "Manual",
+                    "leaf_complexity": "novel",
+                }
+            ]
+        },
+    )
+    novel_auto = {**_long_leaf(), "execution_mode": "Auto-OK", "complexity": "novel"}
+    raw = json.dumps(
+        {"actions": [{"kind": "integration_fix", "leaf": novel_auto, "rationale": "r"}]}
+    )
+    result = grade(case, raw)
+    assert [c for c in result.checks if c.name == "must-actions"][0].passed is True
 
 
 # ---------------------------------------------------------------------------

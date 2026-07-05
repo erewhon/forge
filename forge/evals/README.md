@@ -113,7 +113,7 @@ Each key maps to one production prompt surface and one grader module:
 | ``replan`` | ``REPLAN_SYSTEM`` (``architect.py``) | ``graders/replan.py`` | Action choice, JSON validity, forbidden actions, leaf floors |
 | ``decompose`` | ``DECOMPOSE_SYSTEM`` (``architect.py``) | ``graders/decomposition.py`` | Tree structure, deps, file naming, auto-floors, rubric DSL |
 | ``boundedness`` | ``BOUNDEDNESS_SYSTEM`` (``architect.py``) | ``graders/decomposition.py`` | ``worker_shaped`` verdict, criteria fields |
-| ``review-findings`` | ``FINDINGS_SYSTEM`` (``verify.py``) | ``graders/review.py`` | Precision/recall against frozen reference findings |
+| ``review-findings`` | Full funnel: ``FINDINGS_SYSTEM`` then ``CONFIRM_SYSTEM`` per candidate (``verify.py``) | ``graders/review.py`` | Shipped (confirmed-set) precision/recall; finder recall as a localization layer |
 | ``review-confirm`` | ``CONFIRM_SYSTEM`` (``verify.py``) | ``graders/review.py`` | Real/decoy skeptic verdict accuracy |
 | ``testgap-find`` | ``finder_system`` (``prompts.py``) | ``graders/testgap.py`` | Recall, cry-wolf rate, severity ordering |
 | ``testgap-skeptic`` | ``SKEPTIC_BASE`` (``prompts.py``) | ``graders/testgap.py`` | Real/decoy verdict accuracy |
