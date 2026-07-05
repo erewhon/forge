@@ -165,6 +165,9 @@ commit prefix) are documented in [`../task_worker/README.md`](../task_worker/REA
 The interactive strong-tier architect is [`/meta-architect`](../../../.claude/skills/)
 — same stages, the session is the model; `meta build plan` is the headless path.
 
+**Judgment evals** for the coding pipeline agents live in [`../evals/`](../evals/README.md) —
+frozen gold-set grading that catches prompt regressions from distillation or model swaps.
+
 ## Operator playbook (what the dry-runs taught)
 
 - **Escalated leaf** (`Spec Needed`+`Manual`): read the diagnostics note. Fix
