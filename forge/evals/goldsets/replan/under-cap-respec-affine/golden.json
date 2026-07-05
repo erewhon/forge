@@ -1,0 +1,25 @@
+{
+  "actions": [
+    {
+      "kind": "respec",
+      "leaf_title": "Implement temperature conversion module with affine logic",
+      "revised": {
+        "title": "Implement temperature conversion with explicit affine formulas",
+        "content": "The previous attempt used factor-based conversion; temperature is affine (y = a*x + b). Implement C/F/K conversions as explicit affine pairs, not via the existing factor table.\n\nFiles: unitconv/temperature.py, tests/test_temperature.py\n\nAcceptance criteria:\n- convert(0,'C','F') == 32.0 and convert(32,'F','C') == 0.0\n- convert(-40,'C','F') == -40.0 (the fixed point)\n- K conversions offset by 273.15 exactly\n\nTest expectations: extend tests/test_temperature.py with the three anchor identities",
+        "feature": "Temperature Domain",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Auto-OK",
+        "complexity": "routine",
+        "estimate": "s",
+        "task_type": "bug-fix",
+        "requires_tests": true,
+        "max_files": 3,
+        "model_tier": "auto"
+      },
+      "rationale": "Failure shows the factor table was reused; the spec now names the affine formula and anchor identities."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "actions": [
+    {
+      "kind": "respec",
+      "leaf_title": "Extend CLI router to support temperature domain",
+      "revised": {
+        "title": "Register temperature under the affine dispatch path in the router",
+        "content": "First attempt wired temperature into the factor dispatch table; the affine handler never ran. Register the domain with the affine dispatcher and assert the handler type in the router tests.\n\nFiles: unitconv/cli/router.py, tests/test_router.py\n\nAcceptance criteria:\n- temperature dispatches to the affine handler (assert handler type)\n- factor domains unaffected (regression assertions stay green)\n\nTest expectations: handler-type assertion added to tests/test_router.py",
+        "feature": "Temperature Domain",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Auto-OK",
+        "complexity": "routine",
+        "estimate": "s",
+        "task_type": "bug-fix",
+        "requires_tests": true,
+        "max_files": 3,
+        "model_tier": "auto"
+      },
+      "rationale": "Under-cap failure with a precise diagnosis; the capped sibling is already escalated and out of bounds."
+    }
+  ]
+}

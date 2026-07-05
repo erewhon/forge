@@ -1,0 +1,24 @@
+{
+  "wave": 3,
+  "outcomes": [
+    {
+      "leaf": "Add list-units CLI subcommand with domain grouping",
+      "status": "done",
+      "reason": ""
+    },
+    {
+      "leaf": "Extend CLI router to support temperature domain",
+      "status": "done",
+      "reason": ""
+    }
+  ],
+  "suite": {
+    "passed": false,
+    "output_tail": "ERROR collecting tests/test_cli.py\nImportError: cannot import name 'registry' from partially initialized module 'unitconv.units.registry' \u2014 circular import between cli/router.py and units/registry.py\n1 error"
+  },
+  "findings": [],
+  "raw_findings": 0,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

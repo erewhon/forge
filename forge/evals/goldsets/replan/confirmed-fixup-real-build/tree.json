@@ -1,0 +1,18 @@
+[
+  {
+    "title": "Architect: floor max_files above 1 when tests are required",
+    "content": "When requires_tests=true, max_files must be >= 3 (impl + test + one incidental). Floor it in _apply_conservative_tags in agents/coding_pipeline/architect.py and cover with tests.",
+    "feature": "Coding Pipeline",
+    "execution_mode": "Auto-OK",
+    "estimate": "s",
+    "task_type": "bug-fix"
+  },
+  {
+    "title": "Pipeline: scope build status to the epic and show Done leaves",
+    "content": "meta build status should scope its Forge query to the epic ref prefix and include Done rows. Files: agents/coding_pipeline/main.py.",
+    "feature": "Coding Pipeline",
+    "execution_mode": "Auto-OK",
+    "estimate": "s",
+    "task_type": "bug-fix"
+  }
+]

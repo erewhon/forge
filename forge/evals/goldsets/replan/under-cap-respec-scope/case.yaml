@@ -1,0 +1,18 @@
+schema_version: 1
+step: replan
+holdout: true
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: true
+  must:
+  - kind: respec
+    leaf_title: Add list-units CLI subcommand with domain grouping
+  allow_extra: false
+notes: 'Under-cap failure whose diagnostics are about SCOPE, not correctness. The right respec shrinks
+  the leaf: name the exact files, forbid drive-by refactors, keep max_files honest. A respec that keeps
+  the same broad wording would repeat the failure; a split_subtree is wrong (single leaf, first failure,
+  feature otherwise healthy).'

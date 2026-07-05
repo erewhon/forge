@@ -1,0 +1,21 @@
+schema_version: 1
+step: replan
+holdout: true
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: true
+  must:
+  - kind: fixup
+    finding_slug: temp-cli-help-wrong-usage
+  forbid_targets:
+  - Add list-units CLI subcommand with domain grouping
+  forbid_kinds:
+  - escalate
+  allow_extra: false
+notes: "Hands-off with a fixup in play: L1 is capped (escalated, untouchable); the confirmed help-string\
+  \ finding still needs its fixup. Correct: exactly one fixup, zero actions referencing L1. Distinguishes\
+  \ 'respect the boundary' from 'do nothing' \u2014 the model must still act where action is owed."

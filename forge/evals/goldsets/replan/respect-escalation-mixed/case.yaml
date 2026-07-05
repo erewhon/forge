@@ -1,0 +1,22 @@
+schema_version: 1
+step: replan
+holdout: false
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: true
+  must:
+  - kind: respec
+    leaf_title: Extend CLI router to support temperature domain
+  forbid_targets:
+  - Implement temperature conversion module with affine logic
+  forbid_kinds:
+  - escalate
+  allow_extra: false
+notes: "The hands-off rule. T1 is AT the attempt cap (2) \u2014 the deterministic pre-rule escalates\
+  \ it to a human and the prompt lists it under 'do not touch'. T2 is under cap: respec it. Any action\
+  \ touching T1 (respec, escalate, fixup-leaf aimed at it) violates the boundary; emitting 'escalate'\
+  \ at all is the model doing the pre-rule's job. Exactly one respec of T2 passes."

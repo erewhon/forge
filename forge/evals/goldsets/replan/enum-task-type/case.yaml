@@ -1,0 +1,20 @@
+schema_version: 1
+step: replan
+holdout: false
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: true
+  must:
+  - kind: respec
+    leaf_title: Implement temperature conversion module with affine logic
+  allow_extra: false
+notes: "Enum-stress: the diagnostics saturate the context with vocabulary that tempts task_type: \"\
+  implementation\" \u2014 an out-of-vocabulary value for a strict Literal. Correct vocabulary: task_type\
+  \ in {bug-fix, feature, refactor, docs, test, chore}. The whole envelope fails schema validation on\
+  \ a single bad enum (the 3a6360cb failure class: coder guessed task_type='implementation' and every\
+  \ replan was discarded), so this case is graded almost entirely by L1 validity. THE regression case\
+  \ \u2014 this exact temptation produced the captured 3a6360cb failure (task_type: 'implementation')."

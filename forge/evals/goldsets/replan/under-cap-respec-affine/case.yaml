@@ -1,0 +1,19 @@
+schema_version: 1
+step: replan
+holdout: false
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: true
+  must:
+  - kind: respec
+    leaf_title: Implement temperature conversion module with affine logic
+  allow_extra: false
+notes: "Canonical under-cap respec \u2014 the exact scenario shape that produced the 3a6360cb replan-validation\
+  \ failure. One failed leaf, one attempt (cap is 2): the ONLY correct move is a single respec of that\
+  \ leaf with a sharper spec. The diagnostics name the defect class (multiplicative vs affine), so the\
+  \ revised spec must pin the formula family and the exact test cases that prove it. No fixup (no confirmed\
+  \ findings), no escalate (that is the deterministic pre-rule's job, and the leaf is under cap)."

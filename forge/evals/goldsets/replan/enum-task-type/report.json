@@ -1,0 +1,19 @@
+{
+  "wave": 2,
+  "outcomes": [
+    {
+      "leaf": "Implement temperature conversion module with affine logic",
+      "status": "failed",
+      "reason": "implementation incomplete: the module is a skeleton without the conversion implementation. Needs a full implementation pass \u2014 the implementation work item was underestimated."
+    }
+  ],
+  "suite": {
+    "passed": false,
+    "output_tail": "1 leaf failed; see outcome reason"
+  },
+  "findings": [],
+  "raw_findings": 0,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

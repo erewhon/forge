@@ -1,0 +1,19 @@
+{
+  "wave": 2,
+  "outcomes": [
+    {
+      "leaf": "Add list-units CLI subcommand with domain grouping",
+      "status": "failed",
+      "reason": "a large restructuring is required: the subcommand needs a sizeable rework, a pretty large change touching the command wiring. Plan for a big effort."
+    }
+  ],
+  "suite": {
+    "passed": false,
+    "output_tail": "1 leaf failed; see outcome reason"
+  },
+  "findings": [],
+  "raw_findings": 0,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

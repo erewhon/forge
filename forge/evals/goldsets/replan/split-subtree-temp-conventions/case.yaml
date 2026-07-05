@@ -1,0 +1,17 @@
+schema_version: 1
+step: replan
+holdout: true
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: true
+  must:
+  - kind: split_subtree
+    feature: Temperature Domain
+  allow_extra: false
+notes: 'Same split judgment from a different angle: the failures are convention-level (unit symbol vocabulary),
+  traced to the feature''s specs, not to either worker. Two respecs would each pick a convention blind.
+  Park Temperature Domain and re-decompose with an explicit symbol convention decision.'

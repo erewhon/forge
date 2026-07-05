@@ -1,0 +1,24 @@
+{
+  "actions": [
+    {
+      "kind": "fixup",
+      "finding_slug": "agents-coding-pipeline-tests-test-architect-py-the-test-neve",
+      "leaf": {
+        "title": "Assert max_files floor outcome for no-tests Auto-OK leaves",
+        "content": "The wave review confirmed the new floor test never asserts the final max_files of the requires_tests=False Auto-OK leaf, so the floor's non-applicability is unverified.\n\nFiles: agents/coding_pipeline/tests/test_architect.py\n\nAcceptance criteria:\n- test asserts the exact max_files value for a requires_tests=False Auto-OK leaf after _apply_conservative_tags\n- existing floor tests still pass unchanged\n\nTest expectations: one focused assertion added to the existing floor test module",
+        "feature": "Coding Pipeline",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Auto-OK",
+        "complexity": "routine",
+        "estimate": "s",
+        "task_type": "test",
+        "requires_tests": true,
+        "max_files": 3,
+        "model_tier": "auto"
+      }
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "wave": 4,
+  "outcomes": [
+    {
+      "leaf": "Add list-units CLI subcommand with domain grouping",
+      "status": "failed",
+      "reason": "grouping leaf emits a table, but the formatting leaf's spec asserts JSON output \u2014 worker could not satisfy its acceptance criteria against the sibling's landed format"
+    },
+    {
+      "leaf": "Format list-units output for readability",
+      "status": "failed",
+      "reason": "formatting spec assumes JSON from the grouping leaf; got a table; acceptance criteria contradict the sibling spec"
+    }
+  ],
+  "suite": {
+    "passed": false,
+    "output_tail": "2 leaves failed against contradictory acceptance criteria"
+  },
+  "findings": [],
+  "raw_findings": 0,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

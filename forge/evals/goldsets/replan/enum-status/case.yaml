@@ -1,0 +1,19 @@
+schema_version: 1
+step: replan
+holdout: false
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: true
+  must:
+  - kind: respec
+    leaf_title: Add list-units CLI subcommand with domain grouping
+  allow_extra: false
+notes: "Enum-stress: the diagnostics saturate the context with vocabulary that tempts status: \"Blocked\"\
+  \ / \"In Progress\" \u2014 an out-of-vocabulary value for a strict Literal. Correct vocabulary: status\
+  \ in {Ready, Spec Needed} \u2014 blockedness is expressed via depends_on. The whole envelope fails\
+  \ schema validation on a single bad enum (the 3a6360cb failure class: coder guessed task_type='implementation'\
+  \ and every replan was discarded), so this case is graded almost entirely by L1 validity. "

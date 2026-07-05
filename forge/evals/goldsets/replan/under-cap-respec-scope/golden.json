@@ -1,0 +1,25 @@
+{
+  "actions": [
+    {
+      "kind": "respec",
+      "leaf_title": "Add list-units CLI subcommand with domain grouping",
+      "revised": {
+        "title": "Add list-units subcommand touching only cli and units modules",
+        "content": "Previous attempt sprawled to 8 files. Re-scoped: add the `list-units` subcommand that prints units grouped by domain, touching ONLY the subcommand module and its test. Do not rewrite the router or formatters; reuse the existing registry API as-is.\n\nFiles: unitconv/cli/list_units.py, tests/test_list_units.py\n\nAcceptance criteria:\n- `unitconv list-units` exits 0 and prints every registered domain\n- units appear grouped under their domain header\n- no changes outside the two named files\n\nTest expectations: new tests/test_list_units.py covering the grouping and exit code",
+        "feature": "List Units Command",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Auto-OK",
+        "complexity": "routine",
+        "estimate": "s",
+        "task_type": "feature",
+        "requires_tests": true,
+        "max_files": 3,
+        "model_tier": "auto"
+      },
+      "rationale": "Scope failure -> smaller explicit-files respec that reuses the registry instead of rewriting it."
+    }
+  ]
+}

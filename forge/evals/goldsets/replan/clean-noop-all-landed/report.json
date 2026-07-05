@@ -1,0 +1,24 @@
+{
+  "wave": 2,
+  "outcomes": [
+    {
+      "leaf": "Implement temperature conversion module with affine logic",
+      "status": "done",
+      "reason": ""
+    },
+    {
+      "leaf": "Extend CLI router to support temperature domain",
+      "status": "done",
+      "reason": ""
+    }
+  ],
+  "suite": {
+    "passed": true,
+    "output_tail": ""
+  },
+  "findings": [],
+  "raw_findings": 0,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

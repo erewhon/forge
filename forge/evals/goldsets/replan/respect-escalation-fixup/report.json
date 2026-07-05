@@ -1,0 +1,31 @@
+{
+  "wave": 4,
+  "outcomes": [
+    {
+      "leaf": "Implement temperature conversion module with affine logic",
+      "status": "done",
+      "reason": ""
+    },
+    {
+      "leaf": "Add list-units CLI subcommand with domain grouping",
+      "status": "failed",
+      "reason": "second failure: grouping output still interleaves domains; ordering nondeterministic across runs"
+    }
+  ],
+  "suite": {
+    "passed": true,
+    "output_tail": ""
+  },
+  "findings": [
+    {
+      "slug": "temp-cli-help-wrong-usage",
+      "summary": "`unitconv convert --help` shows the pre-temperature usage string; the temperature arguments are undocumented in help output.",
+      "severity": "medium",
+      "confirmed": true
+    }
+  ],
+  "raw_findings": 1,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

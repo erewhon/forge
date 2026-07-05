@@ -1,0 +1,19 @@
+{
+  "wave": 3,
+  "outcomes": [
+    {
+      "leaf": "Add list-units CLI subcommand with domain grouping",
+      "status": "failed",
+      "reason": "worker exceeded max_files: the change touched 8 files (cap 5) \u2014 it rewrote the router, two formatters, and docs alongside the new subcommand; diff rejected by the scope gate."
+    }
+  ],
+  "suite": {
+    "passed": false,
+    "output_tail": "scope gate: 8 changed files > max_files=5; leaf reverted"
+  },
+  "findings": [],
+  "raw_findings": 0,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

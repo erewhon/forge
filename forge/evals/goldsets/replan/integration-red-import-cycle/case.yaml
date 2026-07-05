@@ -1,0 +1,18 @@
+schema_version: 1
+step: replan
+holdout: true
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: true
+  must:
+  - kind: integration_fix
+    leaf_execution_mode: Manual
+    leaf_complexity: novel
+  allow_extra: false
+notes: "Second integration-red: a circular import created only by the COMBINATION of two landed leaves\
+  \ (each imported the other's module). Collection error means zero tests ran \u2014 still integration-red,\
+  \ not a leaf failure. Correct: one novel+Manual integration_fix that restructures the import direction."

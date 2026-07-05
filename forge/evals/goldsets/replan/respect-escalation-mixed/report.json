@@ -1,0 +1,24 @@
+{
+  "wave": 3,
+  "outcomes": [
+    {
+      "leaf": "Implement temperature conversion module with affine logic",
+      "status": "failed",
+      "reason": "second failure: affine formulas still wrong on the K path; converter returns negative Kelvin for valid Celsius inputs"
+    },
+    {
+      "leaf": "Extend CLI router to support temperature domain",
+      "status": "failed",
+      "reason": "first failure: router registered temperature under the factor dispatch table; dispatch asserts affine handler"
+    }
+  ],
+  "suite": {
+    "passed": false,
+    "output_tail": "FAILED tests/test_temperature.py (3), FAILED tests/test_router.py (1)"
+  },
+  "findings": [],
+  "raw_findings": 0,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

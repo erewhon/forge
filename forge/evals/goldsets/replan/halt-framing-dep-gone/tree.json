@@ -1,0 +1,29 @@
+[
+  {
+    "title": "Probe libfoo 2.0 streaming API against the ingest fixture",
+    "content": "Spike: wire adapters/ingest.py to libfoo 2.0 streaming and run the fixture suite. Files: adapters/ingest.py, tests/test_ingest.py.",
+    "feature": "Streaming Migration",
+    "execution_mode": "Auto-OK",
+    "estimate": "s"
+  },
+  {
+    "title": "Migrate export adapter to streaming",
+    "content": "Port adapters/export.py to the streaming API. Files: adapters/export.py.",
+    "feature": "Streaming Migration",
+    "depends_on": [
+      "Probe libfoo 2.0 streaming API against the ingest fixture"
+    ],
+    "execution_mode": "Auto-OK",
+    "estimate": "m"
+  },
+  {
+    "title": "Migrate relay adapter to streaming",
+    "content": "Port adapters/relay.py to the streaming API. Files: adapters/relay.py.",
+    "feature": "Streaming Migration",
+    "depends_on": [
+      "Probe libfoo 2.0 streaming API against the ingest fixture"
+    ],
+    "execution_mode": "Auto-OK",
+    "estimate": "m"
+  }
+]

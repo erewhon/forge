@@ -1,0 +1,24 @@
+{
+  "actions": [
+    {
+      "kind": "integration_fix",
+      "leaf": {
+        "title": "Break circular import between cli router and units registry",
+        "content": "list-units made cli/router.py import units/registry.py while the temperature router change made registry import router constants \u2014 a cycle that kills test collection. Extract the shared constants into a leaf module neither side re-imports.\n\nFiles: unitconv/cli/router.py, unitconv/units/registry.py, unitconv/units/constants.py\n\nAcceptance criteria:\n- pytest collects and runs the full suite again\n- no module imports its own importer (assert with an import-order test)\n\nTest expectations: restore green collection; add an import-cycle guard test",
+        "feature": "Temperature Domain",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Manual",
+        "complexity": "novel",
+        "estimate": "s",
+        "task_type": "bug-fix",
+        "requires_tests": false,
+        "max_files": 3,
+        "model_tier": null
+      },
+      "rationale": "Cycle exists only in the combined state; neither leaf alone reproduces it."
+    }
+  ]
+}

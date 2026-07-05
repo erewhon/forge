@@ -1,0 +1,43 @@
+{
+  "goal_as_stated": "Add a temperature conversion domain (C, F, K) and a `list-units` CLI subcommand",
+  "restated_goal": "Extend unitconv to support temperature (C/F/K) via `unitconv convert` using affine logic distinct from the existing factor-based domains, and add `unitconv list-units` to print all available units grouped by domain.",
+  "rescoped": false,
+  "inventory_summary": "The repo contains a minimal unit conversion library with two domains (length, mass) implemented in separate modules (`length.py`, `mass.py`). Both use a factor-table approach with `to_<canonical>()` and `convert()` functions. The CLI (`cli.py`) routes conversions by probing these tables. Tests exist for both domains and the CLI. No temperature module exists yet.",
+  "gap_analysis": "1. Temperature requires affine conversion (offsets + scaling), not pure multiplicative factors, so it cannot reuse the existing factor-table schema in `length.py`/`mass.py` without modification or abstraction.\n2. The CLI currently routes by probing domain tables; adding temperature requires either extending that routing logic or introducing a dispatcher that recognizes temperature as a special case.\n3. The `list-units` subcommand does not exist; it requires aggregating all known units across domains and formatting them grouped by domain.\n4. Existing tests must pass, implying backward compatibility with the current API and CLI behavior.",
+  "options": [
+    {
+      "name": "AffineMixin Strategy",
+      "summary": "Introduce an `AffineConverter` base class or mixin that wraps the factor-table pattern but adds offset handling. Temperature module inherits from this. CLI routes normally since the API surface remains `convert()`. `list-units` scans all modules in the package.",
+      "tradeoffs": "+ Reuses existing CLI routing logic. - Adds an extra layer of abstraction early. - Slightly over-engineered for a single affine domain."
+    },
+    {
+      "name": "Temperature-First Module + CLI Switch",
+      "summary": "Create `temperature.py` with its own `convert()` function using explicit affine logic. Modify `cli.py` to detect temperature units (C/F/K) before probing the factor tables. `list-units` hardcodes domain groupings initially.",
+      "tradeoffs": "+ Simple, direct, no new abstractions. - CLI routing becomes a cascade of if/elif checks. - `list-units` formatting is manual rather than dynamic."
+    },
+    {
+      "name": "Unified Domain Registry",
+      "summary": "Refactor existing code slightly to use a registry dict mapping domain names to their converter objects. Add temperature to this registry. `list-units` iterates the registry. This is a broader refactor.",
+      "tradeoffs": "+ Most scalable for future domains. - Higher blast radius; risks breaking existing behavior. - Overkill for a throwaway fixture repo."
+    },
+    {
+      "name": "Minimalist Patch",
+      "summary": "Add `temperature.py` with `convert()`. Modify `cli.py` to add `list-units` by importing all modules in `unitconv/` and introspecting their exported units. No refactoring of existing domain modules.",
+      "tradeoffs": "+ Lowest change volume. - Inline module introspection is fragile. - CLI becomes monolithic with more if/elif branches."
+    }
+  ],
+  "recommendation": "Option 2: Temperature-First Module + CLI Switch. This repo is explicitly a 'throwaway' fixture. Over-engineering with `AffineMixin` (Option 1) or a full registry (Option 3) is unjustified. Option 2 gives immediate user value for temperature and `list-units` with minimal risk. The CLI switch for temperature units is trivial to implement and test.",
+  "value_ordering": [
+    "Temperature conversion via CLI",
+    "list-units CLI subcommand",
+    "Formatting polish for list-units output"
+  ],
+  "risks": [
+    "Modifying cli.py to route temperature may break existing probe logic if not careful about unit matching priority.",
+    "If `list-units` introspects modules dynamically, it may pick up unintended exports (e.g., helper functions).",
+    "Affine logic must handle K-F-C correctly; getting the offset direction wrong is a common bug."
+  ],
+  "epic_slug": "smoke-tempconv",
+  "branch": null,
+  "approved": true
+}

@@ -1,0 +1,25 @@
+{
+  "actions": [
+    {
+      "kind": "respec",
+      "leaf_title": "Extend CLI router to support temperature domain",
+      "revised": {
+        "title": "Fix convert crash introduced by temperature router change",
+        "content": "The router change crashes `unitconv convert` for factor domains (regression in the dispatch fallthrough). Restore factor dispatch while keeping the temperature route.\n\nFiles: unitconv/cli/router.py, tests/test_router.py\n\nAcceptance criteria:\n- `unitconv convert 1 m ft` exits 0 again (regression test)\n- temperature dispatch unchanged\n\nTest expectations: factor-domain regression test in tests/test_router.py",
+        "feature": "Temperature Domain",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Auto-OK",
+        "complexity": "routine",
+        "estimate": "s",
+        "task_type": "bug-fix",
+        "requires_tests": true,
+        "max_files": 3,
+        "model_tier": "auto"
+      },
+      "rationale": "Under-cap failure; revised spec stays inside the strict LeafSpec vocabulary."
+    }
+  ]
+}

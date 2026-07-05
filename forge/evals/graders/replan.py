@@ -41,6 +41,7 @@ Scoring
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -51,10 +52,12 @@ from pydantic import ValidationError
 # ---------------------------------------------------------------------------
 from agents.coding_pipeline.architect import ReplanEnvelope
 from agents.coding_pipeline.models import (
+    EscalateAction,
     FixupAction,
     IntegrationFixAction,
     ReplanAction,
     RespecAction,
+    SplitSubtreeAction,
 )
 from agents.evals.models import GoldCase, GradeCheck, GradeResult
 from agents.shared.llm import extract_json
@@ -131,6 +134,15 @@ def _action_kind(action: ReplanAction) -> str:
     return action.kind
 
 
+def _action_leaf(action: ReplanAction) -> Any | None:
+    """The LeafSpec an action carries, if any."""
+    if isinstance(action, FixupAction | IntegrationFixAction):
+        return action.leaf
+    if isinstance(action, RespecAction):
+        return action.revised
+    return None
+
+
 def _action_matches(action: ReplanAction, spec: dict[str, Any]) -> bool:
     """Does *action* match a must-entry *spec*?"""
     if _action_kind(action) != spec.get("kind"):
@@ -144,7 +156,20 @@ def _action_matches(action: ReplanAction, spec: dict[str, Any]) -> bool:
     elif isinstance(action, IntegrationFixAction):
         if "feature" in spec and action.leaf.feature != spec["feature"]:
             return False
-    # SplitSubtree, Escalate, Halt: only kind matters (no extra must fields in current fixtures)
+    elif isinstance(action, SplitSubtreeAction):
+        if "feature" in spec and action.feature != spec["feature"]:
+            return False
+    # Escalate, Halt: only kind matters.
+
+    # Optional tag constraints on the carried leaf (e.g. integration_fix must be
+    # conservative: novel + Manual).
+    leaf = _action_leaf(action)
+    if "leaf_execution_mode" in spec:
+        if leaf is None or leaf.execution_mode != spec["leaf_execution_mode"]:
+            return False
+    if "leaf_complexity" in spec:
+        if leaf is None or leaf.complexity != spec["leaf_complexity"]:
+            return False
     return True
 
 
@@ -190,6 +215,11 @@ def _check_no_forbidden(
         elif isinstance(action, IntegrationFixAction):
             if action.leaf.title in forbid_targets:
                 violations.append(f"forbidden target (intfix leaf): {action.leaf.title}")
+        elif isinstance(action, EscalateAction):
+            # Escalation is deterministic pre-rule territory; a model-emitted escalate
+            # aimed at an already-escalated leaf is exactly the "do not touch" violation.
+            if action.leaf_title in forbid_targets:
+                violations.append(f"forbidden target (escalate): {action.leaf_title}")
 
     if violations:
         return GradeCheck(
@@ -278,22 +308,22 @@ def _check_no_extras(
 # Small/medium estimates are the allowed floor for new/revised leaves.
 _ESTIMATE_FLOOR = {"xs", "s", "m"}
 _MIN_CONTENT_CHARS = 200
+_MAX_FILES_CAP = 5
+# A path-like token ("tempconv/core.py", "README.md") — the files-hint heuristic,
+# same shape the decomposition grader uses.
+_FILES_HINT_RE = re.compile(r"[A-Za-z0-9_./-]+\.[a-z0-9]{1,5}\b")
 
 
 def _check_leaf_floors(actions: list[ReplanAction]) -> GradeCheck:
-    """Check 6: every new/revised LeafSpec: estimate in {xs,s,m};
-    non-Manual leaves have requires_tests=true; content >= 200 chars."""
+    """Check 6: every new/revised LeafSpec is worker-shaped at the floor:
+    estimate in {xs,s,m}; non-Manual leaves have requires_tests=true; content
+    >= 200 chars; max_files (when set) <= 5; a files hint in the content
+    (novel + Manual leaves exempt, matching the decomposition grader)."""
     violations: list[str] = []
     _seen: set[str] = set()
 
     for action in actions:
-        leaf: Any | None = None
-        if _action_kind(action) == "fixup" and isinstance(action, FixupAction):
-            leaf = action.leaf
-        elif _action_kind(action) == "respec" and isinstance(action, RespecAction):
-            leaf = action.revised
-        elif _action_kind(action) == "integration_fix" and isinstance(action, IntegrationFixAction):
-            leaf = action.leaf
+        leaf = _action_leaf(action)
 
         if leaf is None:
             continue
@@ -323,6 +353,17 @@ def _check_leaf_floors(actions: list[ReplanAction]) -> GradeCheck:
             violations.append(
                 f"leaf '{title}' content is {len(content)} chars (minimum {_MIN_CONTENT_CHARS})"
             )
+
+        # max_files cap (when the model set one)
+        max_files = getattr(leaf, "max_files", None)
+        if max_files is not None and max_files > _MAX_FILES_CAP:
+            violations.append(f"leaf '{title}' max_files {max_files} exceeds {_MAX_FILES_CAP}")
+
+        # Files hint: the spec must name where the work lands. Novel + Manual
+        # leaves are exempt (a human takes those).
+        novel_manual = getattr(leaf, "complexity", None) == "novel" and exec_mode == "Manual"
+        if not novel_manual and isinstance(content, str) and not _FILES_HINT_RE.search(content):
+            violations.append(f"leaf '{title}' content names no file (files-hint missing)")
 
     if violations:
         return GradeCheck(

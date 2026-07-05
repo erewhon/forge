@@ -25,7 +25,8 @@ from agents.evals.models import GoldCase, GradeCheck, GradeResult
 # Fixtures
 # ---------------------------------------------------------------------------
 
-_LONGBASE = "x" * 250  # content that passes the 200-char threshold
+# Content that passes the 200-char threshold AND the files-hint check.
+_LONGBASE = "Fix flux/capacitor.py wiring. " + "x" * 250
 
 
 def _make_gold_case(
@@ -560,3 +561,104 @@ def test_grade_result_shape():
     assert len(result.checks) == 1
     assert isinstance(result.checks[0], GradeCheck)
     assert result.error is None
+
+
+# ---------------------------------------------------------------------------
+# Sketch extensions: split_subtree feature match, escalate hands-off,
+# leaf-tag must constraints, max_files cap, files-hint floor
+# ---------------------------------------------------------------------------
+
+
+def test_split_subtree_feature_must_match():
+    """A split_subtree must-entry with a feature only matches that feature."""
+    case = _make_gold_case(expected={"must": [{"kind": "split_subtree", "feature": "Time Travel"}]})
+    raw = json.dumps(
+        {"actions": [{"kind": "split_subtree", "feature": "Snacks", "rationale": "wrong feature"}]}
+    )
+    result = grade(case, raw)
+    must_check = [c for c in result.checks if c.name == "must-actions"][0]
+    assert must_check.passed is False
+
+    raw_ok = json.dumps(
+        {"actions": [{"kind": "split_subtree", "feature": "Time Travel", "rationale": "repeats"}]}
+    )
+    ok = grade(case, raw_ok)
+    assert [c for c in ok.checks if c.name == "must-actions"][0].passed is True
+
+
+def test_model_emitted_escalate_on_forbidden_target_fails():
+    """The model must not touch already-escalated leaves — even via an escalate action."""
+    case = _make_gold_case(expected={"forbid_targets": ["capped leaf"]})
+    raw = json.dumps(
+        {"actions": [{"kind": "escalate", "leaf_title": "capped leaf", "diagnostics": "d"}]}
+    )
+    result = grade(case, raw)
+    forb = [c for c in result.checks if c.name == "no-forbidden"][0]
+    assert forb.passed is False
+    assert "escalate" in forb.detail
+
+
+def test_integration_fix_leaf_tag_constraints():
+    """leaf_execution_mode / leaf_complexity in a must-entry check the carried leaf."""
+    case = _make_gold_case(
+        expected={
+            "must": [
+                {
+                    "kind": "integration_fix",
+                    "leaf_execution_mode": "Manual",
+                    "leaf_complexity": "novel",
+                }
+            ]
+        }
+    )
+    auto_leaf = {**_long_leaf(), "execution_mode": "Auto-OK", "complexity": "routine"}
+    raw = json.dumps(
+        {"actions": [{"kind": "integration_fix", "leaf": auto_leaf, "rationale": "r"}]}
+    )
+    result = grade(case, raw)
+    assert [c for c in result.checks if c.name == "must-actions"][0].passed is False
+
+    manual_leaf = {
+        **_long_leaf(),
+        "execution_mode": "Manual",
+        "complexity": "novel",
+        "requires_tests": False,
+    }
+    raw_ok = json.dumps(
+        {"actions": [{"kind": "integration_fix", "leaf": manual_leaf, "rationale": "r"}]}
+    )
+    ok = grade(case, raw_ok)
+    assert [c for c in ok.checks if c.name == "must-actions"][0].passed is True
+
+
+def test_leaf_floors_max_files_cap():
+    """max_files above 5 on an emitted leaf fails the floors check."""
+    case = _make_gold_case(expected={"allow_extra": True})
+    big = {**_long_leaf(), "max_files": 9}
+    raw = json.dumps({"actions": [{"kind": "fixup", "finding_slug": "s", "leaf": big}]})
+    result = grade(case, raw)
+    floors = [c for c in result.checks if c.name == "leaf-floors"][0]
+    assert floors.passed is False
+    assert "max_files" in floors.detail
+
+
+def test_leaf_floors_files_hint_missing_fails_but_novel_manual_exempt():
+    """Pathless content fails the files-hint floor unless the leaf is novel + Manual."""
+    case = _make_gold_case(expected={"allow_extra": True})
+    pathless = {**_long_leaf(), "content": "y" * 250}
+    raw = json.dumps({"actions": [{"kind": "fixup", "finding_slug": "s", "leaf": pathless}]})
+    result = grade(case, raw)
+    floors = [c for c in result.checks if c.name == "leaf-floors"][0]
+    assert floors.passed is False
+    assert "files-hint" in floors.detail
+
+    exempt = {
+        **_long_leaf(),
+        "content": "y" * 250,
+        "execution_mode": "Manual",
+        "complexity": "novel",
+        "requires_tests": False,
+    }
+    raw_ok = json.dumps({"actions": [{"kind": "fixup", "finding_slug": "s", "leaf": exempt}]})
+    ok = grade(case, raw_ok)
+    assert [c for c in ok.checks if c.name == "leaf-floors"][0].passed is True

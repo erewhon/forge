@@ -1,0 +1,19 @@
+[
+  {
+    "title": "Profile conversion hot path and locate lookup entry points",
+    "content": "Profile `unitconv convert` on the benchmark corpus; document the hot path. Files: docs/perf-notes.md, scripts/bench.py.",
+    "feature": "CLI Caching",
+    "execution_mode": "Auto-OK",
+    "estimate": "s"
+  },
+  {
+    "title": "Add memoization layer over conversion lookups",
+    "content": "Cache conversion-table lookups. Files: unitconv/core.py.",
+    "feature": "CLI Caching",
+    "depends_on": [
+      "Profile conversion hot path and locate lookup entry points"
+    ],
+    "execution_mode": "Auto-OK",
+    "estimate": "m"
+  }
+]

@@ -1,0 +1,24 @@
+{
+  "wave": 3,
+  "outcomes": [
+    {
+      "leaf": "Implement temperature conversion module with affine logic",
+      "status": "done",
+      "reason": ""
+    },
+    {
+      "leaf": "Add list-units CLI subcommand with domain grouping",
+      "status": "skipped",
+      "reason": "dependency not yet landed; wave planner will re-offer it next wave"
+    }
+  ],
+  "suite": {
+    "passed": true,
+    "output_tail": ""
+  },
+  "findings": [],
+  "raw_findings": 0,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

@@ -1,0 +1,25 @@
+{
+  "actions": [
+    {
+      "kind": "respec",
+      "leaf_title": "Extend CLI router to support temperature domain",
+      "revised": {
+        "title": "Retry temperature router registration with explicit dispatch table spec",
+        "content": "The failure is spec vagueness, not model strength: the dispatch table layout was never stated. Spell out the table entry shape and the handler signature so any tier can land it.\n\nFiles: unitconv/cli/router.py, tests/test_router.py\n\nAcceptance criteria:\n- dispatch table entry for temperature matches the documented shape\n- handler signature asserted by test\n\nTest expectations: table-shape assertion in tests/test_router.py",
+        "feature": "Temperature Domain",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Auto-OK",
+        "complexity": "routine",
+        "estimate": "s",
+        "task_type": "bug-fix",
+        "requires_tests": true,
+        "max_files": 3,
+        "model_tier": "auto"
+      },
+      "rationale": "Under-cap failure; revised spec stays inside the strict LeafSpec vocabulary."
+    }
+  ]
+}

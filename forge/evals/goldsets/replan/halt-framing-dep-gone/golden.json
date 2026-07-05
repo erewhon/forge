@@ -1,0 +1,8 @@
+{
+  "actions": [
+    {
+      "kind": "halt",
+      "reason": "libfoo 2.0 removed the streaming API the framing targets (probe leaf + CHANGELOG confirm); every remaining leaf migrates to an API that does not exist. The epic needs re-framing around the 2.0 batch iterator."
+    }
+  ]
+}

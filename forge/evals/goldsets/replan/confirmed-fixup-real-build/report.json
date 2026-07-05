@@ -1,0 +1,47 @@
+{
+  "wave": 2,
+  "outcomes": [
+    {
+      "leaf": "Architect: floor max_files above 1 when tests are required",
+      "status": "done",
+      "reason": "",
+      "commit_id": "nqxyttmqlyxm",
+      "changed_files": [
+        "agents/coding_pipeline/architect.py",
+        "agents/coding_pipeline/tests/test_architect.py"
+      ],
+      "duration_s": 124.61461615562439
+    }
+  ],
+  "suite": {
+    "passed": true,
+    "output_tail": ".....................         [ 85%]\nagents/task_worker/tests/test_sandbox.py ..............                  [ 87%]\nagents/testing_ensemble/tests/test_autotest.py ............              [ 89%]\nagents/testing_ensemble/tests/test_emit.py .....                         [ 90%]\nagents/testing_ensemble/tests/test_review.py ......                      [ 91%]\nagents/tests/test_cli.py ........                                        [ 92%]\nagents/tests/test_mcp_server.py ........                                 [ 93%]\nagents/video_researcher/tests/test_client.py .........                   [ 95%]\nagents/video_researcher/tests/test_collectors.py .........               [ 96%]\nagents/video_researcher/tests/test_develop.py ....                       [ 97%]\nagents/video_researcher/tests/test_filter.py ....                        [ 97%]\nagents/video_researcher/tests/test_page_writer.py ..............         [100%]\n\n============================= 627 passed in 2.53s ==============================\n\n"
+  },
+  "findings": [
+    {
+      "slug": "agents-coding-pipeline-architect-py-the-floor-to-3-logic-in",
+      "summary": "The floor-to-3 logic in `architect.py` applies to ALL leaves where `requires_tests=True` and `max_files < 3`, with no check on `execution_mode`. The test `test_requires_tests_floors_max_files_to_3` asserts that a Manual leaf with `requires_tests=True` and `max_files=1` retains `max_files=1`, but the code will force it to 3. Either the test will fail (regression), or there is hidden logic not visible in the diff \u2014 either way, the implementation and test are inconsistent and one of them is wrong.",
+      "severity": "critical",
+      "file": "agents/coding_pipeline/architect.py",
+      "confirmed": false
+    },
+    {
+      "slug": "agents-coding-pipeline-tests-test-architect-py-the-test-neve",
+      "summary": "The test never asserts the final `max_files` of the `\"no tests\"` Auto-OK leaf. Since Auto-OK leaves unconditionally have `requires_tests` set to `True` in `_enrich_auto_leaf`, a leaf supplied with `requires_tests=False` and `execution_mode=\"Auto-OK\"` will have `requires_tests` overwritten and `max_files` floored to 3. The missing assertion silently hides this behaviour, giving false confidence that `requires_tests=False` Auto-OK leaves are exempt from the floor.",
+      "severity": "medium",
+      "file": "agents/coding_pipeline/tests/test_architect.py",
+      "confirmed": true
+    },
+    {
+      "slug": "agents-coding-pipeline-architect-py-the-forced-floor-of-max",
+      "summary": "The forced floor of `max_files` to 3 is more aggressive than justified: many real tasks legitimately touch only 2 files (implementation + test), so Auto-OK leaves that truly need only 2 files will be given an inflated budget, potentially allowing workers extra slack and masking over-engineering.",
+      "severity": "low",
+      "file": "agents/coding_pipeline/architect.py",
+      "confirmed": false
+    }
+  ],
+  "raw_findings": 4,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": "2 file(s), +30/-0"
+}

@@ -1,0 +1,25 @@
+{
+  "actions": [
+    {
+      "kind": "respec",
+      "leaf_title": "Add list-units CLI subcommand with domain grouping",
+      "revised": {
+        "title": "Re-spec list-units against the stabilized router interface",
+        "content": "The failure came from racing the router change. The revised leaf expresses the ordering via depends_on (not a status): implement against the settled router registration hook.\n\nFiles: unitconv/cli/list_units.py, tests/test_list_units.py\n\nAcceptance criteria:\n- list-units registers via the final router hook\n- grouping assertions green\n\nTest expectations: registration + grouping tests in tests/test_list_units.py",
+        "feature": "List Units Command",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Auto-OK",
+        "complexity": "routine",
+        "estimate": "s",
+        "task_type": "feature",
+        "requires_tests": true,
+        "max_files": 3,
+        "model_tier": "auto"
+      },
+      "rationale": "Under-cap failure; revised spec stays inside the strict LeafSpec vocabulary."
+    }
+  ]
+}

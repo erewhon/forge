@@ -1,0 +1,9 @@
+{
+  "actions": [
+    {
+      "kind": "split_subtree",
+      "feature": "Temperature Domain",
+      "rationale": "Cross-leaf failures share one root cause \u2014 no canonical unit-symbol convention in the specs; re-decompose the feature with that decision made."
+    }
+  ]
+}

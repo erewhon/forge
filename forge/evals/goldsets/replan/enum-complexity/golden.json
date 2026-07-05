@@ -1,0 +1,25 @@
+{
+  "actions": [
+    {
+      "kind": "respec",
+      "leaf_title": "Implement temperature conversion module with affine logic",
+      "revised": {
+        "title": "Fix affine rounding edge cases in temperature conversions",
+        "content": "Rounding drifts at half-degree boundaries because the affine result is rounded before the offset is applied. Apply offset first, round once at the presentation edge.\n\nFiles: unitconv/temperature.py, tests/test_temperature.py\n\nAcceptance criteria:\n- 36.65C -> 97.97F (no double rounding)\n- boundary table (x.5 inputs) matches the reference values\n\nTest expectations: boundary-table parametrized test in tests/test_temperature.py",
+        "feature": "Temperature Domain",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Auto-OK",
+        "complexity": "routine",
+        "estimate": "s",
+        "task_type": "bug-fix",
+        "requires_tests": true,
+        "max_files": 3,
+        "model_tier": "auto"
+      },
+      "rationale": "Under-cap failure; revised spec stays inside the strict LeafSpec vocabulary."
+    }
+  ]
+}

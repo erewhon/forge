@@ -1,0 +1,19 @@
+{
+  "wave": 2,
+  "outcomes": [
+    {
+      "leaf": "Implement temperature conversion module with affine logic",
+      "status": "failed",
+      "reason": "tests red: F->C conversion used a multiplicative factor; the affine offset was never applied. Worker committed then the leaf gate reverted."
+    }
+  ],
+  "suite": {
+    "passed": false,
+    "output_tail": "FAILED tests/test_temperature.py::test_c_to_f - assert convert(0, 'C', 'F') == 32.0 (got 0.0)\nFAILED tests/test_temperature.py::test_f_to_c - assert -40 == -40 ok; assert convert(32,'F','C') == 0.0 (got 1.78)\n2 failed, 41 passed"
+  },
+  "findings": [],
+  "raw_findings": 0,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

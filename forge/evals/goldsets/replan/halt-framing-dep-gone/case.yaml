@@ -1,0 +1,17 @@
+schema_version: 1
+step: replan
+holdout: false
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: true
+  must:
+  - kind: halt
+  allow_extra: false
+notes: "The probe leaf did its job: it falsified the framing (the API the epic migrates TO does not\
+  \ exist in 2.0). The confirmed critical finding is BAIT \u2014 a fixup would 'fix' individual symptoms\
+  \ of an impossible plan. REPLAN_SYSTEM: 'prefer halt over guessing'. Correct: halt with the reason;\
+  \ a human re-frames around the batch iterator."

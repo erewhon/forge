@@ -1,0 +1,9 @@
+{
+  "actions": [
+    {
+      "kind": "split_subtree",
+      "feature": "List Units Command",
+      "rationale": "Both leaves failed against each other's contradictory output-format assumptions; the feature needs re-decomposition, not per-leaf respecs."
+    }
+  ]
+}

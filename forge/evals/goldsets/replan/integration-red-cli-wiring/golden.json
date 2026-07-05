@@ -1,0 +1,24 @@
+{
+  "actions": [
+    {
+      "kind": "integration_fix",
+      "leaf": {
+        "title": "Reconcile temperature domain registry key between module and router",
+        "content": "The temperature module registers under 'temp' while the CLI router resolves 'temperature'. Decide the canonical key, align both sides, and add a contract test so the registry key can never silently fork again.\n\nFiles: unitconv/temperature.py, unitconv/cli/router.py, tests/test_cli.py\n\nAcceptance criteria:\n- tests/test_cli.py::test_convert_temperature passes\n- one canonical domain key asserted by a registry contract test\n\nTest expectations: add a registry contract test alongside the fixed integration test",
+        "feature": "Temperature Domain",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Manual",
+        "complexity": "novel",
+        "estimate": "s",
+        "task_type": "bug-fix",
+        "requires_tests": false,
+        "max_files": 3,
+        "model_tier": null
+      },
+      "rationale": "Suite red though both leaves individually passed \u2014 the interaction (registry key mismatch) is the defect."
+    }
+  ]
+}

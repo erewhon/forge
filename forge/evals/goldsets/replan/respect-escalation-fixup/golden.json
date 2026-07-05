@@ -1,0 +1,24 @@
+{
+  "actions": [
+    {
+      "kind": "fixup",
+      "finding_slug": "temp-cli-help-wrong-usage",
+      "leaf": {
+        "title": "Document temperature arguments in convert help output",
+        "content": "Confirmed finding: the convert subcommand's help text predates the temperature domain \u2014 usage string and examples omit it.\n\nFiles: unitconv/cli/router.py, tests/test_cli.py\n\nAcceptance criteria:\n- `unitconv convert --help` names temperature units C, F, K with one example\n- help-text assertion added so usage cannot drift silently\n\nTest expectations: help-output assertion in tests/test_cli.py",
+        "feature": "Temperature Domain",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Auto-OK",
+        "complexity": "routine",
+        "estimate": "s",
+        "task_type": "docs",
+        "requires_tests": true,
+        "max_files": 3,
+        "model_tier": "auto"
+      }
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "wave": 2,
+  "outcomes": [
+    {
+      "leaf": "Implement temperature conversion module with affine logic",
+      "status": "done",
+      "reason": ""
+    },
+    {
+      "leaf": "Extend CLI router to support temperature domain",
+      "status": "done",
+      "reason": ""
+    }
+  ],
+  "suite": {
+    "passed": false,
+    "output_tail": "FAILED tests/test_cli.py::test_convert_temperature - KeyError: 'temperature'\nthe module registers domain key 'temp' but the router looks up 'temperature'\n1 failed, 44 passed"
+  },
+  "findings": [],
+  "raw_findings": 0,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

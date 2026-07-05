@@ -1,0 +1,18 @@
+schema_version: 1
+step: replan
+holdout: true
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: true
+  must:
+  - kind: fixup
+    finding_slug: list-units-omits-temperature-domain
+  allow_extra: false
+notes: "Fixup discrimination: two findings, one confirmed (high) and one unconfirmed (low style nit).\
+  \ Correct: exactly one fixup for the confirmed slug. A second fixup for the unconfirmed nit fails\
+  \ twice \u2014 as an extra AND as a fixup-confirmed-only violation. Suite is green, all landed: no\
+  \ respec, no integration_fix, no halt."

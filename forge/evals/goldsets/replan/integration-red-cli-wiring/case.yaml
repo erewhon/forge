@@ -1,0 +1,19 @@
+schema_version: 1
+step: replan
+holdout: false
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: true
+  must:
+  - kind: integration_fix
+    leaf_execution_mode: Manual
+    leaf_complexity: novel
+  allow_extra: false
+notes: "Integration-red signature: both leaves landed and passed their OWN gates; the whole-project\
+  \ suite is red because they disagree on the registry key ('temp' vs 'temperature'). Correct: one integration_fix\
+  \ targeting the interaction, tagged novel + Manual per REPLAN_SYSTEM \u2014 never a respec (neither\
+  \ leaf is individually wrong, and both are already done)."

@@ -1,0 +1,18 @@
+schema_version: 1
+step: replan
+holdout: false
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: true
+  must:
+  - kind: split_subtree
+    feature: List Units Command
+  allow_extra: false
+notes: "Repeated failures across ONE feature whose diagnostics show the SPECS contradict each other\
+  \ (table vs JSON). Individual respecs cannot fix a cross-leaf contradiction \u2014 any respec of one\
+  \ leaf still faces the other's landed assumption. Correct: park the feature (split_subtree) so decomposition\
+  \ re-runs with the wave history. This is the judgment line between respec and split."

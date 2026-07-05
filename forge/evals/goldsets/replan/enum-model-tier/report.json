@@ -1,0 +1,19 @@
+{
+  "wave": 2,
+  "outcomes": [
+    {
+      "leaf": "Extend CLI router to support temperature domain",
+      "status": "failed",
+      "reason": "this needs the strongest available model \u2014 assign the most powerful tier, something gpt-4-class or the strongest coder, for the retry."
+    }
+  ],
+  "suite": {
+    "passed": false,
+    "output_tail": "1 leaf failed; see outcome reason"
+  },
+  "findings": [],
+  "raw_findings": 0,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

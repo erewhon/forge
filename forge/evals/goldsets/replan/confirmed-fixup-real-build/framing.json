@@ -1,0 +1,14 @@
+{
+  "goal_as_stated": "Coding pipeline build plan (design: coding-pipeline-design.md)",
+  "restated_goal": "Build and harden the meta coding pipeline; current slice: post-dry-run fix-up leaves (refs pipeline:build:fix:*)",
+  "rescoped": false,
+  "inventory_summary": "",
+  "gap_analysis": "",
+  "options": [],
+  "recommendation": "Design doc is the framing artifact; tree was hand-filed in Forge feature Coding Pipeline. Approved for orchestrator-driven fix-up waves.",
+  "value_ordering": [],
+  "risks": [],
+  "epic_slug": "build",
+  "branch": null,
+  "approved": true
+}

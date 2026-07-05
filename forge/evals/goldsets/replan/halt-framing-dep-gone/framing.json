@@ -1,0 +1,8 @@
+{
+  "goal_as_stated": "Adopt libfoo 2.0's streaming API across all three adapters",
+  "restated_goal": "Migrate the ingest, export, and relay adapters from libfoo 1.x callbacks to the 2.0 streaming API",
+  "rescoped": false,
+  "recommendation": "Adapter-by-adapter migration behind a compatibility shim; probe leaf first to validate the 2.0 streaming surface.",
+  "epic_slug": "libfoo-streaming",
+  "approved": true
+}

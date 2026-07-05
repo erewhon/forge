@@ -1,0 +1,25 @@
+{
+  "actions": [
+    {
+      "kind": "respec",
+      "leaf_title": "Add list-units CLI subcommand with domain grouping",
+      "revised": {
+        "title": "Restructure list-units wiring into a self-contained subcommand module",
+        "content": "The failure shows the subcommand tangled in the router; extract it into its own module with a narrow registration hook so the change stays small.\n\nFiles: unitconv/cli/list_units.py, unitconv/cli/router.py, tests/test_list_units.py\n\nAcceptance criteria:\n- list-units works via the extracted module (existing assertions green)\n- router diff limited to the one registration hook\n\nTest expectations: existing list-units tests keep passing; registration hook has a test",
+        "feature": "List Units Command",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Auto-OK",
+        "complexity": "routine",
+        "estimate": "m",
+        "task_type": "refactor",
+        "requires_tests": true,
+        "max_files": 3,
+        "model_tier": "auto"
+      },
+      "rationale": "Under-cap failure; revised spec stays inside the strict LeafSpec vocabulary."
+    }
+  ]
+}

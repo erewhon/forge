@@ -1,0 +1,20 @@
+schema_version: 1
+step: replan
+holdout: false
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: true
+  must:
+  - kind: respec
+    leaf_title: Extend CLI router to support temperature domain
+  - kind: fixup
+    finding_slug: temp-module-rounds-to-int
+  allow_extra: false
+notes: "Both judgment inputs at once: an under-cap failure (respec T2) AND a confirmed finding on landed\
+  \ work (fixup). The smallest converging set is exactly those two actions \u2014 dropping either leaves\
+  \ work on the floor; adding anything else is invention. Tests that the model composes actions instead\
+  \ of picking one."

@@ -1,0 +1,37 @@
+{
+  "wave": 4,
+  "outcomes": [
+    {
+      "leaf": "Add list-units CLI subcommand with domain grouping",
+      "status": "done",
+      "reason": ""
+    },
+    {
+      "leaf": "Extend CLI router to support temperature domain",
+      "status": "done",
+      "reason": ""
+    }
+  ],
+  "suite": {
+    "passed": true,
+    "output_tail": ""
+  },
+  "findings": [
+    {
+      "slug": "list-units-omits-temperature-domain",
+      "summary": "list-units groups factor-based domains but omits the temperature domain entirely \u2014 the new affine domain is not in the grouping map.",
+      "severity": "high",
+      "confirmed": true
+    },
+    {
+      "slug": "readme-wording-tone",
+      "summary": "README section for list-units reads awkwardly.",
+      "severity": "low",
+      "confirmed": false
+    }
+  ],
+  "raw_findings": 2,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

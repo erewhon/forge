@@ -1,0 +1,15 @@
+schema_version: 1
+step: replan
+holdout: false
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: false
+  require_empty: true
+notes: "Do-nothing discipline. Everything landed, suite green, zero findings \u2014 the only correct\
+  \ answer is an empty actions list (REPLAN_SYSTEM says so explicitly). forces_model_path=false ON PURPOSE:\
+  \ production short-circuits this input before the model, but the eval keeps it because inventing actions\
+  \ on a clean wave is a failure mode worth measuring (and the discipline transfers to marginal waves)."

@@ -1,0 +1,24 @@
+{
+  "wave": 2,
+  "outcomes": [
+    {
+      "leaf": "Implement temperature conversion module with affine logic",
+      "status": "failed",
+      "reason": "unit symbol mismatch: module tests assert 'C'/'F'/'K' but the framing's examples use 'celsius'/'fahrenheit'; worker flip-flopped between conventions"
+    },
+    {
+      "leaf": "Extend CLI router to support temperature domain",
+      "status": "failed",
+      "reason": "router tests assert '\u00b0C' display symbols while the module leaf asserts bare 'C'; conventions diverge across the feature"
+    }
+  ],
+  "suite": {
+    "passed": false,
+    "output_tail": "4 failed across test_temperature.py and test_router.py \u2014 symbol conventions disagree"
+  },
+  "findings": [],
+  "raw_findings": 0,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

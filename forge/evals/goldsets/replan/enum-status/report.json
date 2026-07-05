@@ -1,0 +1,19 @@
+{
+  "wave": 2,
+  "outcomes": [
+    {
+      "leaf": "Add list-units CLI subcommand with domain grouping",
+      "status": "failed",
+      "reason": "cannot proceed until the router leaf's interface stabilizes \u2014 this work is blocked pending that leaf; mark it blocked until the dependency lands."
+    }
+  ],
+  "suite": {
+    "passed": false,
+    "output_tail": "1 leaf failed; see outcome reason"
+  },
+  "findings": [],
+  "raw_findings": 0,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

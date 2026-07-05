@@ -1,0 +1,17 @@
+schema_version: 1
+step: replan
+holdout: true
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: true
+  must:
+  - kind: halt
+  allow_extra: false
+notes: 'Green-suite halt: nothing failed, but the discovery leaf proved the epic''s value premise is
+  already delivered (functools.cache upstream). A fixup for the confirmed finding would ADD redundant
+  work; the honest action is halt so a human closes or re-frames the epic. Tests that halt is reachable
+  without a red suite.'

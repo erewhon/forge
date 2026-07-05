@@ -1,0 +1,24 @@
+{
+  "actions": [
+    {
+      "kind": "fixup",
+      "finding_slug": "list-units-omits-temperature-domain",
+      "leaf": {
+        "title": "Include temperature domain in list-units grouping",
+        "content": "The confirmed wave finding: list-units builds its grouping from the factor-based domain table only, so the affine temperature domain never appears.\n\nFiles: unitconv/cli/list_units.py, tests/test_list_units.py\n\nAcceptance criteria:\n- `unitconv list-units` output includes a 'temperature' group listing C, F, K\n- factor-based groups unchanged\n\nTest expectations: extend tests/test_list_units.py with a temperature-group assertion",
+        "feature": "List Units Command",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Auto-OK",
+        "complexity": "routine",
+        "estimate": "s",
+        "task_type": "bug-fix",
+        "requires_tests": true,
+        "max_files": 3,
+        "model_tier": "auto"
+      }
+    }
+  ]
+}

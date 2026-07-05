@@ -1,0 +1,8 @@
+{
+  "goal_as_stated": "Add a caching layer to the unitconv CLI",
+  "restated_goal": "Memoize repeated conversion lookups in the unitconv CLI hot path",
+  "rescoped": false,
+  "recommendation": "Discovery leaf first (profile + locate the hot path), then a memoization layer over the conversion table.",
+  "epic_slug": "unitconv-cache",
+  "approved": true
+}

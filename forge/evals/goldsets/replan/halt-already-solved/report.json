@@ -1,0 +1,26 @@
+{
+  "wave": 1,
+  "outcomes": [
+    {
+      "leaf": "Profile conversion hot path and locate lookup entry points",
+      "status": "done",
+      "reason": ""
+    }
+  ],
+  "suite": {
+    "passed": true,
+    "output_tail": ""
+  },
+  "findings": [
+    {
+      "slug": "unitconv-already-memoizes-core",
+      "summary": "Profiling shows unitconv/core.py already memoizes conversion lookups via functools.cache (added upstream); the benchmark shows zero repeated-lookup cost. The epic duplicates existing behavior.",
+      "severity": "critical",
+      "confirmed": true
+    }
+  ],
+  "raw_findings": 1,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

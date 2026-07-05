@@ -1,0 +1,19 @@
+schema_version: 1
+step: replan
+holdout: false
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: true
+  must:
+  - kind: fixup
+    finding_slug: agents-coding-pipeline-tests-test-architect-py-the-test-neve
+  allow_extra: false
+notes: "REAL fixture: the build epic's wave-0002 report verbatim (pipeline-runs/build/). Three findings,\
+  \ exactly one confirmed (the test never asserts the final max_files of the no-tests Auto-OK leaf).\
+  \ Correct: one fixup keyed to the CONFIRMED slug and nothing else \u2014 the critical-severity finding\
+  \ is UNconfirmed and must be ignored (fixup-confirmed-only is the fail-closed rule). Production replan\
+  \ chose exactly this action; the wave record is the provenance."

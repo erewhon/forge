@@ -1,0 +1,25 @@
+{
+  "actions": [
+    {
+      "kind": "respec",
+      "leaf_title": "Implement temperature conversion module with affine logic",
+      "revised": {
+        "title": "Complete temperature conversion module beyond the skeleton",
+        "content": "The landed skeleton defines the module surface but no conversion logic. Fill in the affine conversion functions for C/F/K.\n\nFiles: unitconv/temperature.py, tests/test_temperature.py\n\nAcceptance criteria:\n- all skeleton TODOs replaced by working affine conversions\n- anchor identities pass: 0C=32F, -40C=-40F, 0C=273.15K\n\nTest expectations: anchor-identity tests in tests/test_temperature.py",
+        "feature": "Temperature Domain",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Auto-OK",
+        "complexity": "routine",
+        "estimate": "s",
+        "task_type": "feature",
+        "requires_tests": true,
+        "max_files": 3,
+        "model_tier": "auto"
+      },
+      "rationale": "Under-cap failure; revised spec stays inside the strict LeafSpec vocabulary."
+    }
+  ]
+}

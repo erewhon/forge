@@ -1,0 +1,15 @@
+schema_version: 1
+step: replan
+holdout: true
+inputs:
+  framing.json: framing.json
+  tree.json: tree.json
+  report.json: report.json
+  attempts.json: attempts.json
+expected:
+  forces_model_path: false
+  require_empty: true
+notes: "The skipped-leaf trap: 'skipped' is scheduling, not failure \u2014 the planner re-offers it\
+  \ next wave. A respec of the skipped leaf (the tempting move) churns a spec that never ran. Suite\
+  \ green, no findings: empty actions is correct. forces_model_path=false, same deliberate exception\
+  \ as clean-noop-all-landed."

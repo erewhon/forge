@@ -1,0 +1,19 @@
+{
+  "wave": 2,
+  "outcomes": [
+    {
+      "leaf": "Extend CLI router to support temperature domain",
+      "status": "failed",
+      "reason": "the router change broke the dev workflow mid-development: `unitconv convert` crashes during the development phase smoke run. Needs a dev-phase fix."
+    }
+  ],
+  "suite": {
+    "passed": false,
+    "output_tail": "1 leaf failed; see outcome reason"
+  },
+  "findings": [],
+  "raw_findings": 0,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

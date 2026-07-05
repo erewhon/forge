@@ -1,0 +1,26 @@
+{
+  "wave": 1,
+  "outcomes": [
+    {
+      "leaf": "Probe libfoo 2.0 streaming API against the ingest fixture",
+      "status": "done",
+      "reason": ""
+    }
+  ],
+  "suite": {
+    "passed": false,
+    "output_tail": "FAILED tests/test_ingest.py - AttributeError: module 'libfoo' has no attribute 'stream'\nlibfoo 2.0 CHANGELOG: 'the streaming API was removed; use the batch iterator instead'\n5 failed"
+  },
+  "findings": [
+    {
+      "slug": "libfoo-2-removed-streaming-api",
+      "summary": "libfoo 2.0 removed the streaming API entirely (CHANGELOG confirms); the epic's core assumption \u2014 migrate adapters TO streaming \u2014 is impossible.",
+      "severity": "critical",
+      "confirmed": true
+    }
+  ],
+  "raw_findings": 1,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

@@ -1,0 +1,31 @@
+{
+  "wave": 3,
+  "outcomes": [
+    {
+      "leaf": "Implement temperature conversion module with affine logic",
+      "status": "done",
+      "reason": ""
+    },
+    {
+      "leaf": "Extend CLI router to support temperature domain",
+      "status": "failed",
+      "reason": "router unit tests red: the unknown-domain error message assertion expects the old wording; leaf changed the message without updating its own tests"
+    }
+  ],
+  "suite": {
+    "passed": false,
+    "output_tail": "FAILED tests/test_router.py::test_unknown_domain_message\n1 failed, 43 passed"
+  },
+  "findings": [
+    {
+      "slug": "temp-module-rounds-to-int",
+      "summary": "temperature module rounds converted values to int, silently losing fractional degrees on every conversion.",
+      "severity": "high",
+      "confirmed": true
+    }
+  ],
+  "raw_findings": 1,
+  "consolidation_ok": true,
+  "dropped_covered": [],
+  "diff_stat": ""
+}

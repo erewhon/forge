@@ -1,0 +1,8 @@
+{
+  "actions": [
+    {
+      "kind": "halt",
+      "reason": "The discovery leaf shows conversion lookups are already memoized upstream (functools.cache in unitconv/core.py) with zero repeated-lookup cost on the benchmark \u2014 the epic's remaining leaves duplicate existing behavior. Needs human re-framing or closure."
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "actions": [
+    {
+      "kind": "respec",
+      "leaf_title": "Extend CLI router to support temperature domain",
+      "revised": {
+        "title": "Extend CLI router for temperature with message assertions updated",
+        "content": "Previous attempt changed the unknown-domain error wording but left the old assertion in its own test. Route the temperature domain AND update the message assertions atomically.\n\nFiles: unitconv/cli/router.py, tests/test_router.py\n\nAcceptance criteria:\n- temperature routes to the affine module\n- tests/test_router.py::test_unknown_domain_message passes with the new wording\n\nTest expectations: router tests updated in the same diff as the message change",
+        "feature": "Temperature Domain",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Auto-OK",
+        "complexity": "routine",
+        "estimate": "s",
+        "task_type": "bug-fix",
+        "requires_tests": true,
+        "max_files": 3,
+        "model_tier": "auto"
+      },
+      "rationale": "The failure is self-inflicted test drift; respec pins message + assertion to one diff."
+    },
+    {
+      "kind": "fixup",
+      "finding_slug": "temp-module-rounds-to-int",
+      "leaf": {
+        "title": "Preserve fractional degrees in temperature conversions",
+        "content": "Confirmed finding: conversions round to int, losing fractional degrees. Return floats end-to-end; format only at the CLI edge.\n\nFiles: unitconv/temperature.py, tests/test_temperature.py\n\nAcceptance criteria:\n- convert(37.5,'C','F') == 99.5 exactly\n- CLI prints one decimal place by default\n\nTest expectations: anchor tests for fractional inputs in tests/test_temperature.py",
+        "feature": "Temperature Domain",
+        "depends_on": [],
+        "priority": 3,
+        "phase": "Bugfix",
+        "status": "Ready",
+        "execution_mode": "Auto-OK",
+        "complexity": "routine",
+        "estimate": "s",
+        "task_type": "bug-fix",
+        "requires_tests": true,
+        "max_files": 3,
+        "model_tier": "auto"
+      }
+    }
+  ]
+}
