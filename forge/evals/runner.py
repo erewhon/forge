@@ -1,0 +1,174 @@
+"""Scorecard runner — model id → load gold sets → render prompts → call model → grade → aggregate.
+
+CRITICAL DESIGN RULE: call ``Pool.run`` with NO ``validate`` callback.
+``panel.structured`` retries schema-invalid output until the pool yields a
+valid payload — for production that is resilience, for an eval it is grade
+laundering. Transport retries stay; validity is graded from the first returned
+text of each repeat.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from collections.abc import Callable
+from datetime import UTC, datetime
+from pathlib import Path
+
+from agents.evals.config import settings
+from agents.evals.fixtures import load_goldsets
+from agents.evals.graders.decomposition import grade_boundedness, grade_decompose
+from agents.evals.graders.replan import grade as grade_replan
+from agents.evals.graders.review import grade_confirm, grade_findings
+from agents.evals.graders.testgap import grade_find, grade_skeptic
+from agents.evals.models import (
+    CaseScore,
+    GoldCase,
+    GradeResult,
+    Scorecard,
+    StepScore,
+)
+from agents.evals.steps import ADAPTERS, PromptSpec
+from agents.shared.ensemble import ApiExecutor, Executor, Pool, Prompt
+
+# ---------------------------------------------------------------------------
+# Grader registry: 7 step keys → grading functions
+# ---------------------------------------------------------------------------
+
+GRADERS: dict[str, Callable[[GoldCase, str], GradeResult]] = {
+    "replan": grade_replan,
+    "decompose": grade_decompose,
+    "boundedness": grade_boundedness,
+    "review-findings": grade_findings,
+    "review-confirm": grade_confirm,
+    "testgap-find": grade_find,
+    "testgap-skeptic": grade_skeptic,
+}
+
+
+def _build_executor(
+    model: str,
+    *,
+    base_url: str | None = None,
+    api_key: str | None = None,
+) -> ApiExecutor:
+    """Build a single ApiExecutor for the given model."""
+    return ApiExecutor(
+        label=f"evals:{model}",
+        kind="openai",
+        model=model,
+        base_url=base_url or settings.openai_base_url,
+        api_key=api_key or settings.openai_api_key,
+    )
+
+
+def run_scorecard(
+    model: str,
+    *,
+    steps: list[str] | None = None,
+    goldsets_root: Path | None = None,
+    repeats: int | None = None,
+    temperature: float | None = None,
+    executor_factory: Callable[[], Executor] | None = None,
+) -> Scorecard:
+    """Run a scorecard for *model* across all gold cases.
+
+    Parameters
+    ----------
+    model:
+        Model identifier used to build the executor.
+    steps:
+        If given, only run cases whose step is in this list.
+    goldsets_root:
+        Override the goldsets directory. Defaults to ``settings.goldsets_dir``.
+    repeats:
+        Number of repeats per case. Defaults to ``settings.repeats``.
+    temperature:
+        Pin temperature for determinism. Defaults to ``settings.temperature``.
+    executor_factory:
+        Test seam: return an ``Executor`` instead of building a live one.
+
+    Returns
+    -------
+    Scorecard
+        Aggregated results with per-step breakdowns.
+    """
+    goldsets_root = goldsets_root or settings.goldsets_dir
+    repeats = repeats if repeats is not None else settings.repeats
+    temp = temperature if temperature is not None else settings.temperature
+
+    # Load gold cases, optionally filtered by step
+    all_cases = load_goldsets(goldsets_root)
+    if steps:
+        all_cases = [c for c in all_cases if c.step in steps]
+
+    # Build pool: single executor, no validation callback
+    if executor_factory is not None:
+        executor = executor_factory()
+    else:
+        executor = _build_executor(model)
+
+    pool = Pool(role=f"evals:{model}", executors=[executor])
+
+    timeout = settings.timeout
+
+    # Run each case x repeats
+    step_scores: dict[str, StepScore] = {}
+
+    for case in all_cases:
+        adapter = ADAPTERS[case.step]
+        spec: PromptSpec = adapter.build(case)
+
+        repeats_list: list[GradeResult] = []
+        for _ in range(repeats):
+            prompt = Prompt(
+                system=spec.system,
+                user=spec.user,
+                max_tokens=settings.max_tokens,
+                temperature=temp,
+            )
+            # CRITICAL: NO validate callback — evals must grade every attempt
+            # as-is, not retry on schema failure.
+            result = asyncio.run(pool.run(prompt, timeout=timeout, validate=None))
+            raw_output = result.output
+
+            if result.status.value == "ok":
+                grader = GRADERS.get(case.step)
+                if grader is None:
+                    grade_result = GradeResult(
+                        case_id=case.case_id,
+                        step=case.step,  # type: ignore[arg-type]
+                        passed=False,
+                        score=0.0,
+                        error=f"no grader for step {case.step}",
+                    )
+                else:
+                    grade_result = grader(case, raw_output)
+            else:
+                # Transport failure: record error GradeResult
+                grade_result = GradeResult(
+                    case_id=case.case_id,
+                    step=case.step,  # type: ignore[arg-type]
+                    passed=False,
+                    score=0.0,
+                    error=result.error or f"transport failed: {result.status.value}",
+                )
+
+            repeats_list.append(grade_result)
+
+        # Aggregate into StepScore
+        if case.step not in step_scores:
+            step_scores[case.step] = StepScore(step=case.step)
+        step_scores[case.step].cases.append(
+            CaseScore(
+                case_id=case.case_id,
+                holdout=case.holdout,
+                repeats=repeats_list,
+            )
+        )
+
+    # Assemble Scorecard
+    return Scorecard(
+        model=model,
+        timestamp=datetime.now(UTC).isoformat(),
+        steps=list(step_scores.values()),
+    )
