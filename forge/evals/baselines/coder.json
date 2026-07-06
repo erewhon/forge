@@ -1,0 +1,5486 @@
+{
+  "model": "coder",
+  "timestamp": "2026-07-06T00:23:13.067161+00:00",
+  "steps": [
+    {
+      "step": "boundedness",
+      "cases": [
+        {
+          "case_id": "docs-single-file",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "docs-single-file",
+              "step": "boundedness",
+              "passed": false,
+              "score": 0.5,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": false,
+                  "detail": "expected=True, actual=False"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "docs-single-file",
+              "step": "boundedness",
+              "passed": false,
+              "score": 0.5,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": false,
+                  "detail": "expected=True, actual=False"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "docs-single-file",
+              "step": "boundedness",
+              "passed": false,
+              "score": 0.5,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": false,
+                  "detail": "expected=True, actual=False"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "real-stores-leaf",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "real-stores-leaf",
+              "step": "boundedness",
+              "passed": false,
+              "score": 0.5,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": false,
+                  "detail": "expected=True, actual=False"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-stores-leaf",
+              "step": "boundedness",
+              "passed": false,
+              "score": 0.5,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": false,
+                  "detail": "expected=True, actual=False"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-stores-leaf",
+              "step": "boundedness",
+              "passed": false,
+              "score": 0.5,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": false,
+                  "detail": "expected=True, actual=False"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "real-scaffold-leaf",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "real-scaffold-leaf",
+              "step": "boundedness",
+              "passed": false,
+              "score": 0.5,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": false,
+                  "detail": "expected=True, actual=False"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-scaffold-leaf",
+              "step": "boundedness",
+              "passed": false,
+              "score": 0.5,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": false,
+                  "detail": "expected=True, actual=False"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-scaffold-leaf",
+              "step": "boundedness",
+              "passed": false,
+              "score": 0.5,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": false,
+                  "detail": "expected=True, actual=False"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "real-temp-module-leaf",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "real-temp-module-leaf",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=True, actual=True"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-temp-module-leaf",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=True, actual=True"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-temp-module-leaf",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=True, actual=True"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "trap-crosscutting-refactor",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "trap-crosscutting-refactor",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.bounded_diff",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.single_concern",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "trap-crosscutting-refactor",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.bounded_diff",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.single_concern",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "trap-crosscutting-refactor",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.bounded_diff",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.single_concern",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "two-concerns-named-files",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "two-concerns-named-files",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.single_concern",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.files_named",
+                  "passed": true,
+                  "detail": "expected=True, actual=True"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "two-concerns-named-files",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.single_concern",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.files_named",
+                  "passed": true,
+                  "detail": "expected=True, actual=True"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "two-concerns-named-files",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.single_concern",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.files_named",
+                  "passed": true,
+                  "detail": "expected=True, actual=True"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "umbrella-all-tests",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "umbrella-all-tests",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.bounded_diff",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.files_named",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.testable_acceptance",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "umbrella-all-tests",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.bounded_diff",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.files_named",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.testable_acceptance",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "umbrella-all-tests",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.bounded_diff",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.files_named",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.testable_acceptance",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "umbrella-backend",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "umbrella-backend",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.single_concern",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.bounded_diff",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.small_estimate",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.files_named",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "umbrella-backend",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.single_concern",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.bounded_diff",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.small_estimate",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.files_named",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "umbrella-backend",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.single_concern",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.bounded_diff",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.small_estimate",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.files_named",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "vague-acceptance",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "vague-acceptance",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.testable_acceptance",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "vague-acceptance",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.testable_acceptance",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "vague-acceptance",
+              "step": "boundedness",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "boundedness-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "worker_shaped",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                },
+                {
+                  "name": "criteria.testable_acceptance",
+                  "passed": true,
+                  "detail": "expected=False, actual=False"
+                }
+              ],
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "decompose",
+      "cases": [
+        {
+          "case_id": "distill-evals",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "distill-evals",
+              "step": "decompose",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-tree",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "deps-resolve",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "files-named",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "estimates-bounded",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "auto-floors",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-min-leaves",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-max-leaves",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-oracle-boundary",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-evals-package",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-runner",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-runner-depends-on-plumbing",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-no-umbrella",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "distill-evals",
+              "step": "decompose",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-tree",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "deps-resolve",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "files-named",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "estimates-bounded",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "auto-floors",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-min-leaves",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-max-leaves",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-oracle-boundary",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-evals-package",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-runner",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-runner-depends-on-plumbing",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-no-umbrella",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "distill-evals",
+              "step": "decompose",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-tree",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "deps-resolve",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "files-named",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "estimates-bounded",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "auto-floors",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-min-leaves",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-max-leaves",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-oracle-boundary",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-evals-package",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-runner",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-runner-depends-on-plumbing",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-no-umbrella",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "consumer-proof",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "consumer-proof",
+              "step": "decompose",
+              "passed": false,
+              "score": 0.8182,
+              "checks": [
+                {
+                  "name": "valid-tree",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "deps-resolve",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "files-named",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "estimates-bounded",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "auto-floors",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-min-leaves",
+                  "passed": false,
+                  "detail": ""
+                },
+                {
+                  "name": "r-max-leaves",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-graphstore",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-slice-test",
+                  "passed": false,
+                  "detail": ""
+                },
+                {
+                  "name": "r-routes-depend-on-store",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-no-umbrella",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "consumer-proof",
+              "step": "decompose",
+              "passed": false,
+              "score": 0.8182,
+              "checks": [
+                {
+                  "name": "valid-tree",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "deps-resolve",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "files-named",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "estimates-bounded",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "auto-floors",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-min-leaves",
+                  "passed": false,
+                  "detail": ""
+                },
+                {
+                  "name": "r-max-leaves",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-graphstore",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-slice-test",
+                  "passed": false,
+                  "detail": ""
+                },
+                {
+                  "name": "r-routes-depend-on-store",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-no-umbrella",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "consumer-proof",
+              "step": "decompose",
+              "passed": false,
+              "score": 0.8182,
+              "checks": [
+                {
+                  "name": "valid-tree",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "deps-resolve",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "files-named",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "estimates-bounded",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "auto-floors",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-min-leaves",
+                  "passed": false,
+                  "detail": ""
+                },
+                {
+                  "name": "r-max-leaves",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-graphstore",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-slice-test",
+                  "passed": false,
+                  "detail": ""
+                },
+                {
+                  "name": "r-routes-depend-on-store",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-no-umbrella",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "smoke-tempconv",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "smoke-tempconv",
+              "step": "decompose",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-tree",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "deps-resolve",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "files-named",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "estimates-bounded",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "auto-floors",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-min-leaves",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-max-leaves",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-affine-module",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-listunits",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-router-depends-on-module",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-no-umbrella",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "smoke-tempconv",
+              "step": "decompose",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-tree",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "deps-resolve",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "files-named",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "estimates-bounded",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "auto-floors",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-min-leaves",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-max-leaves",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-affine-module",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-listunits",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-router-depends-on-module",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-no-umbrella",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "smoke-tempconv",
+              "step": "decompose",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-tree",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "deps-resolve",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "files-named",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "estimates-bounded",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "auto-floors",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-min-leaves",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-max-leaves",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-affine-module",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-listunits",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-router-depends-on-module",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "r-no-umbrella",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "replan",
+      "cases": [
+        {
+          "case_id": "clean-noop-all-landed",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "clean-noop-all-landed",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "clean-noop-all-landed",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "clean-noop-all-landed",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "clean-noop-skipped-leaf",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "clean-noop-skipped-leaf",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "clean-noop-skipped-leaf",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "clean-noop-skipped-leaf",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "confirmed-fixup-real-build",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "confirmed-fixup-real-build",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "confirmed-fixup-real-build",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "confirmed-fixup-real-build",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "confirmed-fixup-tempconv",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "confirmed-fixup-tempconv",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "confirmed-fixup-tempconv",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "confirmed-fixup-tempconv",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "enum-complexity",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "enum-complexity",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "enum-complexity",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "enum-complexity",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "enum-estimate",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "enum-estimate",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "enum-estimate",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "enum-estimate",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "enum-model-tier",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "enum-model-tier",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "enum-model-tier",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "enum-model-tier",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "enum-phase",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "enum-phase",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "enum-phase",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "enum-phase",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "enum-status",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "enum-status",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "enum-status",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "enum-status",
+              "step": "replan",
+              "passed": false,
+              "score": 0.0,
+              "checks": [],
+              "error": "timed out after 240s"
+            }
+          ]
+        },
+        {
+          "case_id": "enum-task-type",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "enum-task-type",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "enum-task-type",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "enum-task-type",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "halt-already-solved",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "halt-already-solved",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "halt-already-solved",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "halt-already-solved",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "halt-framing-dep-gone",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "halt-framing-dep-gone",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "halt-framing-dep-gone",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "halt-framing-dep-gone",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "integration-red-cli-wiring",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "integration-red-cli-wiring",
+              "step": "replan",
+              "passed": false,
+              "score": 0.6667,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": false,
+                  "detail": "unmatched must entries: kind=integration_fix"
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": false,
+                  "detail": "1 unmatched action(s) with allow_extra=false"
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "integration-red-cli-wiring",
+              "step": "replan",
+              "passed": false,
+              "score": 0.6667,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": false,
+                  "detail": "unmatched must entries: kind=integration_fix"
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": false,
+                  "detail": "1 unmatched action(s) with allow_extra=false"
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "integration-red-cli-wiring",
+              "step": "replan",
+              "passed": false,
+              "score": 0.6667,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": false,
+                  "detail": "unmatched must entries: kind=integration_fix"
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": false,
+                  "detail": "1 unmatched action(s) with allow_extra=false"
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "integration-red-import-cycle",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "integration-red-import-cycle",
+              "step": "replan",
+              "passed": false,
+              "score": 0.6667,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": false,
+                  "detail": "unmatched must entries: kind=integration_fix"
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": false,
+                  "detail": "1 unmatched action(s) with allow_extra=false"
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "integration-red-import-cycle",
+              "step": "replan",
+              "passed": false,
+              "score": 0.6667,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": false,
+                  "detail": "unmatched must entries: kind=integration_fix"
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": false,
+                  "detail": "1 unmatched action(s) with allow_extra=false"
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "integration-red-import-cycle",
+              "step": "replan",
+              "passed": false,
+              "score": 0.6667,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": false,
+                  "detail": "unmatched must entries: kind=integration_fix"
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": false,
+                  "detail": "1 unmatched action(s) with allow_extra=false"
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "mixed-respec-and-fixup",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "mixed-respec-and-fixup",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "mixed-respec-and-fixup",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "mixed-respec-and-fixup",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "respect-escalation-fixup",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "respect-escalation-fixup",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "respect-escalation-fixup",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "respect-escalation-fixup",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "respect-escalation-mixed",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "respect-escalation-mixed",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "respect-escalation-mixed",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "respect-escalation-mixed",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "split-subtree-listunits",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "split-subtree-listunits",
+              "step": "replan",
+              "passed": false,
+              "score": 0.6667,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": false,
+                  "detail": "unmatched must entries: kind=split_subtree"
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": false,
+                  "detail": "2 unmatched action(s) with allow_extra=false"
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "split-subtree-listunits",
+              "step": "replan",
+              "passed": false,
+              "score": 0.6667,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": false,
+                  "detail": "unmatched must entries: kind=split_subtree"
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": false,
+                  "detail": "2 unmatched action(s) with allow_extra=false"
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "split-subtree-listunits",
+              "step": "replan",
+              "passed": false,
+              "score": 0.6667,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": false,
+                  "detail": "unmatched must entries: kind=split_subtree"
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": false,
+                  "detail": "2 unmatched action(s) with allow_extra=false"
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "split-subtree-temp-conventions",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "split-subtree-temp-conventions",
+              "step": "replan",
+              "passed": false,
+              "score": 0.6667,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": false,
+                  "detail": "unmatched must entries: kind=split_subtree"
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": false,
+                  "detail": "2 unmatched action(s) with allow_extra=false"
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "split-subtree-temp-conventions",
+              "step": "replan",
+              "passed": false,
+              "score": 0.6667,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": false,
+                  "detail": "unmatched must entries: kind=split_subtree"
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": false,
+                  "detail": "2 unmatched action(s) with allow_extra=false"
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "split-subtree-temp-conventions",
+              "step": "replan",
+              "passed": false,
+              "score": 0.6667,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": false,
+                  "detail": "unmatched must entries: kind=split_subtree"
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": false,
+                  "detail": "2 unmatched action(s) with allow_extra=false"
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "under-cap-respec-affine",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "under-cap-respec-affine",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "under-cap-respec-affine",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "under-cap-respec-affine",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "under-cap-respec-scope",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "under-cap-respec-scope",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "under-cap-respec-scope",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "under-cap-respec-scope",
+              "step": "replan",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "valid-envelope",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "must-actions",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-forbidden",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "fixup-confirmed-only",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "no-extras",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "leaf-floors",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "review-confirm",
+      "cases": [
+        {
+          "case_id": "decoy-preexisting-retry",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "decoy-preexisting-retry",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, reason=The diff introduces a feature to pass temperature to LLM providers. The finding claims a lack of retry backoff jitter causes thundering herd issues. The diff contains no changes related to retry logic, backoff strategies, or jitter. Therefore, the diff does not demonstrate or fix the alleged problem; it is unrelated to the finding."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "decoy-preexisting-retry",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, reason=The diff introduces a feature to pass temperature to LLM providers. The finding claims a lack of retry backoff jitter causes thundering herd issues. The diff contains no changes related to retry logic, backoff strategies, or jitter. Therefore, the diff does not demonstrate or fix the alleged problem; it is unrelated to the finding."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "decoy-preexisting-retry",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, reason=The diff introduces a feature to pass temperature to LLM providers. The finding claims a lack of retry backoff jitter causes thundering herd issues. The diff contains no changes related to retry logic, backoff strategies, or jitter. Therefore, the diff does not demonstrate or fix the alleged problem; it is unrelated to the finding."
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "decoy-style-nit-readme",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "decoy-style-nit-readme",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, reason=The finding claims inconsistent backtick usage in `agents/evals/README.md`. However, the provided diff shows that `agents/evals/README.md` is a new file being added to the repository. The diff does not show any changes to this file (as it didn't exist before), nor does it show the content of the file in a way that allows verifying the claim of inconsistency within the context of the change. The finding refers to the state of the new file itself, which is not a change introduced by the diff but rather a property of the new content. Since the diff only adds the file and doesn't modify an existing one to create inconsistency, and the claim is about the aesthetic quality of the new file's content (which is pre-existing in the new file), it is not a real finding caused by the diff."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "decoy-style-nit-readme",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, reason=The finding claims inconsistent backtick usage in `agents/evals/README.md`. However, the provided diff shows that `agents/evals/README.md` is a new file being added to the repository. The diff does not show any changes to this file (as it didn't exist before), nor does it show the content of the file in a way that allows verifying the claim of inconsistency within the context of the change. The finding refers to the state of the new file itself, which is not a change introduced by the diff but rather a property of the new content. Since the diff only adds the file and doesn't modify an existing one to create inconsistency, and the claim is about the aesthetic quality of the new file's content (which is pre-existing in the new file), it is not a real finding caused by the diff."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "decoy-style-nit-readme",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, reason=The finding claims inconsistent backtick usage in `agents/evals/README.md`. However, the provided diff shows that `agents/evals/README.md` is a new file being added to the repository. The diff does not show any changes to this file (as it didn't exist before), nor does it show the content of the file in a way that allows verifying the claim of inconsistency within the context of the change. The finding refers to the state of the new file itself, which is not a change introduced by the diff but rather a property of the new content. Since the diff only adds the file and doesn't modify an existing one to create inconsistency, and the claim is about the aesthetic quality of the new file's content (which is pre-existing in the new file), it is not a real finding caused by the diff."
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "real-baseline-shared-file",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "real-baseline-shared-file",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=True, actual real=True, reason=The diff clearly shows that `BASELINE_FILE` is defined as `BASELINES_DIR / '.json'` at the module level, without incorporating the `model` argument. Since the `baseline` and `compare` commands accept a `--model` argument but do not use it to modify the file path, running baselines for different models will indeed overwrite the same single `.json` file, causing data corruption and incorrect comparisons. This is a functional bug requiring code changes to fix."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-baseline-shared-file",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=True, actual real=True, reason=The diff clearly shows that `BASELINE_FILE` is defined as `BASELINES_DIR / '.json'` at the module level, without incorporating the `model` argument. Since the `baseline` and `compare` commands accept a `--model` argument but do not use it to modify the file path, running baselines for different models will indeed overwrite the same single `.json` file, causing data corruption and incorrect comparisons. This is a functional bug requiring code changes to fix."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-baseline-shared-file",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=True, actual real=True, reason=The diff clearly shows that `BASELINE_FILE` is defined as `BASELINES_DIR / '.json'` at the module level, without incorporating the `model` argument. Since the `baseline` and `compare` commands accept a `--model` argument but do not use it to modify the file path, running baselines for different models will indeed overwrite the same single `.json` file, causing data corruption and incorrect comparisons. This is a functional bug requiring code changes to fix."
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "real-decoy-fixup-confirmed",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "real-decoy-fixup-confirmed",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, reason=The diff introduces a new file `replan.py` which is the implementation of the grader itself. The finding claims a logic error in the `fixup-confirmed-only` check where it ignores `report.json` when findings exist but none are confirmed. However, the code in `_check_fixup_confirmed_only` correctly loads `report.json`, iterates through findings, and checks if `action.finding_slug` is in the set of confirmed slugs. If there are findings but none are confirmed, `confirmed_slugs` will be empty, and any fixup action will correctly fail the check (violation appended). The logic handles this case correctly. The finding appears to be a misunderstanding of the code's behavior or a pre-existing issue in test data/logic not visible in this new file creation diff. Since the diff shows the code being added and the logic appears sound for the described scenario, it is not a real bug introduced by this diff."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-decoy-fixup-confirmed",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, reason=The diff introduces a new file `replan.py` which is the implementation of the grader itself. The finding claims a logic error in the `fixup-confirmed-only` check where it ignores `report.json` when findings exist but none are confirmed. However, the code in `_check_fixup_confirmed_only` correctly loads `report.json`, iterates through findings, and checks if `action.finding_slug` is in the set of confirmed slugs. If there are findings but none are confirmed, `confirmed_slugs` will be empty, and any fixup action will correctly fail the check (violation appended). The logic handles this case correctly. The finding appears to be a misunderstanding of the code's behavior or a pre-existing issue in test data/logic not visible in this new file creation diff. Since the diff shows the code being added and the logic appears sound for the described scenario, it is not a real bug introduced by this diff."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-decoy-fixup-confirmed",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, reason=The diff introduces a new file `replan.py` which is the implementation of the grader itself. The finding claims a logic error in the `fixup-confirmed-only` check where it ignores `report.json` when findings exist but none are confirmed. However, the code in `_check_fixup_confirmed_only` correctly loads `report.json`, iterates through findings, and checks if `action.finding_slug` is in the set of confirmed slugs. If there are findings but none are confirmed, `confirmed_slugs` will be empty, and any fixup action will correctly fail the check (violation appended). The logic handles this case correctly. The finding appears to be a misunderstanding of the code's behavior or a pre-existing issue in test data/logic not visible in this new file creation diff. Since the diff shows the code being added and the logic appears sound for the described scenario, it is not a real bug introduced by this diff."
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "real-decoy-infinite-recursion",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "real-decoy-infinite-recursion",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, reason=The finding claims infinite recursion in `_check_deps_resolve` due to a missing base case in `_validate_deps`. However, the provided diff shows that `_check_deps_resolve` simply calls `_validate_deps` from an external module (`agents.coding_pipeline.architect`) and catches exceptions. The diff does not contain the implementation of `_validate_deps`, nor does it show any recursive logic within `_check_deps_resolve` itself. Without seeing the implementation of `_validate_deps`, we cannot confirm the existence of infinite recursion. Furthermore, the function `_check_deps_resolve` is not recursive; it is a single-pass check. The claim of 'missing base case' implies a recursive function, but the code shown is iterative/exception-based. Therefore, the finding is not supported by the diff."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-decoy-infinite-recursion",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, reason=The finding claims infinite recursion in `_check_deps_resolve` due to a missing base case in `_validate_deps`. However, the provided diff shows that `_check_deps_resolve` simply calls `_validate_deps` from an external module (`agents.coding_pipeline.architect`) and catches exceptions. The diff does not contain the implementation of `_validate_deps`, nor does it show any recursive logic within `_check_deps_resolve` itself. Without seeing the implementation of `_validate_deps`, we cannot confirm the existence of infinite recursion. Furthermore, the function `_check_deps_resolve` is not recursive; it is a single-pass check. The claim of 'missing base case' implies a recursive function, but the code shown is iterative/exception-based. Therefore, the finding is not supported by the diff."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-decoy-infinite-recursion",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, reason=The finding claims infinite recursion in `_check_deps_resolve` due to a missing base case in `_validate_deps`. However, the provided diff shows that `_check_deps_resolve` simply calls `_validate_deps` from an external module (`agents.coding_pipeline.architect`) and catches exceptions. The diff does not contain the implementation of `_validate_deps`, nor does it show any recursive logic within `_check_deps_resolve` itself. Without seeing the implementation of `_validate_deps`, we cannot confirm the existence of infinite recursion. Furthermore, the function `_check_deps_resolve` is not recursive; it is a single-pass check. The claim of 'missing base case' implies a recursive function, but the code shown is iterative/exception-based. Therefore, the finding is not supported by the diff."
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "real-decoy-missing-aggregation",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "real-decoy-missing-aggregation",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, reason=The diff shows the implementation of `run_scorecard` which returns a `Scorecard` object. The finding claims that `render_scorecard` fails due to missing aggregation logic for `overall_pass_rate` and `holdout_pass_rate`. However, the diff only contains the runner logic that populates `Scorecard` with `steps` (a list of `StepScore` objects). It does not contain `render_scorecard` nor does it show any logic attempting to calculate or render `overall_pass_rate` or `holdout_pass_rate`. The `Scorecard` dataclass likely expects these fields, but the runner is not currently calculating them. This is a missing feature or incomplete implementation in the runner, not a bug in `render_scorecard` itself. The finding attributes the failure to `render_scorecard`, but the root cause is the runner not providing the necessary aggregated data. Since the diff doesn't show `render_scorecard` failing, but rather the runner not producing the expected data structure for it, and the finding claims a specific function fails, this is likely a pre-existing issue or a design gap rather than a 'real' bug in the sense of a regression or clear error in the provided code snippet. More importantly, the finding says 'runner.py does not calculate pass rates, causing render_scorecard to fail'. If `render_scorecard` is not in the diff, we can't judge its failure. If `Scorecard` requires these fields and they are missing, the `Scorecard` constructor might fail, or `render_scorecard` might fail. But the diff shows `Scorecard` being instantiated with `steps`. If `Scorecard` has optional fields for pass rates, it won't fail. If they are required, the instantiation would fail. The diff shows successful instantiation. Therefore, the finding that it 'causes render_scorecard to fail' is not supported by the diff which shows the object being created. It's a missing feature, not a bug in the existing logic."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-decoy-missing-aggregation",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, reason=The diff shows the implementation of `run_scorecard` which returns a `Scorecard` object. The finding claims that `render_scorecard` fails due to missing aggregation logic for `overall_pass_rate` and `holdout_pass_rate`. However, the diff only contains the runner logic that populates `Scorecard` with `steps` (a list of `StepScore` objects). It does not contain `render_scorecard` nor does it show any logic attempting to calculate or render `overall_pass_rate` or `holdout_pass_rate`. The `Scorecard` dataclass likely expects these fields, but the runner is not currently calculating them. This is a missing feature or incomplete implementation in the runner, not a bug in `render_scorecard` itself. The finding attributes the failure to `render_scorecard`, but the root cause is the runner not providing the necessary aggregated data. Since the diff doesn't show `render_scorecard` failing, but rather the runner not producing the expected data structure for it, and the finding claims a specific function fails, this is likely a pre-existing issue or a design gap rather than a 'real' bug in the sense of a regression or clear error in the provided code snippet. More importantly, the finding says 'runner.py does not calculate pass rates, causing render_scorecard to fail'. If `render_scorecard` is not in the diff, we can't judge its failure. If `Scorecard` requires these fields and they are missing, the `Scorecard` constructor might fail, or `render_scorecard` might fail. But the diff shows `Scorecard` being instantiated with `steps`. If `Scorecard` has optional fields for pass rates, it won't fail. If they are required, the instantiation would fail. The diff shows successful instantiation. Therefore, the finding that it 'causes render_scorecard to fail' is not supported by the diff which shows the object being created. It's a missing feature, not a bug in the existing logic."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-decoy-missing-aggregation",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, reason=The diff shows the implementation of `run_scorecard` which returns a `Scorecard` object. The finding claims that `render_scorecard` fails due to missing aggregation logic for `overall_pass_rate` and `holdout_pass_rate`. However, the diff only contains the runner logic that populates `Scorecard` with `steps` (a list of `StepScore` objects). It does not contain `render_scorecard` nor does it show any logic attempting to calculate or render `overall_pass_rate` or `holdout_pass_rate`. The `Scorecard` dataclass likely expects these fields, but the runner is not currently calculating them. This is a missing feature or incomplete implementation in the runner, not a bug in `render_scorecard` itself. The finding attributes the failure to `render_scorecard`, but the root cause is the runner not providing the necessary aggregated data. Since the diff doesn't show `render_scorecard` failing, but rather the runner not producing the expected data structure for it, and the finding claims a specific function fails, this is likely a pre-existing issue or a design gap rather than a 'real' bug in the sense of a regression or clear error in the provided code snippet. More importantly, the finding says 'runner.py does not calculate pass rates, causing render_scorecard to fail'. If `render_scorecard` is not in the diff, we can't judge its failure. If `Scorecard` requires these fields and they are missing, the `Scorecard` constructor might fail, or `render_scorecard` might fail. But the diff shows `Scorecard` being instantiated with `steps`. If `Scorecard` has optional fields for pass rates, it won't fail. If they are required, the instantiation would fail. The diff shows successful instantiation. Therefore, the finding that it 'causes render_scorecard to fail' is not supported by the diff which shows the object being created. It's a missing feature, not a bug in the existing logic."
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "real-loader-collapse",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "real-loader-collapse",
+              "step": "review-confirm",
+              "passed": false,
+              "score": 0.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": false,
+                  "detail": "expected real=True, actual real=False, reason=The diff shows that `load_goldsets` iterates over directories within the `root` (goldsets) directory. The finding claims that `case_id` is set to the step name, implying a one-to-one mapping where a step directory holds only one case. However, the code sets `case_id = dir_name` where `dir_name` is the name of the directory being iterated over (`case_dir`). The function iterates over *all* subdirectories in `root`. If the layout is `<step>/<case-id>/`, then `root` would be the parent of steps, or the function signature `load_goldsets(root, step)` suggests `root` is the goldsets directory and `step` is a filter. Looking closely at the code: `for case_dir in sorted(root.iterdir()):`. If the layout is `<step>/<case-id>/`, then `root` should be the directory containing step directories. The code treats each `case_dir` (which is a step directory) as a single case. It does NOT look inside `case_dir` for further subdirectories (case IDs). It reads `case.yaml` directly from `case_dir`. Therefore, the code indeed treats each step directory as one case. The finding states: 'it reads case.yaml directly under goldsets/<step>/ and sets case_id to the step name'. This matches the code. The finding also states: 'so a step can never hold more than one case'. This is true based on the code structure. The finding claims the documented `<step>/<case-id>/` layout is unreachable. If the documentation says cases are nested like `goldsets/step1/case1/case.yaml`, the code fails to find them because it looks for `case.yaml` in `goldsets/step1/`. Thus, the finding accurately describes a bug where the implementation does not support the documented nested layout. However, the prompt asks to judge if the finding is 'real' meaning it costs real work to fix. The finding identifies a discrepancy between code and documentation/design. Is it a 'pre-existing issue'? The file is new (`new file mode`). This is the initial implementation. The finding critiques the design of this new file. If the documentation exists and contradicts this new code, it's a real bug. If the documentation doesn't exist or is being written alongside, it's a design choice. The finding references 'documented <step>/<case-id>/ layout'. Assuming such documentation exists, the code violates it. This is a real defect. Wait, let's re-read the finding carefully. 'load_goldsets treats each step directory as one case... sets case_id to the step name'. Code: `case_id = dir_name`. `dir_name` is the name of the directory inside `root`. If `root` is `goldsets`, and layout is `goldsets/step1/case1/`, then `root.iterdir()` yields `step1`. `dir_name` is `step1`. `case_id` becomes `step1`. The code does not descend into `step1` to find `case1`. It treats `step1` as the case. So yes, it treats the step directory as the case. The finding is accurate. Is it a 'real' finding? Yes, it describes a functional limitation/bug relative to the expected layout. It requires changing the logic to recurse or handle nested structures. This is real work."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-loader-collapse",
+              "step": "review-confirm",
+              "passed": false,
+              "score": 0.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": false,
+                  "detail": "expected real=True, actual real=False, reason=The diff shows that `load_goldsets` iterates over directories within the `root` (goldsets) directory. The finding claims that `case_id` is set to the step name, implying a one-to-one mapping where a step directory holds only one case. However, the code sets `case_id = dir_name` where `dir_name` is the name of the directory being iterated over (`case_dir`). The function iterates over *all* subdirectories in `root`. If the layout is `<step>/<case-id>/`, then `root` would be the parent of steps, or the function signature `load_goldsets(root, step)` suggests `root` is the goldsets directory and `step` is a filter. Looking closely at the code: `for case_dir in sorted(root.iterdir()):`. If the layout is `<step>/<case-id>/`, then `root` should be the directory containing step directories. The code treats each `case_dir` (which is a step directory) as a single case. It does NOT look inside `case_dir` for further subdirectories (case IDs). It reads `case.yaml` directly from `case_dir`. Therefore, the code indeed treats each step directory as one case. The finding states: 'it reads case.yaml directly under goldsets/<step>/ and sets case_id to the step name'. This matches the code. The finding also states: 'so a step can never hold more than one case'. This is true based on the code structure. The finding claims the documented `<step>/<case-id>/` layout is unreachable. If the documentation says cases are nested like `goldsets/step1/case1/case.yaml`, the code fails to find them because it looks for `case.yaml` in `goldsets/step1/`. Thus, the finding accurately describes a bug where the implementation does not support the documented nested layout. However, the prompt asks to judge if the finding is 'real' meaning it costs real work to fix. The finding identifies a discrepancy between code and documentation/design. Is it a 'pre-existing issue'? The file is new (`new file mode`). This is the initial implementation. The finding critiques the design of this new file. If the documentation exists and contradicts this new code, it's a real bug. If the documentation doesn't exist or is being written alongside, it's a design choice. The finding references 'documented <step>/<case-id>/ layout'. Assuming such documentation exists, the code violates it. This is a real defect. Wait, let's re-read the finding carefully. 'load_goldsets treats each step directory as one case... sets case_id to the step name'. Code: `case_id = dir_name`. `dir_name` is the name of the directory inside `root`. If `root` is `goldsets`, and layout is `goldsets/step1/case1/`, then `root.iterdir()` yields `step1`. `dir_name` is `step1`. `case_id` becomes `step1`. The code does not descend into `step1` to find `case1`. It treats `step1` as the case. So yes, it treats the step directory as the case. The finding is accurate. Is it a 'real' finding? Yes, it describes a functional limitation/bug relative to the expected layout. It requires changing the logic to recurse or handle nested structures. This is real work."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-loader-collapse",
+              "step": "review-confirm",
+              "passed": false,
+              "score": 0.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": false,
+                  "detail": "expected real=True, actual real=False, reason=The diff shows that `load_goldsets` iterates over directories within the `root` (goldsets) directory. The finding claims that `case_id` is set to the step name, implying a one-to-one mapping where a step directory holds only one case. However, the code sets `case_id = dir_name` where `dir_name` is the name of the directory being iterated over (`case_dir`). The function iterates over *all* subdirectories in `root`. If the layout is `<step>/<case-id>/`, then `root` would be the parent of steps, or the function signature `load_goldsets(root, step)` suggests `root` is the goldsets directory and `step` is a filter. Looking closely at the code: `for case_dir in sorted(root.iterdir()):`. If the layout is `<step>/<case-id>/`, then `root` should be the directory containing step directories. The code treats each `case_dir` (which is a step directory) as a single case. It does NOT look inside `case_dir` for further subdirectories (case IDs). It reads `case.yaml` directly from `case_dir`. Therefore, the code indeed treats each step directory as one case. The finding states: 'it reads case.yaml directly under goldsets/<step>/ and sets case_id to the step name'. This matches the code. The finding also states: 'so a step can never hold more than one case'. This is true based on the code structure. The finding claims the documented `<step>/<case-id>/` layout is unreachable. If the documentation says cases are nested like `goldsets/step1/case1/case.yaml`, the code fails to find them because it looks for `case.yaml` in `goldsets/step1/`. Thus, the finding accurately describes a bug where the implementation does not support the documented nested layout. However, the prompt asks to judge if the finding is 'real' meaning it costs real work to fix. The finding identifies a discrepancy between code and documentation/design. Is it a 'pre-existing issue'? The file is new (`new file mode`). This is the initial implementation. The finding critiques the design of this new file. If the documentation exists and contradicts this new code, it's a real bug. If the documentation doesn't exist or is being written alongside, it's a design choice. The finding references 'documented <step>/<case-id>/ layout'. Assuming such documentation exists, the code violates it. This is a real defect. Wait, let's re-read the finding carefully. 'load_goldsets treats each step directory as one case... sets case_id to the step name'. Code: `case_id = dir_name`. `dir_name` is the name of the directory inside `root`. If `root` is `goldsets`, and layout is `goldsets/step1/case1/`, then `root.iterdir()` yields `step1`. `dir_name` is `step1`. `case_id` becomes `step1`. The code does not descend into `step1` to find `case1`. It treats `step1` as the case. So yes, it treats the step directory as the case. The finding is accurate. Is it a 'real' finding? Yes, it describes a functional limitation/bug relative to the expected layout. It requires changing the logic to recurse or handle nested structures. This is real work."
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "real-typo-goldets",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "real-typo-goldets",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=True, actual real=True, reason=The diff introduces a new file `agents/evals/README.md` which documents the configuration variable as `EVALS_GOLDETS_DIR` (missing 'S'). This is a clear typo in the documentation/config definition itself. Since this is a new file being added in the diff, the typo is introduced by this change, creating a disconnect between the documented variable name and the likely intended name (`EVALS_GOLDSETS_DIR`) or any actual code implementation. This constitutes a real finding as it requires work to correct the documentation or code to ensure consistency."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-typo-goldets",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=True, actual real=True, reason=The diff introduces a new file `agents/evals/README.md` which documents the configuration variable as `EVALS_GOLDETS_DIR` (missing 'S'). This is a clear typo in the documentation/config definition itself. Since this is a new file being added in the diff, the typo is introduced by this change, creating a disconnect between the documented variable name and the likely intended name (`EVALS_GOLDSETS_DIR`) or any actual code implementation. This constitutes a real finding as it requires work to correct the documentation or code to ensure consistency."
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-typo-goldets",
+              "step": "review-confirm",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "confirm-verdict",
+                  "passed": true,
+                  "detail": "expected real=True, actual real=True, reason=The diff introduces a new file `agents/evals/README.md` which documents the configuration variable as `EVALS_GOLDETS_DIR` (missing 'S'). This is a clear typo in the documentation/config definition itself. Since this is a new file being added in the diff, the typo is introduced by this change, creating a disconnect between the documented variable name and the likely intended name (`EVALS_GOLDSETS_DIR`) or any actual code implementation. This constitutes a real finding as it requires work to correct the documentation or code to ensure consistency."
+                }
+              ],
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "review-findings",
+      "cases": [
+        {
+          "case_id": "clean-diff-temperature",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "clean-diff-temperature",
+              "step": "review-findings",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "finder-valid",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "candidate-recall",
+                  "passed": true,
+                  "detail": "finder: no reference findings (recall = 1.0) >= 0.7?"
+                },
+                {
+                  "name": "confirmed-recall",
+                  "passed": true,
+                  "detail": "shipped: no reference findings (recall = 1.0) >= 0.7?"
+                },
+                {
+                  "name": "confirmed-precision",
+                  "passed": true,
+                  "detail": "shipped: no candidates and no references (precision = 1.0) >= 1.0?"
+                },
+                {
+                  "name": "max-findings",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "severity-legal",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "clean-diff-temperature",
+              "step": "review-findings",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "finder-valid",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "candidate-recall",
+                  "passed": true,
+                  "detail": "finder: no reference findings (recall = 1.0) >= 0.7?"
+                },
+                {
+                  "name": "confirmed-recall",
+                  "passed": true,
+                  "detail": "shipped: no reference findings (recall = 1.0) >= 0.7?"
+                },
+                {
+                  "name": "confirmed-precision",
+                  "passed": true,
+                  "detail": "shipped: no candidates and no references (precision = 1.0) >= 1.0?"
+                },
+                {
+                  "name": "max-findings",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "severity-legal",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "clean-diff-temperature",
+              "step": "review-findings",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "finder-valid",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "candidate-recall",
+                  "passed": true,
+                  "detail": "finder: no reference findings (recall = 1.0) >= 0.7?"
+                },
+                {
+                  "name": "confirmed-recall",
+                  "passed": true,
+                  "detail": "shipped: no reference findings (recall = 1.0) >= 0.7?"
+                },
+                {
+                  "name": "confirmed-precision",
+                  "passed": true,
+                  "detail": "shipped: no candidates and no references (precision = 1.0) >= 1.0?"
+                },
+                {
+                  "name": "max-findings",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "severity-legal",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "real-evals-plumbing-batch",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "real-evals-plumbing-batch",
+              "step": "review-findings",
+              "passed": false,
+              "score": 0.0,
+              "checks": [
+                {
+                  "name": "finder-valid",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "candidate-recall",
+                  "passed": false,
+                  "detail": "finder: matched 0/4 references (recall = 0.00) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-recall",
+                  "passed": false,
+                  "detail": "shipped: matched 0/4 references (recall = 0.00) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-precision",
+                  "passed": false,
+                  "detail": "shipped: matched 0/2 candidates (precision = 0.00) >= 0.4?"
+                },
+                {
+                  "name": "max-findings",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "severity-legal",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-evals-plumbing-batch",
+              "step": "review-findings",
+              "passed": false,
+              "score": 0.0,
+              "checks": [
+                {
+                  "name": "finder-valid",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "candidate-recall",
+                  "passed": false,
+                  "detail": "finder: matched 0/4 references (recall = 0.00) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-recall",
+                  "passed": false,
+                  "detail": "shipped: matched 0/4 references (recall = 0.00) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-precision",
+                  "passed": false,
+                  "detail": "shipped: matched 0/2 candidates (precision = 0.00) >= 0.4?"
+                },
+                {
+                  "name": "max-findings",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "severity-legal",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-evals-plumbing-batch",
+              "step": "review-findings",
+              "passed": false,
+              "score": 0.0,
+              "checks": [
+                {
+                  "name": "finder-valid",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "candidate-recall",
+                  "passed": false,
+                  "detail": "finder: matched 0/4 references (recall = 0.00) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-recall",
+                  "passed": false,
+                  "detail": "shipped: matched 0/4 references (recall = 0.00) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-precision",
+                  "passed": false,
+                  "detail": "shipped: matched 0/2 candidates (precision = 0.00) >= 0.4?"
+                },
+                {
+                  "name": "max-findings",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "severity-legal",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "seeded-inversion-tempconv",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "seeded-inversion-tempconv",
+              "step": "review-findings",
+              "passed": true,
+              "score": 0.5,
+              "checks": [
+                {
+                  "name": "finder-valid",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "candidate-recall",
+                  "passed": true,
+                  "detail": "finder: matched 1/2 references (recall = 0.50) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-recall",
+                  "passed": true,
+                  "detail": "shipped: matched 1/2 references (recall = 0.50) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-precision",
+                  "passed": true,
+                  "detail": "shipped: matched 1/2 candidates (precision = 0.50) >= 0.5?"
+                },
+                {
+                  "name": "max-findings",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "severity-legal",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "seeded-inversion-tempconv",
+              "step": "review-findings",
+              "passed": true,
+              "score": 0.5,
+              "checks": [
+                {
+                  "name": "finder-valid",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "candidate-recall",
+                  "passed": true,
+                  "detail": "finder: matched 1/2 references (recall = 0.50) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-recall",
+                  "passed": true,
+                  "detail": "shipped: matched 1/2 references (recall = 0.50) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-precision",
+                  "passed": true,
+                  "detail": "shipped: matched 1/2 candidates (precision = 0.50) >= 0.5?"
+                },
+                {
+                  "name": "max-findings",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "severity-legal",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "seeded-inversion-tempconv",
+              "step": "review-findings",
+              "passed": true,
+              "score": 0.5,
+              "checks": [
+                {
+                  "name": "finder-valid",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "candidate-recall",
+                  "passed": true,
+                  "detail": "finder: matched 1/2 references (recall = 0.50) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-recall",
+                  "passed": true,
+                  "detail": "shipped: matched 1/2 references (recall = 0.50) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-precision",
+                  "passed": true,
+                  "detail": "shipped: matched 1/2 candidates (precision = 0.50) >= 0.5?"
+                },
+                {
+                  "name": "max-findings",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "severity-legal",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "seeded-swallowed-error",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "seeded-swallowed-error",
+              "step": "review-findings",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "finder-valid",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "candidate-recall",
+                  "passed": true,
+                  "detail": "finder: matched 2/2 references (recall = 1.00) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-recall",
+                  "passed": true,
+                  "detail": "shipped: matched 2/2 references (recall = 1.00) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-precision",
+                  "passed": true,
+                  "detail": "shipped: matched 2/2 candidates (precision = 1.00) >= 0.5?"
+                },
+                {
+                  "name": "max-findings",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "severity-legal",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "seeded-swallowed-error",
+              "step": "review-findings",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "finder-valid",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "candidate-recall",
+                  "passed": true,
+                  "detail": "finder: matched 2/2 references (recall = 1.00) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-recall",
+                  "passed": true,
+                  "detail": "shipped: matched 2/2 references (recall = 1.00) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-precision",
+                  "passed": true,
+                  "detail": "shipped: matched 2/2 candidates (precision = 1.00) >= 0.5?"
+                },
+                {
+                  "name": "max-findings",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "severity-legal",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "seeded-swallowed-error",
+              "step": "review-findings",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "finder-valid",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "candidate-recall",
+                  "passed": true,
+                  "detail": "finder: matched 2/2 references (recall = 1.00) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-recall",
+                  "passed": true,
+                  "detail": "shipped: matched 2/2 references (recall = 1.00) >= 0.5?"
+                },
+                {
+                  "name": "confirmed-precision",
+                  "passed": true,
+                  "detail": "shipped: matched 2/2 candidates (precision = 1.00) >= 0.5?"
+                },
+                {
+                  "name": "max-findings",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "severity-legal",
+                  "passed": true,
+                  "detail": ""
+                }
+              ],
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "testgap-find",
+      "cases": [
+        {
+          "case_id": "ordering-cache",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "ordering-cache",
+              "step": "testgap-find",
+              "passed": false,
+              "score": 0.6667,
+              "checks": [
+                {
+                  "name": "find-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "recall",
+                  "passed": true,
+                  "detail": "matched 2/2 must_find (recall = 1.00) >= 0.5?"
+                },
+                {
+                  "name": "cry-wolf",
+                  "passed": true,
+                  "detail": "0 high/critical severity gaps matching nothing <= 1?"
+                },
+                {
+                  "name": "severity-order",
+                  "passed": false,
+                  "detail": "concordant=0, discordant=1 (order = 0.00) >= 0.6?"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "ordering-cache",
+              "step": "testgap-find",
+              "passed": false,
+              "score": 0.6667,
+              "checks": [
+                {
+                  "name": "find-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "recall",
+                  "passed": true,
+                  "detail": "matched 2/2 must_find (recall = 1.00) >= 0.5?"
+                },
+                {
+                  "name": "cry-wolf",
+                  "passed": true,
+                  "detail": "0 high/critical severity gaps matching nothing <= 1?"
+                },
+                {
+                  "name": "severity-order",
+                  "passed": false,
+                  "detail": "concordant=0, discordant=1 (order = 0.00) >= 0.6?"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "ordering-cache",
+              "step": "testgap-find",
+              "passed": false,
+              "score": 0.6667,
+              "checks": [
+                {
+                  "name": "find-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "recall",
+                  "passed": true,
+                  "detail": "matched 2/2 must_find (recall = 1.00) >= 0.5?"
+                },
+                {
+                  "name": "cry-wolf",
+                  "passed": true,
+                  "detail": "0 high/critical severity gaps matching nothing <= 1?"
+                },
+                {
+                  "name": "severity-order",
+                  "passed": false,
+                  "detail": "concordant=0, discordant=1 (order = 0.00) >= 0.6?"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "retry-wrapper",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "retry-wrapper",
+              "step": "testgap-find",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "find-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "recall",
+                  "passed": true,
+                  "detail": "matched 2/2 must_find (recall = 1.00) >= 0.5?"
+                },
+                {
+                  "name": "cry-wolf",
+                  "passed": true,
+                  "detail": "0 high/critical severity gaps matching nothing <= 1?"
+                },
+                {
+                  "name": "severity-order",
+                  "passed": true,
+                  "detail": "concordant=1, discordant=0 (order = 1.00) >= 0.6?"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "retry-wrapper",
+              "step": "testgap-find",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "find-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "recall",
+                  "passed": true,
+                  "detail": "matched 2/2 must_find (recall = 1.00) >= 0.5?"
+                },
+                {
+                  "name": "cry-wolf",
+                  "passed": true,
+                  "detail": "0 high/critical severity gaps matching nothing <= 1?"
+                },
+                {
+                  "name": "severity-order",
+                  "passed": true,
+                  "detail": "concordant=1, discordant=0 (order = 1.00) >= 0.6?"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "retry-wrapper",
+              "step": "testgap-find",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "find-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "recall",
+                  "passed": true,
+                  "detail": "matched 2/2 must_find (recall = 1.00) >= 0.5?"
+                },
+                {
+                  "name": "cry-wolf",
+                  "passed": true,
+                  "detail": "0 high/critical severity gaps matching nothing <= 1?"
+                },
+                {
+                  "name": "severity-order",
+                  "passed": true,
+                  "detail": "concordant=1, discordant=0 (order = 1.00) >= 0.6?"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "slug-parser",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "slug-parser",
+              "step": "testgap-find",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "find-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "recall",
+                  "passed": true,
+                  "detail": "matched 3/3 must_find (recall = 1.00) >= 0.6?"
+                },
+                {
+                  "name": "cry-wolf",
+                  "passed": true,
+                  "detail": "1 high/critical severity gaps matching nothing <= 1?"
+                },
+                {
+                  "name": "severity-order",
+                  "passed": true,
+                  "detail": "no comparable pairs after filtering ties, skip-pass >= 0.6?"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "slug-parser",
+              "step": "testgap-find",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "find-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "recall",
+                  "passed": true,
+                  "detail": "matched 3/3 must_find (recall = 1.00) >= 0.6?"
+                },
+                {
+                  "name": "cry-wolf",
+                  "passed": true,
+                  "detail": "1 high/critical severity gaps matching nothing <= 1?"
+                },
+                {
+                  "name": "severity-order",
+                  "passed": true,
+                  "detail": "no comparable pairs after filtering ties, skip-pass >= 0.6?"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "slug-parser",
+              "step": "testgap-find",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "find-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "recall",
+                  "passed": true,
+                  "detail": "matched 3/3 must_find (recall = 1.00) >= 0.6?"
+                },
+                {
+                  "name": "cry-wolf",
+                  "passed": true,
+                  "detail": "1 high/critical severity gaps matching nothing <= 1?"
+                },
+                {
+                  "name": "severity-order",
+                  "passed": true,
+                  "detail": "no comparable pairs after filtering ties, skip-pass >= 0.6?"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "thorough-tests",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "thorough-tests",
+              "step": "testgap-find",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "find-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "recall",
+                  "passed": true,
+                  "detail": "no must_find references (recall = 1.0) >= 0.0?"
+                },
+                {
+                  "name": "cry-wolf",
+                  "passed": true,
+                  "detail": "0 high/critical severity gaps matching nothing <= 0?"
+                },
+                {
+                  "name": "severity-order",
+                  "passed": true,
+                  "detail": "< 2 comparable matched pairs (0), skip-pass >= 0.6?"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "thorough-tests",
+              "step": "testgap-find",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "find-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "recall",
+                  "passed": true,
+                  "detail": "no must_find references (recall = 1.0) >= 0.0?"
+                },
+                {
+                  "name": "cry-wolf",
+                  "passed": true,
+                  "detail": "0 high/critical severity gaps matching nothing <= 0?"
+                },
+                {
+                  "name": "severity-order",
+                  "passed": true,
+                  "detail": "< 2 comparable matched pairs (0), skip-pass >= 0.6?"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "thorough-tests",
+              "step": "testgap-find",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "find-parse",
+                  "passed": true,
+                  "detail": ""
+                },
+                {
+                  "name": "recall",
+                  "passed": true,
+                  "detail": "no must_find references (recall = 1.0) >= 0.0?"
+                },
+                {
+                  "name": "cry-wolf",
+                  "passed": true,
+                  "detail": "0 high/critical severity gaps matching nothing <= 0?"
+                },
+                {
+                  "name": "severity-order",
+                  "passed": true,
+                  "detail": "< 2 comparable matched pairs (0), skip-pass >= 0.6?"
+                }
+              ],
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "testgap-skeptic",
+      "cases": [
+        {
+          "case_id": "covered-clamp-below-min",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "covered-clamp-below-min",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, confidence=high, severity=low"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "covered-clamp-below-min",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, confidence=high, severity=low"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "covered-clamp-below-min",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, confidence=high, severity=low"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "flaky-timing-assertion",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "flaky-timing-assertion",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, confidence=high, severity=low"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "flaky-timing-assertion",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, confidence=high, severity=low"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "flaky-timing-assertion",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, confidence=high, severity=low"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "real-empty-string-uncovered",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "real-empty-string-uncovered",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=True, actual real=True, confidence=high, severity=low"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-empty-string-uncovered",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=True, actual real=True, confidence=high, severity=low"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-empty-string-uncovered",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=True, actual real=True, confidence=high, severity=low"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "real-exhaustion-uncovered",
+          "holdout": false,
+          "repeats": [
+            {
+              "case_id": "real-exhaustion-uncovered",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=True, actual real=True, confidence=high, severity=high"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-exhaustion-uncovered",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=True, actual real=True, confidence=high, severity=high"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-exhaustion-uncovered",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=True, actual real=True, confidence=high, severity=high"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "real-prune-iteration",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "real-prune-iteration",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=True, actual real=True, confidence=high, severity=high"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-prune-iteration",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=True, actual real=True, confidence=high, severity=high"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "real-prune-iteration",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=True, actual real=True, confidence=high, severity=high"
+                }
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "case_id": "vacuous-returns-what-fn-returns",
+          "holdout": true,
+          "repeats": [
+            {
+              "case_id": "vacuous-returns-what-fn-returns",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, confidence=high, severity=low"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "vacuous-returns-what-fn-returns",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, confidence=high, severity=low"
+                }
+              ],
+              "error": null
+            },
+            {
+              "case_id": "vacuous-returns-what-fn-returns",
+              "step": "testgap-skeptic",
+              "passed": true,
+              "score": 1.0,
+              "checks": [
+                {
+                  "name": "skeptic-verdict",
+                  "passed": true,
+                  "detail": "expected real=False, actual real=False, confidence=high, severity=low"
+                }
+              ],
+              "error": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "notes": "Frozen baseline for the distill-evals epic (captured 2026-07-06 UTC). Router: localhost:4010; the 'coder' alias resolved to openai/Qwen/Qwen3.6-35B-A3B-FP8 served from hypatia.local:5391 (deploy/litellm/config.yaml in llm-router). repeats=3, temperature=0.0, 55 cases across 7 steps; 1 transport-error repeat total (replan/enum-status, 1 of 3). Grading regime: production-floored leaf tags (_apply_conservative_tags before shape checks); review-findings graded through the full finder->confirm funnel (shipped set). Known judgment gaps at freeze: replan defect-level location (integration_fix/split_subtree never chosen), boundedness over-skepticism on real worker-shaped positives, finder recall 0/4 on the real f559315d bug batch, confirm skeptic rejects the loader-collapse finding, testgap severity ordering inverted on ordering-cache."
+}
