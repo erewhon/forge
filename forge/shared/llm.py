@@ -68,18 +68,28 @@ def complete(
 
 
 def extract_json(text: str) -> dict:
-    """Extract JSON from an LLM response, tolerating markdown code fences."""
-    code_match = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
-    if code_match:
-        text = code_match.group(1).strip()
+    """Extract JSON from an LLM response, tolerating markdown code fences.
 
+    Plain valid JSON is tried FIRST: a ``` sequence inside a JSON string value
+    (markdown content in a payload field, e.g. a LeafSpec spec with a fenced
+    example) must not trigger fence stripping — the old fence-first order
+    mangled such responses and discarded perfectly valid payloads."""
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        brace_match = re.search(r"\{.*\}", text, re.DOTALL)
-        if brace_match:
-            try:
-                return json.loads(brace_match.group(0))
-            except json.JSONDecodeError:
-                pass
+        pass
+
+    code_match = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
+    if code_match:
+        try:
+            return json.loads(code_match.group(1).strip())
+        except json.JSONDecodeError:
+            pass
+
+    brace_match = re.search(r"\{.*\}", text, re.DOTALL)
+    if brace_match:
+        try:
+            return json.loads(brace_match.group(0))
+        except json.JSONDecodeError:
+            pass
     return {}
