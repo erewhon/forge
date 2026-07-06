@@ -92,7 +92,12 @@ async def _run_member_panel(
         role = f"panel:{member.label or member.executor.label}"
         pool = Pool(role=role, executors=[member.executor])
         prompt = Prompt(system=member.system, user=user, max_tokens=max_tokens)
-        return await pool.run(prompt, timeout=timeout)
+        # Parse failure is retryable, same as structured(): a member that answers with prose
+        # gets one more try before it costs the panel a seat. (extract_json returns a falsy {}
+        # on a miss, never None.)
+        return await pool.run(
+            prompt, timeout=timeout, validate=lambda text: bool(extract_json(text))
+        )
 
     results = await asyncio.gather(*(_one(m) for m in members))
     responses: list[dict] = []
@@ -101,7 +106,10 @@ async def _run_member_panel(
     for member, result in zip(members, results):
         label = member.label or result.executor
         if not result.ok:
-            failures.append((label, result.error or "no response"))
+            reason = result.error or "no response"
+            if reason == "output failed validation":  # Pool's demotion label for a parse miss
+                reason = "responded but returned no parseable JSON (retried)"
+            failures.append((label, reason))
             continue
         data = extract_json(result.output)
         if data:  # transport-ok but unparseable JSON is dropped, like a failed member

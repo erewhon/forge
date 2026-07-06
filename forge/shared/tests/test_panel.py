@@ -63,6 +63,26 @@ def test_drops_unparseable_and_errored_members():
     assert not res.quorum_met  # only 1 usable < floor 2
 
 
+def test_parse_miss_is_retried_before_costing_the_seat():
+    class FlakyExec:
+        """Prose on the first call, valid JSON on the second — a stochastic parse miss."""
+
+        def __init__(self) -> None:
+            self.label = "flaky"
+            self.calls = 0
+
+        async def run(self, prompt: Prompt, *, timeout: float) -> ExecResult:
+            self.calls += 1
+            out = "sure! here's my verdict:" if self.calls == 1 else _j({"x": 7})
+            return ExecResult(executor=self.label, status=ExecStatus.OK, output=out)
+
+    flaky = FlakyExec()
+    res = run_panel(executors=[flaky], system="s", user="u", floor=1)
+    assert flaky.calls == 2
+    assert res.responses == [{"x": 7}]  # the retry saved the seat
+    assert res.failures == []
+
+
 def test_dropped_members_are_recorded_as_failures_with_reasons():
     execs = [
         FakeExec("a", output=_j({"x": 1})),

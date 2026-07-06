@@ -31,7 +31,10 @@ coding pipeline. The diff is the epic's ENTIRE accumulated change set; per-leaf 
 per-wave reviews already ran. Approve for handoff to a human merger ONLY if ALL hold:
 - The changes are correct and coherent as a whole — the pieces fit together, no half-migrations,
   no contradictory edits between leaves.
-- The work matches the stated epic framing (provided as context), not some drifted goal.
+- The work matches the approved epic framing (provided as context), not some drifted goal. The
+  framing's value ordering is the build sequence WITHIN this epic — the diff is the finished
+  epic, so later ordering items being present is completed scope, not drift. Drift means work
+  the framing never asked for.
 - No surprising dependency-manifest or lockfile changes (new dependencies need human eyes).
 - Tests accompany the behavior they claim to cover and do not weaken existing coverage.
 
@@ -58,7 +61,10 @@ reaches you). Per-leaf tests and per-wave reviews already ran. Approve for hando
 merger ONLY if ALL hold:
 - The slices are coherent as a whole — the pieces fit together, no half-migrations, no
   contradictory edits between slices.
-- The work matches the stated epic framing (provided as context), not some drifted goal.
+- The work matches the approved epic framing (provided as context), not some drifted goal. The
+  framing's value ordering is the build sequence WITHIN this epic — the diff is the finished
+  epic, so later ordering items being present is completed scope, not drift. Drift means work
+  the framing never asked for.
 - No slice reports dependency-manifest or lockfile changes (new dependencies need human eyes).
 - No slice reports deleted or weakened test coverage.
 - No slice reports a red flag the other slices don't resolve.
@@ -163,6 +169,25 @@ def _default_seats() -> list[SignoffSeat]:
     ]
 
 
+def _gate_context(framing: FramingProposal) -> str:
+    """The framing context every gate seat judges scope against. The restated goal alone is not
+    enough: distill-evals' goal line emphasized the first vertical slice while the recommendation
+    and value ordering carried the full approved scope, and the gate blocked the rest as drift.
+    Pass everything the human approved about WHAT to build; inventory/options stay out."""
+    lines = [
+        "Epic framing (approved by a human) — judge scope against ALL of it, not the goal alone:",
+        f"Goal: {framing.restated_goal}",
+        f"Approved recommendation: {framing.recommendation}",
+    ]
+    if framing.value_ordering:
+        lines.append(
+            "Approved value ordering — the build sequence within this epic; ALL items are in "
+            "scope and expected to be present in the finished diff:"
+        )
+        lines.extend(f"  {i}. {v}" for i, v in enumerate(framing.value_ordering, 1))
+    return "\n".join(lines)
+
+
 def _map_reduce_gate(
     diff: str, epic_slug: str, framing: FramingProposal, seats: list[SignoffSeat]
 ) -> SignoffResult:
@@ -228,7 +253,7 @@ def _map_reduce_gate(
         seats=seats,
         system=EPIC_REDUCE_SYSTEM,
         ref=epic_branch(epic_slug),
-        context=f"Epic framing (approved by a human): {framing.restated_goal}",
+        context=_gate_context(framing),
         max_tokens=settings.review_max_tokens,
         timeout=settings.review_timeout,
     )
@@ -265,7 +290,7 @@ def run_epic_gate(
         seats=resolved,
         system=EPIC_SIGNOFF_SYSTEM,
         ref=epic_branch(epic_slug),
-        context=f"Epic framing (approved by a human): {framing.restated_goal}",
+        context=_gate_context(framing),
         max_tokens=settings.review_max_tokens,
         timeout=settings.review_timeout,
     )

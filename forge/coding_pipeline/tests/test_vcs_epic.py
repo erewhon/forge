@@ -39,7 +39,8 @@ def _framing() -> FramingProposal:
     return FramingProposal(
         goal_as_stated="g",
         restated_goal="restated goal",
-        recommendation="r",
+        recommendation="the approved recommendation",
+        value_ordering=["first slice ships value", "second slice polishes"],
         epic_slug="toy",
         approved=True,
     )
@@ -112,7 +113,12 @@ def test_gate_passes_framing_context_and_fails_closed(monkeypatch, tmp_path):
     assert result.approved
     assert calls["diff"] == "THE-EPIC-DIFF"
     assert calls["ref"] == "pipeline/toy"
-    assert "restated goal" in calls["context"]  # the gate judges against the approved framing
+    # The gate judges scope against the WHOLE approved framing, not the goal line alone —
+    # a goal emphasizing the first slice must not turn the rest of the scope into "drift".
+    assert "restated goal" in calls["context"]
+    assert "the approved recommendation" in calls["context"]
+    assert "1. first slice ships value" in calls["context"]
+    assert "2. second slice polishes" in calls["context"]
     assert calls["system"] == ve.EPIC_SIGNOFF_SYSTEM
 
 
@@ -189,7 +195,10 @@ def test_oversized_diff_gates_via_map_reduce(monkeypatch, tmp_path):
     assert calls["system"] == ve.EPIC_REDUCE_SYSTEM
     assert "SUMMARY-OF-SLICE" in calls["diff"]  # the reduce verdict judges slice summaries...
     assert "xxxx" not in calls["diff"]  # ...never the raw oversized diff
-    assert "restated goal" in calls["context"]  # framing still reaches the reduce
+    # the full framing (goal + recommendation + value ordering) reaches the reduce
+    assert "restated goal" in calls["context"]
+    assert "the approved recommendation" in calls["context"]
+    assert "first slice ships value" in calls["context"]
     assert first.calls == 2  # failover map pool: the first healthy seat summarized both slices
 
 
