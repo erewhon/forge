@@ -14,6 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from agents.evals.config import settings
+from agents.evals.models import Scorecard
 from agents.evals.report import render_scorecard, write_scorecard
 from agents.evals.runner import run_scorecard
 
@@ -162,7 +163,9 @@ def _cmd_compare(argv: list[str]) -> int:
         print(f"No baseline found at {baseline_file}. Run `meta evals baseline` first.")
         return 2
 
-    baseline_data = json.loads(baseline_file.read_text())
+    # Rates are computed properties and are NOT in the serialized JSON —
+    # validate back into the model so both sides expose the same attributes.
+    baseline_sc = Scorecard.model_validate(json.loads(baseline_file.read_text()))
 
     sc = run_scorecard(
         model=args.model,
@@ -170,9 +173,10 @@ def _cmd_compare(argv: list[str]) -> int:
         goldsets_root=args.goldsets,
         repeats=args.repeats,
     )
+    # A compare run is as expensive as any scorecard — never lose it.
+    write_scorecard(sc, settings.runs_dir)
 
-    # Build per-step delta table
-    baseline_steps = {s["step"]: s for s in baseline_data.get("steps", [])}
+    baseline_steps = {s.step: s for s in baseline_sc.steps}
     fresh_steps = {s.step: s for s in sc.steps}
 
     lines: list[str] = []
@@ -181,50 +185,45 @@ def _cmd_compare(argv: list[str]) -> int:
     lines.append("| Step | Baseline Pass Rate | Fresh Pass Rate | Delta |")
     lines.append("|------|-------------------:|----------------:|------:|")
 
-    all_steps = sorted(set(list(baseline_steps.keys()) + list(fresh_steps.keys())))
+    all_steps = sorted(set(baseline_steps) | set(fresh_steps))
 
     for step_name in all_steps:
         bl = baseline_steps.get(step_name)
         fr = fresh_steps.get(step_name)
 
         if bl and fr:
-            bl_rate = bl.get("pass_rate", 0.0)
-            fr_rate = fr.get("pass_rate", 0.0)
-            delta = fr_rate - bl_rate
-            lines.append(f"| {step_name} | {bl_rate:.0%} | {fr_rate:.0%} | {delta:+.0%} |")
+            delta = fr.pass_rate - bl.pass_rate
+            lines.append(
+                f"| {step_name} | {bl.pass_rate:.0%} | {fr.pass_rate:.0%} | {delta:+.0%} |"
+            )
         elif fr:
             lines.append(f"| {step_name} | (new) | {fr.pass_rate:.0%} | (new) |")
         elif bl:
-            lines.append(
-                f"| {step_name} | {bl.get('pass_rate', 0.0):.0%} | (missing) | (missing) |"
-            )
+            lines.append(f"| {step_name} | {bl.pass_rate:.0%} | (missing) | (missing) |")
 
     lines.append("")
 
-    # Also show holdout deltas where available
-    has_holdout = False
-    for step_name in all_steps:
-        bl = baseline_steps.get(step_name)
-        fr = fresh_steps.get(step_name)
-        if bl and fr:
-            bl_hr = bl.get("holdout_pass_rate")
-            fr_hr = fr.get("holdout_pass_rate")
-            if bl_hr is not None and fr_hr is not None:
-                has_holdout = True
-                break
-
-    if has_holdout:
+    # Holdout deltas — the load-bearing table: distillation is judged here.
+    holdout_rows = [
+        (step_name, baseline_steps.get(step_name), fresh_steps.get(step_name))
+        for step_name in all_steps
+    ]
+    if any(
+        bl is not None
+        and fr is not None
+        and bl.holdout_pass_rate is not None
+        and fr.holdout_pass_rate is not None
+        for _, bl, fr in holdout_rows
+    ):
         lines.append("| Step | Baseline Holdout | Fresh Holdout | Delta |")
         lines.append("|------|-----------------:|--------------:|------:|")
-        for step_name in all_steps:
-            bl = baseline_steps.get(step_name)
-            fr = fresh_steps.get(step_name)
-            if bl and fr:
-                bl_hr = bl.get("holdout_pass_rate")
-                fr_hr = fr.get("holdout_pass_rate")
-                if bl_hr is not None and fr_hr is not None:
-                    delta = fr_hr - bl_hr
-                    lines.append(f"| {step_name} | {bl_hr:.0%} | {fr_hr:.0%} | {delta:+.0%} |")
+        for step_name, bl, fr in holdout_rows:
+            if bl and fr and bl.holdout_pass_rate is not None and fr.holdout_pass_rate is not None:
+                delta = fr.holdout_pass_rate - bl.holdout_pass_rate
+                lines.append(
+                    f"| {step_name} | {bl.holdout_pass_rate:.0%} | "
+                    f"{fr.holdout_pass_rate:.0%} | {delta:+.0%} |"
+                )
             elif fr and fr.holdout_pass_rate is not None:
                 lines.append(f"| {step_name} | (new) | {fr.holdout_pass_rate:.0%} | (new) |")
         lines.append("")
@@ -233,13 +232,22 @@ def _cmd_compare(argv: list[str]) -> int:
     for step_name in all_steps:
         bl = baseline_steps.get(step_name)
         fr = fresh_steps.get(step_name)
-        if bl and fr:
-            bl_rate = bl.get("pass_rate", 0.0)
-            fr_rate = fr.get("pass_rate", 0.0)
-            if fr_rate < bl_rate:
-                lines.append(
-                    f"**REGRESSION**: `{step_name}` dropped from {bl_rate:.0%} to {fr_rate:.0%}"
-                )
+        if bl and fr and fr.pass_rate < bl.pass_rate:
+            lines.append(
+                f"**REGRESSION**: `{step_name}` dropped from "
+                f"{bl.pass_rate:.0%} to {fr.pass_rate:.0%}"
+            )
+        if (
+            bl
+            and fr
+            and bl.holdout_pass_rate is not None
+            and fr.holdout_pass_rate is not None
+            and fr.holdout_pass_rate < bl.holdout_pass_rate
+        ):
+            lines.append(
+                f"**HOLDOUT REGRESSION**: `{step_name}` dropped from "
+                f"{bl.holdout_pass_rate:.0%} to {fr.holdout_pass_rate:.0%}"
+            )
 
     md = "\n".join(lines)
     print(md)

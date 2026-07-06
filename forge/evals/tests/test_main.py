@@ -195,31 +195,45 @@ def test_compare_exits_2_without_baseline(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
-def test_compare_renders_deltas_with_one_step(mock_scorecard: Scorecard, tmp_path: Path):
-    """Compare renders a per-step delta table with one baseline step."""
+def test_compare_renders_deltas_with_one_step(tmp_path: Path):
+    """Compare renders per-step deltas with REAL StepScore objects on both
+    sides — the both-present branch once crashed on attribute-vs-dict access,
+    and the baseline JSON does not carry the computed rate fields at all."""
+    from agents.evals.models import CaseScore, GradeResult, StepScore
+
+    def step_score(passed: bool) -> StepScore:
+        return StepScore(
+            step="replan",
+            cases=[
+                CaseScore(
+                    case_id="case-1",
+                    holdout=True,
+                    repeats=[
+                        GradeResult(
+                            case_id="case-1",
+                            step="replan",
+                            passed=passed,
+                            score=1.0 if passed else 0.0,
+                        )
+                    ],
+                )
+            ],
+        )
+
     goldsets = settings.goldsets_dir
     baseline_file = _evals_main._baseline_file("test-model")
     baseline_file.parent.mkdir(parents=True, exist_ok=True)
-
-    baseline_data = {
-        "model": "test-model",
-        "timestamp": "2026-01-01T00:00:00+00:00",
-        "steps": [
-            {
-                "step": "replan",
-                "pass_rate": 0.5,
-                "holdout_pass_rate": None,
-                "error_repeats": 0,
-                "cases": [],
-            }
-        ],
-    }
-    baseline_file.write_text(json.dumps(baseline_data), encoding="utf-8")
+    baseline = Scorecard(
+        model="test-model",
+        timestamp="2026-01-01T00:00:00+00:00",
+        steps=[step_score(passed=False)],  # baseline: 0% pass
+    )
+    baseline_file.write_text(baseline.model_dump_json(), encoding="utf-8")
 
     fresh = Scorecard(
         model="test-model",
         timestamp="2026-01-02T00:00:00+00:00",
-        steps=[],
+        steps=[step_score(passed=True)],  # fresh: 100% pass
     )
 
     captured = []
@@ -234,6 +248,64 @@ def test_compare_renders_deltas_with_one_step(mock_scorecard: Scorecard, tmp_pat
     assert rc == 0
     full_output = "\n".join(captured)
     assert "replan" in full_output
+    assert "0%" in full_output and "100%" in full_output  # both sides rendered
+    assert "+100%" in full_output  # the delta itself
+    assert "REGRESSION" not in full_output
+
+
+def test_compare_flags_holdout_regression(tmp_path: Path):
+    """A holdout drop is flagged explicitly — the load-bearing gate."""
+    from agents.evals.models import CaseScore, GradeResult, StepScore
+
+    def step_score(passed: bool) -> StepScore:
+        return StepScore(
+            step="replan",
+            cases=[
+                CaseScore(
+                    case_id="case-1",
+                    holdout=True,
+                    repeats=[
+                        GradeResult(
+                            case_id="case-1",
+                            step="replan",
+                            passed=passed,
+                            score=1.0 if passed else 0.0,
+                        )
+                    ],
+                )
+            ],
+        )
+
+    goldsets = settings.goldsets_dir
+    baseline_file = _evals_main._baseline_file("test-model")
+    baseline_file.parent.mkdir(parents=True, exist_ok=True)
+    baseline_file.write_text(
+        Scorecard(
+            model="test-model",
+            timestamp="2026-01-01T00:00:00+00:00",
+            steps=[step_score(passed=True)],
+        ).model_dump_json(),
+        encoding="utf-8",
+    )
+
+    fresh = Scorecard(
+        model="test-model",
+        timestamp="2026-01-02T00:00:00+00:00",
+        steps=[step_score(passed=False)],
+    )
+
+    captured = []
+
+    def capture(*args, **kwargs):
+        captured.append(" ".join(str(a) for a in args))
+
+    with patch("agents.evals.main.run_scorecard", return_value=fresh):
+        with patch("builtins.print", capture):
+            rc = _cmd_compare(["--model", "test-model", "--goldsets", str(goldsets)])
+
+    assert rc == 0
+    full_output = "\n".join(captured)
+    assert "HOLDOUT REGRESSION" in full_output
 
 
 # ---------------------------------------------------------------------------
