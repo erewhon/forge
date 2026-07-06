@@ -1,0 +1,53 @@
+[
+  {
+    "vuln": {
+      "id": "CVE-2024-1234",
+      "all_vulns": [
+        {
+          "id": "CVE-2024-1234",
+          "fix_versions": ["2.0.1"],
+          "aliases": ["GHSA-abc123"],
+          "description": "Buffer overflow in the parser module allows remote code execution."
+        }
+      ],
+      "database_id": "CVE-2024-1234"
+    },
+    "package": {
+      "name": "vulnerable-pkg",
+      "version": "1.0.0",
+      "subpath": null,
+      "link": "https://pypi.org/project/vulnerable-pkg/"
+    },
+    "dependencies": [
+      {
+        "package_name": "vulnerable-pkg",
+        "package_version": "1.0.0",
+        "subpath": null,
+        "vulnerable_versions": [">=1.0,<=1.99"],
+        "fix_versions": ["2.0.1"]
+      }
+    ]
+  },
+  {
+    "vuln": {
+      "id": "",
+      "all_vulns": [],
+      "database_id": ""
+    },
+    "package": {
+      "name": "clean-package",
+      "version": "3.0.0",
+      "subpath": null,
+      "link": "https://pypi.org/project/clean-package/"
+    },
+    "dependencies": [
+      {
+        "package_name": "clean-package",
+        "package_version": "3.0.0",
+        "subpath": null,
+        "vulnerable_versions": [],
+        "fix_versions": []
+      }
+    ]
+  }
+]
