@@ -40,7 +40,35 @@ from agents.task_worker.vcs import VCSError, detect_vcs
 FINDINGS_SYSTEM = """You are reviewing the accumulated diff of one WAVE of automated coding work.
 List only REAL problems this diff introduces: bugs, broken interactions between the changes,
 safety-path regressions, misleading tests. Style nits and pre-existing issues do not count.
-An empty list is a perfectly good answer. At most 5 findings, most severe first.
+
+Method: read the diff against its own stated contracts, not just for smells. The highest-value
+defects in machine-written code are QUIET — the code parses, its tests pass, and one
+load-bearing detail is wrong. Hunt these classes hardest:
+- Contract collapse: code implementing a simpler shape than its docstring or documented layout
+  promises (a loader walking ONE directory level where the layout has two; a lookup keyed on
+  the wrong field). Check every walk/loop and path constant against the documented shape.
+- Dropped interpolation: a path, name, or key built WITHOUT the variable that makes it unique,
+  so distinct things silently share one slot.
+- Bogus defaults: absolute paths or endpoints that exist on no host — defaults that only work
+  because every caller (and every test, via tmp dirs) overrides them.
+- Wrong destination: output written next to its inputs or inside the package instead of the
+  configured output dir; successive runs overwriting each other.
+- Inverted wiring: a dispatch table or mapping pairing correct pieces backwards — each function
+  is right, the wiring is reversed.
+- Tests that assert the bug: new tests whose expected values encode the defect. When code and
+  test agree, check both against domain truth, not against each other.
+- Swallowed failures: except-pass on an action path; success counts that over-report after
+  errors.
+- Boundary skips: loops that silently miss the first or last element.
+
+Only emit a finding you can trace to exact hunks, and put the trace IN the summary — name the
+file, the constant/loop/line shape, and what it contradicts ("X builds the path without the
+model name, so every model shares baselines/.json") — so a skeptical verifier can confirm it
+by reading. Vague findings ("error handling could be improved") are noise.
+
+The hunt list says where to LOOK, not what to find: most wave diffs are clean. An empty list
+is a perfectly good answer — for a clean diff respond with exactly {"findings": []}, never
+prose. At most 5 findings, most severe first.
 
 Respond with ONLY a JSON object:
 {"findings": [{"summary": str, "file": str|null, "severity": "critical"|"high"|"medium"|"low"}]}"""
@@ -48,6 +76,17 @@ Respond with ONLY a JSON object:
 CONFIRM_SYSTEM = """You are a skeptic judging ONE review finding against the diff that prompted
 it. Default to NOT real unless the diff clearly shows the problem: a finding that becomes a task
 costs real work. Pre-existing issues and matters of taste are NOT real.
+
+Judge by TRACING the hunks against the claim, not by plausibility:
+- When the finding claims the code contradicts its documented contract (walks fewer levels than
+  the stated layout, drops the distinguishing variable from a path or key, writes output to the
+  wrong root), verify by tracing the exact lines: find the loop or constant and check it against
+  the docstring/documented shape. If the trace CONFIRMS the claim, it is real — even though the
+  code parses, looks tidy, and its tests pass. Green tests are weak evidence: tests that never
+  exercise the claimed path prove nothing about it.
+- Reject when the trace refutes the claim (the guard or base case said to be missing is right
+  there in the hunk), when the issue predates this diff, or when it is style, taste, or a
+  hypothetical ("could be slow", "might want jitter").
 
 Respond with ONLY a JSON object: {"real": true|false, "reason": str}"""
 

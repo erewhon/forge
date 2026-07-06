@@ -130,9 +130,7 @@ def propose_framing(goal: GoalSpec, inventory: Inventory) -> FramingProposal:
         timeout=settings.architect_timeout,
     )
     if result.value is None:
-        raise ArchitectError(
-            f"framing produced no usable proposal: {result.error}", raw=result.raw
-        )
+        raise ArchitectError(f"framing produced no usable proposal: {result.error}", raw=result.raw)
     proposal = result.value
     proposal.approved = False  # only approve_framing may flip this
     if goal.epic_slug:
@@ -208,6 +206,14 @@ Every leaf must be WORKER-SHAPED — all five criteria:
 A leaf that cannot meet all five must be tagged complexity="novel" and execution_mode="Manual" — \
 'a human does this one' is a valid terminal state. Do NOT emit vague umbrella leaves.
 
+Decompose to the NATURAL leaf count, not the smallest one: collapsing a feature into a few \
+broad leaves is the classic failure — each hides several concerns and none is worker-shaped. \
+A feature usually yields its implementation leaves PLUS its own verification leaf: an \
+integration/end-to-end TEST leaf — titled as a test ("Add integration test for ..."), with a \
+spec that names the test files it adds (e.g. tests/test_<feature>_e2e.py) — often Manual when \
+choosing what to prove takes judgment. An epic whose goal is a proof, parity, or migration is \
+not fully decomposed without that test leaf.
+
 Each leaf's "content" is a COMPLETE worker spec — the worker sees nothing else. Include: \
 what/why (one short paragraph), acceptance criteria (bulleted, testable), a files hint, and \
 test expectations.
@@ -238,6 +244,22 @@ Respond with ONLY a JSON object: {"leaves": [<LeafSpec>, ...]} where each LeafSp
 BOUNDEDNESS_SYSTEM = """You are a skeptical senior engineer reviewing ONE proposed task leaf for \
 an autonomous coding worker. Judge it against five criteria, strictly — an optimistic pass here \
 costs a blown worker run later. Echo the leaf title EXACTLY as given.
+
+Strict means EVIDENCE-BASED in both directions, not pessimistic: a false reject costs autonomy \
+(a worker-shaped leaf gets bounced to a human) just as a false pass costs a blown run.
+- PASS a leaf that names its target files, fits its file cap, holds one concern with a small \
+estimate, and carries acceptance criteria a test suite can check — even when the work is \
+nontrivial. "Package scaffold with config and result models; files named; models validate and \
+round-trip; suite green" is worker-shaped: pass it on all five.
+- REJECT for an identifiable defect and name it in notes: fused concerns (two deliverables \
+with a hidden sequencing decision between them), no named files, an unbounded sweep \
+("everywhere", "for consistency across the codebase"), aesthetic acceptance ("feels cleaner", \
+"reads better"), or an estimate the stated scope contradicts.
+single_concern means NO unresolved design choice inside: a unitary-SOUNDING goal ("make X \
+consistent", "one convention for Y") that requires deciding a policy across many call sites \
+fails single_concern even though it names only one topic.
+Judge each criterion independently — a leaf can name its files perfectly and still fail \
+single-concern.
 
 Respond with ONLY a JSON object:
 {"leaf_title": str, "single_concern": bool, "bounded_diff": bool, "small_estimate": bool,
@@ -421,6 +443,33 @@ wave report (what landed, what failed and why, the suite result, CONFIRMED revie
 per-leaf attempt counts, and a list of leaves already escalated to a human — those are handled; \
 do not touch them.
 
+Before choosing any action, LOCATE THE DEFECT'S LEVEL — the level decides the action kind:
+- LEAF: one leaf's own spec or attempt is wrong (its tests red for its own reasons, its scope \
+blown). That is a "respec" of that leaf.
+- INTERACTION: leaves landed and individually passed, but the suite is red because the changes \
+disagree with EACH OTHER (two sides of one contract, a key or symbol mismatch, an import cycle \
+that exists only in the combined state). No single leaf is wrong, so no respec can fix it — \
+that is an "integration_fix".
+- FEATURE: several leaves of one feature failed against each other's assumptions and the \
+diagnostics trace to the feature's SPECS — contradictory acceptance criteria, or a shared \
+convention/format/contract that no single leaf owns. Respec'ing one leaf still collides with \
+the other's landed assumption — that is a "split_subtree".
+- EPIC: what landed falsified the framing itself — that is a "halt". Prefer halt over guessing.
+- NONE: everything landed, the suite is green, and there are no confirmed findings — the \
+correct proposal is an empty actions list. A skipped (not failed) leaf is scheduling, not a \
+defect: the planner re-offers it; do not respec it.
+
+Worked level calls:
+- Two leaves done, each passed its own gate; suite red: module registers domain key 'temp', \
+router looks up 'temperature'. Neither leaf is individually wrong -> INTERACTION -> one \
+integration_fix (novel, Manual). Respec'ing either leaf is the wrong level.
+- Grouping leaf emits a table while its sibling's acceptance demands JSON; both failed. The \
+contradiction lives in the feature's specs -> FEATURE -> split_subtree. Two individual \
+respecs is the classic wrong answer here: each respec still contradicts the other leaf.
+
+Make the level call silently — your response is STILL only the JSON object below, with no \
+analysis text before or after it.
+
 Propose the smallest set of actions that keeps the epic converging:
 - "fixup": one new leaf per CONFIRMED finding (use its finding_slug). Never for unconfirmed ones.
 - "respec": a failed leaf under the attempt cap gets a REWRITTEN, worker-shaped spec — fix what \
@@ -539,9 +588,7 @@ def replan(
         timeout=settings.architect_timeout,
     )
     if result.value is None:
-        raise ArchitectError(
-            f"replan produced no usable actions: {result.error}", raw=result.raw
-        )
+        raise ArchitectError(f"replan produced no usable actions: {result.error}", raw=result.raw)
 
     actions: list[ReplanAction] = []
     new_leaves: list[LeafSpec] = []
