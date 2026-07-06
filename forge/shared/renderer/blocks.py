@@ -16,15 +16,11 @@ def _nest_items(items: list[str]) -> list[dict]:
 
 
 def unordered_list(items: list[str]) -> EditorJsBlock:
-    return EditorJsBlock(
-        type="list", data={"items": _nest_items(items), "style": "unordered"}
-    )
+    return EditorJsBlock(type="list", data={"items": _nest_items(items), "style": "unordered"})
 
 
 def ordered_list(items: list[str]) -> EditorJsBlock:
-    return EditorJsBlock(
-        type="list", data={"items": _nest_items(items), "style": "ordered"}
-    )
+    return EditorJsBlock(type="list", data={"items": _nest_items(items), "style": "ordered"})
 
 
 def checklist(items: list[str], checked: bool = False) -> EditorJsBlock:

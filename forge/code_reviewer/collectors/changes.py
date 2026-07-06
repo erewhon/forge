@@ -26,13 +26,9 @@ def _truncate_diff(diff_text: str, max_lines: int) -> tuple[str, bool]:
     return "\n".join(lines[:max_lines]) + "\n... (truncated)", True
 
 
-def _collect_jj(
-    repo_path: Path, lookback_hours: int, max_lines: int
-) -> RepoChanges | None:
+def _collect_jj(repo_path: Path, lookback_hours: int, max_lines: int) -> RepoChanges | None:
     """Collect recent changes from a jj repo."""
-    revset = (
-        f'trunk()..@ & ~empty() & committer_date(after:"{lookback_hours} hours ago")'
-    )
+    revset = f'trunk()..@ & ~empty() & committer_date(after:"{lookback_hours} hours ago")'
 
     # Get commit list
     try:
@@ -83,11 +79,7 @@ def _collect_jj(
         print(f"  Warning: jj diff --stat failed for {repo_path.name}: {e}")
         stat_result = None
 
-    diff_stat = (
-        stat_result.stdout.strip()
-        if stat_result and stat_result.returncode == 0
-        else ""
-    )
+    diff_stat = stat_result.stdout.strip() if stat_result and stat_result.returncode == 0 else ""
 
     truncated_diff, was_truncated = _truncate_diff(diff_text, max_lines)
 
@@ -102,9 +94,7 @@ def _collect_jj(
     )
 
 
-def _collect_git(
-    repo_path: Path, lookback_hours: int, max_lines: int
-) -> RepoChanges | None:
+def _collect_git(repo_path: Path, lookback_hours: int, max_lines: int) -> RepoChanges | None:
     """Collect recent changes from a git repo."""
     since = f"{lookback_hours} hours ago"
 
@@ -119,9 +109,7 @@ def _collect_git(
         return None
 
     if result.returncode != 0:
-        print(
-            f"  Warning: git log failed for {repo_path.name}: {result.stderr.strip()}"
-        )
+        print(f"  Warning: git log failed for {repo_path.name}: {result.stderr.strip()}")
         return None
 
     commits = [line.strip() for line in result.stdout.strip().splitlines() if line.strip()]
@@ -150,11 +138,7 @@ def _collect_git(
         print(f"  Warning: git log --stat failed for {repo_path.name}: {e}")
         stat_result = None
 
-    diff_stat = (
-        stat_result.stdout.strip()
-        if stat_result and stat_result.returncode == 0
-        else ""
-    )
+    diff_stat = stat_result.stdout.strip() if stat_result and stat_result.returncode == 0 else ""
 
     truncated_diff, was_truncated = _truncate_diff(diff_text, max_lines)
 
@@ -180,13 +164,9 @@ def collect_all() -> list[RepoChanges]:
 
         # Detect VCS type (prefer jj over git)
         if (repo_path / ".jj").is_dir():
-            changes = _collect_jj(
-                repo_path, settings.lookback_hours, settings.max_diff_lines
-            )
+            changes = _collect_jj(repo_path, settings.lookback_hours, settings.max_diff_lines)
         elif (repo_path / ".git").exists():
-            changes = _collect_git(
-                repo_path, settings.lookback_hours, settings.max_diff_lines
-            )
+            changes = _collect_git(repo_path, settings.lookback_hours, settings.max_diff_lines)
         else:
             print(f"  Skipping {repo_path.name}: no VCS detected")
             continue

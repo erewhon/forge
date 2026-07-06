@@ -66,8 +66,7 @@ def render_markdown(report: NightlyReport) -> str:
     lines.append(f"# Nightly Code Review — {report.date}")
     lines.append("")
     lines.append(
-        f"**{report.repos_reviewed}** repos scanned, "
-        f"**{report.repos_with_changes}** with changes"
+        f"**{report.repos_reviewed}** repos scanned, **{report.repos_with_changes}** with changes"
     )
     lines.append("")
 
@@ -89,9 +88,7 @@ def render_markdown(report: NightlyReport) -> str:
         # Per-repo scores table
         if review.scores:
             lines.extend(
-                _scores_markdown_table(
-                    [(review.repo_name, review.scores)], show_repo_column=False
-                )
+                _scores_markdown_table([(review.repo_name, review.scores)], show_repo_column=False)
             )
             lines.append("")
 
@@ -101,9 +98,7 @@ def render_markdown(report: NightlyReport) -> str:
         if review.findings:
             for finding in review.findings:
                 prefix = f"[{finding.severity.upper()}]"
-                lines.append(
-                    f"- {prefix} `{finding.file_path}`: {finding.description}"
-                )
+                lines.append(f"- {prefix} `{finding.file_path}`: {finding.description}")
             lines.append("")
         else:
             lines.append("No issues found.")
@@ -114,6 +109,7 @@ def render_markdown(report: NightlyReport) -> str:
 
 def _scores_html_table(scores: RepoScores) -> str:
     """Build an inline HTML table for scores (used in Editor.js paragraph blocks)."""
+
     def _cell(val: int) -> str:
         marker = _score_marker(val)
         return f"<td>{val}{marker}</td>"
@@ -183,12 +179,7 @@ def render_blocks(report: NightlyReport) -> list[EditorJsBlock]:
                 blocks.append(
                     EditorJsBlock(
                         type="checklist",
-                        data={
-                            "items": [
-                                {"text": item, "checked": False}
-                                for item in issue_items
-                            ]
-                        },
+                        data={"items": [{"text": item, "checked": False} for item in issue_items]},
                     )
                 )
 
@@ -197,10 +188,7 @@ def render_blocks(report: NightlyReport) -> list[EditorJsBlock]:
                     EditorJsBlock(
                         type="checklist",
                         data={
-                            "items": [
-                                {"text": item, "checked": True}
-                                for item in positive_items
-                            ]
+                            "items": [{"text": item, "checked": True} for item in positive_items]
                         },
                     )
                 )

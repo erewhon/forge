@@ -51,6 +51,22 @@ class CodingPipelineSettings(BaseSettings):
     review_max_findings: int = 12  # cap the candidate pool before the confirm vote
     confirm_concurrency: int = 4
 
+    # Epic gate size guard. A diff at or under epic_gate_max_diff_chars is signed off in one
+    # call per seat; a larger one goes map-reduce — deterministic per-file split, one gatekeeper
+    # summary per slice, then the full-quorum verdict over the slice summaries. A gate must
+    # never judge code it hasn't seen, so there is no silent slice drop: a failed slice summary
+    # fails the gate closed, and a diff splitting past epic_gate_max_chunks blocks instead of
+    # truncating (gate sub-epics separately, or raise the cap deliberately).
+    epic_gate_max_diff_chars: int = 300_000
+    epic_gate_chunk_chars: int = 100_000
+    epic_gate_map_max_tokens: int = 2048
+    epic_gate_map_concurrency: int = 4
+    epic_gate_max_chunks: int = 64
+    # Slice summaries are mechanical, so the map pool tries this seat first (failover to the
+    # rest) instead of spending metered tokens on every slice. The reduce verdict is still the
+    # full cross-family quorum — every seat, unanimous.
+    epic_gate_map_preferred: str = "local"
+
     def llm_cfg(self) -> LLMConfig:
         return LLMConfig(
             backend=self.llm_backend,

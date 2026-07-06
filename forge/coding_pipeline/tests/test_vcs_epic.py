@@ -11,7 +11,8 @@ import pytest
 
 from agents.coding_pipeline import vcs_epic as ve
 from agents.coding_pipeline.models import FramingProposal
-from agents.shared.signoff import SignoffResult
+from agents.shared.ensemble import ExecResult, ExecStatus, FailureClass, Prompt
+from agents.shared.signoff import SeatVerdict, SignoffResult, SignoffSeat
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -126,6 +127,137 @@ def test_gate_blocks_empty_diff_without_any_llm_call(monkeypatch, tmp_path):
     assert "empty epic diff" in result.reason
 
 
+# --- the map-reduce path (oversized diffs) --------------------------------------------
+
+
+class _SeatExec:
+    """A fake seat executor: fixed OK summary, or a terminal failure with a reason."""
+
+    def __init__(self, label: str, *, output: str = "No red flags.", ok: bool = True) -> None:
+        self.label = label
+        self._output = output
+        self._ok = ok
+        self.calls = 0
+
+    async def run(self, prompt: Prompt, *, timeout: float) -> ExecResult:
+        self.calls += 1
+        if self._ok:
+            return ExecResult(executor=self.label, status=ExecStatus.OK, output=self._output)
+        return ExecResult(
+            executor=self.label,
+            status=ExecStatus.ERROR,
+            error="boom: provider down",
+            failure_class=FailureClass.TERMINAL,
+        )
+
+
+def _fake_diff(n_files: int, body_chars: int) -> str:
+    """A unified diff with n single-hunk files, each body ~body_chars wide."""
+    return "".join(
+        f"diff --git a/f{i}.py b/f{i}.py\n--- a/f{i}.py\n+++ b/f{i}.py\n"
+        f"@@ -1 +1 @@\n+{'x' * body_chars}\n"
+        for i in range(n_files)
+    )
+
+
+def _shrink_gate_thresholds(monkeypatch) -> None:
+    # 2 files x ~215 chars: over the 100-char single-pass ceiling, packs into 2 x 300-char slices.
+    monkeypatch.setattr(ve.settings, "epic_gate_max_diff_chars", 100)
+    monkeypatch.setattr(ve.settings, "epic_gate_chunk_chars", 300)
+
+
+def test_oversized_diff_gates_via_map_reduce(monkeypatch, tmp_path):
+    monkeypatch.setattr(ve, "epic_diff", lambda repo, slug, main="main": _fake_diff(2, 150))
+    _shrink_gate_thresholds(monkeypatch)
+    calls: dict = {}
+
+    def fake_signoff(diff, **kwargs):
+        calls["diff"] = diff
+        calls.update(kwargs)
+        return SignoffResult(approved=True, attempted=2, approvals=2, providers=["a", "b"])
+
+    monkeypatch.setattr(ve, "full_quorum_signoff", fake_signoff)
+    first = _SeatExec("s0", output="SUMMARY-OF-SLICE. No red flags.")
+    seats = [
+        SignoffSeat(provider="a", executor=first),
+        SignoffSeat(provider="b", executor=_SeatExec("s1")),
+    ]
+
+    result = ve.run_epic_gate(tmp_path, "toy", _framing(), seats=seats)
+    assert result.approved
+    assert "map-reduce over 2 slice(s)" in result.strategy
+    assert calls["system"] == ve.EPIC_REDUCE_SYSTEM
+    assert "SUMMARY-OF-SLICE" in calls["diff"]  # the reduce verdict judges slice summaries...
+    assert "xxxx" not in calls["diff"]  # ...never the raw oversized diff
+    assert "restated goal" in calls["context"]  # framing still reaches the reduce
+    assert first.calls == 2  # failover map pool: the first healthy seat summarized both slices
+
+
+def test_map_pool_prefers_the_cheap_seat_but_reduce_gets_the_full_roster(monkeypatch, tmp_path):
+    monkeypatch.setattr(ve, "epic_diff", lambda repo, slug, main="main": _fake_diff(2, 150))
+    _shrink_gate_thresholds(monkeypatch)
+    monkeypatch.setattr(ve.settings, "epic_gate_map_preferred", "local")
+    calls: dict = {}
+
+    def fake_signoff(diff, **kwargs):
+        calls.update(kwargs)
+        return SignoffResult(approved=True, attempted=2, approvals=2, providers=["a", "l"])
+
+    monkeypatch.setattr(ve, "full_quorum_signoff", fake_signoff)
+    metered = _SeatExec("anthropic-exec")
+    cheap = _SeatExec("local-exec")
+    seats = [
+        SignoffSeat(provider="anthropic", executor=metered),
+        SignoffSeat(provider="local", executor=cheap),
+    ]
+
+    result = ve.run_epic_gate(tmp_path, "toy", _framing(), seats=seats)
+    assert result.approved
+    assert cheap.calls == 2 and metered.calls == 0  # map rides the local seat
+    assert calls["seats"] == seats  # the reduce quorum still seats everyone, roster order
+
+
+def test_failed_slice_summary_fails_closed_before_reduce(monkeypatch, tmp_path):
+    monkeypatch.setattr(ve, "epic_diff", lambda repo, slug, main="main": _fake_diff(2, 150))
+    _shrink_gate_thresholds(monkeypatch)
+
+    def boom(*a, **k):
+        raise AssertionError("no reduce verdict over an incomplete map")
+
+    monkeypatch.setattr(ve, "full_quorum_signoff", boom)
+    seats = [
+        SignoffSeat(provider="a", executor=_SeatExec("s0", ok=False)),
+        SignoffSeat(provider="b", executor=_SeatExec("s1", ok=False)),
+    ]
+
+    result = ve.run_epic_gate(tmp_path, "toy", _framing(), seats=seats)
+    assert not result.approved
+    assert "map stage incomplete" in result.reason
+    assert "boom: provider down" in result.reason  # the WHY is in the verdict
+
+
+def test_over_cap_split_blocks_instead_of_dropping_slices(monkeypatch, tmp_path):
+    monkeypatch.setattr(ve, "epic_diff", lambda repo, slug, main="main": _fake_diff(2, 150))
+    _shrink_gate_thresholds(monkeypatch)
+    monkeypatch.setattr(ve.settings, "epic_gate_max_chunks", 1)
+
+    class _Untouchable:
+        label = "never"
+
+        async def run(self, prompt: Prompt, *, timeout: float) -> ExecResult:
+            raise AssertionError("no LLM call when the gate refuses the split")
+
+    def no_reduce(*a, **k):
+        raise AssertionError("no reduce verdict when the gate refuses the split")
+
+    monkeypatch.setattr(ve, "full_quorum_signoff", no_reduce)
+    seats = [SignoffSeat(provider="a", executor=_Untouchable())]
+
+    result = ve.run_epic_gate(tmp_path, "toy", _framing(), seats=seats)
+    assert not result.approved
+    assert "refuses to drop slices" in result.reason
+
+
 # --- rendering ------------------------------------------------------------------------
 
 
@@ -173,6 +305,41 @@ def test_render_blocked_lists_blockers():
     assert "BLOCKED" in out
     assert "quorum 3/3" in out
     assert "test weakened" in out
+
+
+def test_render_distinguishes_no_verdict_from_rejection():
+    # The distill-evals failure mode: 0/2 responders must NOT read as a unanimous rejection.
+    result = SignoffResult(
+        approved=False,
+        attempted=2,
+        approvals=0,
+        reason="quorum 0/2, approvals 0/2",
+        seats=[
+            SeatVerdict(provider="anthropic", reason="AuthenticationError: missing api key"),
+            SeatVerdict(provider="local", approve=False),
+        ],
+        strategy="map-reduce over 12 slice(s) (diff 1500000 chars)",
+    )
+    out = ve.render_epic_gate(result, "toy")
+    assert "Strategy: map-reduce over 12 slice(s)" in out
+    assert "anthropic: NO VERDICT (AuthenticationError: missing api key)" in out
+    assert "local: responded — did NOT approve" in out
+
+
+def test_render_approved_lists_seat_verdicts():
+    result = SignoffResult(
+        approved=True,
+        attempted=2,
+        approvals=2,
+        providers=["a", "b"],
+        seats=[
+            SeatVerdict(provider="a", approve=True, reason="clean"),
+            SeatVerdict(provider="b", approve=True),
+        ],
+    )
+    out = ve.render_epic_gate(result, "toy")
+    assert "a: approved — clean" in out
+    assert "b: approved" in out
 
 
 def test_jj_push_argv_has_no_allow_new(monkeypatch):

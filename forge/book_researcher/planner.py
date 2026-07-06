@@ -33,7 +33,9 @@ def create_sprint(
     chapters_info = []
     for ch in book_config.chapters:
         covered = existing_knowledge.get(ch.number, [])
-        coverage_note = f" (already researched: {', '.join(covered)})" if covered else " (no research yet)"
+        coverage_note = (
+            f" (already researched: {', '.join(covered)})" if covered else " (no research yet)"
+        )
         chapters_info.append(
             f"  Chapter {ch.number}: {ch.title} - {ch.description}{coverage_note}\n"
             f"    Open questions: {', '.join(ch.research_questions)}"

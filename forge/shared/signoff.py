@@ -17,7 +17,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from agents.shared.ensemble import Executor
-from agents.shared.panel import run_panel
+from agents.shared.panel import PanelMember, run_member_panel
 
 
 @dataclass(frozen=True)
@@ -28,11 +28,24 @@ class SignoffSeat:
     executor: Executor
 
 
+@dataclass(frozen=True)
+class SeatVerdict:
+    """One seat's individual outcome, for rendering. ``approve is None`` means the seat produced
+    no usable verdict — ``reason`` says why (transport error, timeout, unparseable JSON) — which
+    is a different failure from a seat that responded and blocked."""
+
+    provider: str
+    approve: bool | None = None
+    reason: str = ""
+
+
 @dataclass
 class SignoffResult:
     """The full-quorum sign-off gate outcome. ``approved`` requires every seat to respond AND
     unanimously approve — anything less (a dropped/degraded provider, one dissent, an unparseable
-    verdict) fails closed."""
+    verdict) fails closed. ``seats`` carries each seat's individual outcome so a renderer can
+    distinguish "0/2 responded" from "2/2 responded, 0 approved"; ``strategy`` is an optional
+    caller note on how the material was prepared (e.g. map-reduce over N slices)."""
 
     approved: bool
     attempted: int
@@ -40,6 +53,8 @@ class SignoffResult:
     providers: list[str] = field(default_factory=list)
     blockers: list[str] = field(default_factory=list)
     reason: str = ""
+    seats: list[SeatVerdict] = field(default_factory=list)
+    strategy: str = ""
 
 
 def full_quorum_signoff(
@@ -69,14 +84,18 @@ def full_quorum_signoff(
             approvals=0,
             providers=providers,
             reason=f"need >={min_seats} active providers for a diverse sign-off, have {len(seats)}",
+            seats=[
+                SeatVerdict(provider=p, reason="not attempted: below minimum seat count")
+                for p in providers
+            ],
         )
     parts = [f"Change: {ref}"]
     if context:
         parts.append(context)
     parts.append(f"\nDiff:\n{diff_text}")
-    panel = run_panel(
-        executors=[s.executor for s in seats],
-        system=system,
+    # Members carry the seat's provider label so verdicts and failures map back to seats.
+    panel = run_member_panel(
+        members=[PanelMember(executor=s.executor, system=system, label=s.provider) for s in seats],
         user="\n".join(parts),
         floor=len(seats),
         max_tokens=max_tokens,
@@ -84,6 +103,18 @@ def full_quorum_signoff(
     )
     approvals = sum(1 for r in panel.responses if r.get("approve") is True)
     blockers = [str(b) for r in panel.responses for b in (r.get("blockers") or [])]
+    verdicts = dict(zip(panel.member_labels, panel.responses))
+    failures = dict(panel.failures)
+    seat_verdicts = [
+        SeatVerdict(
+            provider=p,
+            approve=verdicts[p].get("approve") is True,
+            reason=str(verdicts[p].get("notes") or ""),
+        )
+        if p in verdicts
+        else SeatVerdict(provider=p, reason=failures.get(p, "no response"))
+        for p in providers
+    ]
     full = len(panel.responses) == panel.attempted  # every seat produced a verdict
     approved = full and approvals == panel.attempted
     got, n = len(panel.responses), panel.attempted
@@ -95,4 +126,5 @@ def full_quorum_signoff(
         providers=providers,
         blockers=blockers,
         reason=reason,
+        seats=seat_verdicts,
     )

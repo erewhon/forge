@@ -11,14 +11,16 @@ from agents.general_researcher.models import (
 def render_sprint_findings(findings: SprintFindings) -> str:
     lines = [f"# Sprint {findings.sprint_id}", ""]
     for f in findings.findings:
-        lines.extend([
-            f"## {f.question}",
-            "",
-            f.answer,
-            "",
-            f"**Confidence:** {f.confidence}",
-            "",
-        ])
+        lines.extend(
+            [
+                f"## {f.question}",
+                "",
+                f.answer,
+                "",
+                f"**Confidence:** {f.confidence}",
+                "",
+            ]
+        )
         if f.sources:
             lines.append("**Sources:**")
             for src in f.sources:
@@ -77,13 +79,15 @@ def render_synthesis(synth: Synthesis, topic: TopicConfig) -> str:
     if topic.context:
         lines.extend([f"*{topic.context}*", ""])
 
-    lines.extend([
-        f"*Synthesized from {synth.sprint_count} sprint(s) "
-        f"(best verification score: {synth.best_score}/10, confidence: {synth.confidence})*",
-        "",
-        caveat + synth.answer,
-        "",
-    ])
+    lines.extend(
+        [
+            f"*Synthesized from {synth.sprint_count} sprint(s) "
+            f"(best verification score: {synth.best_score}/10, confidence: {synth.confidence})*",
+            "",
+            caveat + synth.answer,
+            "",
+        ]
+    )
 
     if synth.key_sources:
         lines.append("## Key Sources")

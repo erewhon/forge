@@ -29,16 +29,16 @@ def create_sprint(
 ) -> SprintContract:
     sprint_id = f"{sprint_number:03d}"
 
-    user_msg = (
-        f"Main question: {topic.question}\n"
-    )
+    user_msg = f"Main question: {topic.question}\n"
     if topic.context:
         user_msg += f"\nContext: {topic.context}\n"
 
     if topic.sub_questions and sprint_number == 1:
-        user_msg += "\nUser-provided sub-questions:\n" + "\n".join(
-            f"- {q}" for q in topic.sub_questions
-        ) + "\n"
+        user_msg += (
+            "\nUser-provided sub-questions:\n"
+            + "\n".join(f"- {q}" for q in topic.sub_questions)
+            + "\n"
+        )
 
     if existing_findings_summary:
         user_msg += f"\nPrior research:\n{existing_findings_summary}\n"

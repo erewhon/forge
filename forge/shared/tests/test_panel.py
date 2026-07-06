@@ -63,6 +63,19 @@ def test_drops_unparseable_and_errored_members():
     assert not res.quorum_met  # only 1 usable < floor 2
 
 
+def test_dropped_members_are_recorded_as_failures_with_reasons():
+    execs = [
+        FakeExec("a", output=_j({"x": 1})),
+        FakeExec("b", output="not json at all"),
+        FakeExec("c", status=ExecStatus.ERROR, output=""),
+    ]
+    res = run_panel(executors=execs, system="s", user="u", floor=2)
+    failures = dict(res.failures)
+    assert set(failures) == {"b", "c"}  # the successful member is not a failure
+    assert "no parseable JSON" in failures["b"]  # transport OK, payload unusable
+    assert failures["c"]  # errored member carries a reason (falls back to "no response")
+
+
 def test_quorum_met_with_floor_one():
     execs = [FakeExec("a", output=_j({"x": 1})), FakeExec("b", status=ExecStatus.ERROR)]
     res = run_panel(executors=execs, system="s", user="u", floor=1)

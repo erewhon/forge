@@ -26,9 +26,7 @@ def _complete(system: str, user_message: str, max_tokens: int = 4096) -> str:
     else:
         import openai
 
-        client = openai.OpenAI(
-            base_url=settings.openai_base_url, api_key=settings.openai_api_key
-        )
+        client = openai.OpenAI(base_url=settings.openai_base_url, api_key=settings.openai_api_key)
         response = client.chat.completions.create(
             model=settings.openai_model,
             max_tokens=max_tokens,
@@ -200,8 +198,7 @@ def generate_overall_summary(reviews: list[RepoReview]) -> str:
         findings_text = ""
         if review.findings:
             findings_text = "\n".join(
-                f"  [{f.severity.upper()}] {f.file_path}: {f.description}"
-                for f in review.findings
+                f"  [{f.severity.upper()}] {f.file_path}: {f.description}" for f in review.findings
             )
         else:
             findings_text = "  No issues found."
@@ -223,9 +220,8 @@ def generate_overall_summary(reviews: list[RepoReview]) -> str:
             "performance": sum(r.scores.performance for r in scored_reviews) / n,
             "overall": sum(r.scores.overall for r in scored_reviews) / n,
         }
-        aggregate_text = (
-            f"\n\nAggregate scores across {n} repos: "
-            + ", ".join(f"{k}={v:.1f}" for k, v in avg.items())
+        aggregate_text = f"\n\nAggregate scores across {n} repos: " + ", ".join(
+            f"{k}={v:.1f}" for k, v in avg.items()
         )
 
     user_message = (

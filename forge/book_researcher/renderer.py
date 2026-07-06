@@ -18,14 +18,16 @@ def render_sprint_findings(findings: SprintFindings) -> str:
     ]
 
     for f in findings.findings:
-        lines.extend([
-            f"## {f.question}",
-            "",
-            f"{f.answer}",
-            "",
-            f"**Confidence:** {f.confidence}",
-            "",
-        ])
+        lines.extend(
+            [
+                f"## {f.question}",
+                "",
+                f"{f.answer}",
+                "",
+                f"**Confidence:** {f.confidence}",
+                "",
+            ]
+        )
         if f.sources:
             lines.append("**Sources:**")
             for src in f.sources:
@@ -65,10 +67,12 @@ def render_verification(result: VerificationResult) -> str:
     ]
 
     if result.follow_up_questions:
-        lines.extend([
-            "## Follow-up Questions",
-            "",
-        ])
+        lines.extend(
+            [
+                "## Follow-up Questions",
+                "",
+            ]
+        )
         for q in result.follow_up_questions:
             lines.append(f"- {q}")
         lines.append("")
@@ -98,12 +102,14 @@ def render_knowledge_summary(book_config: BookConfig, knowledge_dir: Path) -> st
         sprint_files = [f for f in sprint_files if f.name.startswith("sprint-")]
 
         if not sprint_files:
-            lines.extend([
-                f"## Chapter {ch.number}: {ch.title}",
-                "",
-                "*No research yet.*",
-                "",
-            ])
+            lines.extend(
+                [
+                    f"## Chapter {ch.number}: {ch.title}",
+                    "",
+                    "*No research yet.*",
+                    "",
+                ]
+            )
             continue
 
         chapters_with_research += 1
@@ -123,7 +129,9 @@ def render_knowledge_summary(book_config: BookConfig, knowledge_dir: Path) -> st
 
         # Check for reviews in sprints dir
         sprints_dir = knowledge_dir.parent / "sprints"
-        review_files = sorted(sprints_dir.glob("sprint-*-review.json")) if sprints_dir.exists() else []
+        review_files = (
+            sorted(sprints_dir.glob("sprint-*-review.json")) if sprints_dir.exists() else []
+        )
         chapter_scores: list[int] = []
         for rf in review_files:
             try:
@@ -140,15 +148,19 @@ def render_knowledge_summary(book_config: BookConfig, knowledge_dir: Path) -> st
 
         avg_score = sum(chapter_scores) / len(chapter_scores) if chapter_scores else 0
 
-        lines.extend([
-            f"## Chapter {ch.number}: {ch.title}",
-            "",
-            f"- **Sprints completed:** {len(sprint_files)}",
-            f"- **Findings:** {chapter_finding_count}",
-            f"- **Average score:** {avg_score:.1f}/10" if chapter_scores else "- **Average score:** N/A",
-            f"- **Questions covered:** {len(questions_covered)}",
-            "",
-        ])
+        lines.extend(
+            [
+                f"## Chapter {ch.number}: {ch.title}",
+                "",
+                f"- **Sprints completed:** {len(sprint_files)}",
+                f"- **Findings:** {chapter_finding_count}",
+                f"- **Average score:** {avg_score:.1f}/10"
+                if chapter_scores
+                else "- **Average score:** N/A",
+                f"- **Questions covered:** {len(questions_covered)}",
+                "",
+            ]
+        )
 
         # Show coverage gaps
         covered_set = {q.lower().strip() for q in questions_covered}
@@ -163,16 +175,20 @@ def render_knowledge_summary(book_config: BookConfig, knowledge_dir: Path) -> st
     avg_overall = sum(all_scores) / len(all_scores) if all_scores else 0
     total_chapters = len(book_config.chapters)
 
-    lines.extend([
-        "---",
-        "",
-        "## Overall Statistics",
-        "",
-        f"- **Chapters with research:** {chapters_with_research}/{total_chapters}",
-        f"- **Total findings:** {total_findings}",
-        f"- **Average verification score:** {avg_overall:.1f}/10" if all_scores else "- **Average verification score:** N/A",
-        f"- **Chapters needing research:** {total_chapters - chapters_with_research}",
-        "",
-    ])
+    lines.extend(
+        [
+            "---",
+            "",
+            "## Overall Statistics",
+            "",
+            f"- **Chapters with research:** {chapters_with_research}/{total_chapters}",
+            f"- **Total findings:** {total_findings}",
+            f"- **Average verification score:** {avg_overall:.1f}/10"
+            if all_scores
+            else "- **Average verification score:** N/A",
+            f"- **Chapters needing research:** {total_chapters - chapters_with_research}",
+            "",
+        ]
+    )
 
     return "\n".join(lines)

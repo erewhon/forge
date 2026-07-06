@@ -33,6 +33,9 @@ class PanelResult:
     member_labels: list[str] = field(default_factory=list)  # labels aligned with `responses`
     attempted: int = 0
     quorum_met: bool = False
+    # (label, reason) per member that produced no usable response — transport error, timeout, or
+    # unparseable JSON. Callers rendering a quorum miss can say WHY a seat is absent.
+    failures: list[tuple[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -94,18 +97,24 @@ async def _run_member_panel(
     results = await asyncio.gather(*(_one(m) for m in members))
     responses: list[dict] = []
     labels: list[str] = []
+    failures: list[tuple[str, str]] = []
     for member, result in zip(members, results):
+        label = member.label or result.executor
         if not result.ok:
+            failures.append((label, result.error or "no response"))
             continue
         data = extract_json(result.output)
         if data:  # transport-ok but unparseable JSON is dropped, like a failed member
             responses.append(data)
-            labels.append(member.label or result.executor)
+            labels.append(label)
+        else:
+            failures.append((label, "responded but returned no parseable JSON"))
     return PanelResult(
         responses=responses,
         member_labels=labels,
         attempted=len(members),
         quorum_met=len(responses) >= floor,
+        failures=failures,
     )
 
 
