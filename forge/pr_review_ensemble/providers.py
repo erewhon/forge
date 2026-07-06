@@ -78,7 +78,19 @@ def _anthropic_slot() -> ReviewerSlot:
         return _slot(
             "anthropic", model, SkipExecutor(label, "disabled in config"), "disabled in config"
         )
-    return _slot("anthropic", model, ApiExecutor(label=label, kind="anthropic", model=model), None)
+    if settings.anthropic_base_url:
+        # Real Claude, routed through the local LiteLLM proxy (OpenAI-compat): centralized creds,
+        # no per-shell ANTHROPIC_API_KEY. Empty base_url falls back to the native Anthropic SDK.
+        executor = ApiExecutor(
+            label=label,
+            kind="openai",
+            model=model,
+            base_url=settings.anthropic_base_url,
+            api_key=settings.anthropic_api_key,
+        )
+    else:
+        executor = ApiExecutor(label=label, kind="anthropic", model=model)
+    return _slot("anthropic", model, executor, None)
 
 
 def _local_slot() -> ReviewerSlot:
