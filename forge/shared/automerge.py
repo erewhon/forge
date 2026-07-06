@@ -121,6 +121,45 @@ def classify_tests_only(repo_path: Path, *, changed: list[str] | None = None) ->
     return TestsOnlyVerdict(ok=True, changed=files)
 
 
+@dataclass(frozen=True)
+class ManifestOnlyVerdict:
+    """Result of the manifest-only gate. ``ok`` is the only thing callers must check to proceed."""
+
+    ok: bool
+    changed: list[str]
+    non_manifest: list[str] = field(default_factory=list)
+    reason: str = ""
+
+
+def classify_manifest_only(
+    repo_path: Path, *, changed: list[str] | None = None
+) -> ManifestOnlyVerdict:
+    """Decide whether the working-copy changes are a pure dependency bump — manifests/lockfiles
+    and NOTHING else.
+
+    The Dependabot bumper's first gate, the inverse twin of :func:`classify_tests_only`: a bump
+    that needs a source change is by definition not a clean bump and must fall through to
+    advisory. Blocks (``ok=False``) if there are no changes or if any changed file is not a
+    dependency manifest/lockfile. Pass ``changed`` to classify a known file list instead of
+    reading the working copy. Fail-closed: an unclassifiable change is not manifest-only.
+    """
+    files = [
+        f for f in (changed if changed is not None else get_changed_files(repo_path)) if f.strip()
+    ]
+    if not files:
+        return ManifestOnlyVerdict(ok=False, changed=[], reason="no changes to classify")
+
+    non_manifest = [f for f in files if not is_manifest_path(f)]
+    if non_manifest:
+        return ManifestOnlyVerdict(
+            ok=False,
+            changed=files,
+            non_manifest=non_manifest,
+            reason=f"non-manifest file(s) changed: {', '.join(non_manifest)}",
+        )
+    return ManifestOnlyVerdict(ok=True, changed=files)
+
+
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
 
 

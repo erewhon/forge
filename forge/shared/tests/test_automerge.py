@@ -14,6 +14,7 @@ import pytest
 
 from agents.shared.automerge import (
     advance_main,
+    classify_manifest_only,
     classify_tests_only,
     find_repo_root,
     is_manifest_path,
@@ -79,6 +80,38 @@ def test_classify_blocks_manifest_even_under_tests_dir():
 
 def test_classify_empty_is_blocked():
     v = classify_tests_only(Path("/nope"), changed=[])
+    assert not v.ok
+    assert "no changes" in v.reason
+
+
+def test_manifest_only_pure_bump_ok():
+    v = classify_manifest_only(Path("/nope"), changed=["pyproject.toml", "uv.lock"])
+    assert v.ok
+    assert v.non_manifest == []
+
+
+def test_manifest_only_blocks_source_file_alongside_bump():
+    # The classic classifier-inversion guard: a bump that also touches source must NOT pass.
+    v = classify_manifest_only(Path("/nope"), changed=["uv.lock", "agents/shared/llm.py"])
+    assert not v.ok
+    assert v.non_manifest == ["agents/shared/llm.py"]
+    assert "agents/shared/llm.py" in v.reason
+
+
+def test_manifest_only_blocks_source_only_change():
+    v = classify_manifest_only(Path("/nope"), changed=["src/app.py"])
+    assert not v.ok
+    assert v.non_manifest == ["src/app.py"]
+
+
+def test_manifest_only_blocks_test_files_too():
+    # Manifest-only means ONLY manifests — even harmless-looking test files block.
+    v = classify_manifest_only(Path("/nope"), changed=["uv.lock", "tests/test_a.py"])
+    assert not v.ok
+
+
+def test_manifest_only_empty_is_blocked():
+    v = classify_manifest_only(Path("/nope"), changed=[])
     assert not v.ok
     assert "no changes" in v.reason
 
