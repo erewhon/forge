@@ -1,0 +1,13 @@
+Resolved 91 packages in 0.76ms
+meta-agents v0.1.0
+├── anthropic v0.79.0 (latest: v0.116.0)
+├── beautifulsoup4 v4.14.3 (latest: v4.15.0)
+├── httpx v0.28.1
+├── mcp v1.28.0 (latest: v1.28.1)
+├── nous-ai v0.1.0
+├── openai v2.21.0 (latest: v2.44.0)
+├── pydantic v2.12.5 (latest: v2.13.4)
+├── pydantic-settings v2.13.0 (latest: v2.14.2)
+├── pyyaml v6.0.3
+├── typer v0.26.7 (latest: v0.26.8)
+└── pytest v9.0.2 (group: dev) (latest: v9.1.1)
