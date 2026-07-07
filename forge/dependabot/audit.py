@@ -34,13 +34,55 @@ def export_requirements(repo: Path, out: Path) -> None:
         raise AuditError(f"uv export failed (exit {result.returncode}): {result.stderr.strip()}")
 
 
+def _filter_auditable(text: str) -> str:
+    """Drop requirement blocks pip-audit cannot audit (path/editable/URL deps without pins).
+
+    ``uv export`` emits local path deps (e.g. ``../nous/nous-py``) even with ``--no-emit-project``;
+    they have no hash, which breaks pip-audit's hash-checking mode, and they aren't on PyPI to
+    audit anyway. Keep comments/blanks and any requirement block whose header line contains
+    ``==`` (pinned, hashable); a block's continuation lines (``--hash=...``) follow their
+    header's fate. Verified against this repo's real export on 2026-07-06.
+    """
+    out: list[str] = []
+    keep = True
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            out.append(line)
+            continue
+        if not line[:1].isspace():  # start of a new requirement block
+            keep = "==" in line
+        if keep:
+            out.append(line)
+    return "\n".join(out) + "\n"
+
+
+def _parse_findings(stdout: str) -> list[AuditFinding]:
+    """Parse ``pip-audit --format json`` output: a top-level object whose ``dependencies`` list
+    holds ``{"name", "version", "vulns": [...]}`` entries (schema captured from a real run)."""
+    data = json.loads(stdout)
+    findings: list[AuditFinding] = []
+    for dep in data.get("dependencies", []):
+        for v in dep.get("vulns", []):
+            findings.append(
+                AuditFinding(
+                    package=dep.get("name", ""),
+                    vuln_id=v.get("id", ""),
+                    fix_versions=v.get("fix_versions", []),
+                    description=v.get("description", ""),
+                    aliases=v.get("aliases", []),
+                )
+            )
+    return findings
+
+
 def run_audit(repo: Path, *, timeout: int | None = None) -> list[AuditFinding]:
     """Run pip-audit on an ``uv export``-generated requirements file.
 
     1. Exports to a temp file via ``export_requirements``.
-    2. Runs ``uvx pip-audit -r <tmp> --format json --disable-pip``.
-    3. Parses JSON output: each dependency entry with vulns yields one
-       ``AuditFinding`` per vulnerability.
+    2. Filters out non-auditable entries (local path/editable deps) — see ``_filter_auditable``.
+    3. Runs ``uvx pip-audit -r <tmp> --format json --disable-pip`` and parses the JSON to one
+       ``AuditFinding`` per vulnerability per dependency.
 
     pip-audit exits 0 (no vulns) or 1 (vulns found) — both treated as success.
     Any other exit code raises ``AuditError``.
@@ -48,6 +90,7 @@ def run_audit(repo: Path, *, timeout: int | None = None) -> list[AuditFinding]:
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpfile = Path(tmpdir) / "requirements.txt"
         export_requirements(repo, tmpfile)
+        tmpfile.write_text(_filter_auditable(tmpfile.read_text()))
 
         proc = subprocess.run(
             ["uvx", "pip-audit", "-r", str(tmpfile), "--format", "json", "--disable-pip"],
@@ -62,28 +105,7 @@ def run_audit(repo: Path, *, timeout: int | None = None) -> list[AuditFinding]:
 
         if not proc.stdout.strip():
             return []
-
-        findings: list[AuditFinding] = []
-        for entry in json.loads(proc.stdout):
-            deps = entry.get("dependencies", [])
-            vuln_info = entry.get("vuln", {})
-            for dep in deps:
-                vulns = (
-                    vuln_info.get("all_vulns", [vuln_info])
-                    if "all_vulns" in vuln_info
-                    else [vuln_info]
-                )
-                for v in vulns:
-                    finding = AuditFinding(
-                        package=dep["package_name"],
-                        vuln_id=v.get("id", ""),
-                        fix_versions=v.get("fix_versions", []),
-                        description=v.get("description", ""),
-                        aliases=v.get("aliases", []),
-                    )
-                    findings.append(finding)
-
-        return findings
+        return _parse_findings(proc.stdout)
 
 
 def findings_for(findings: list[AuditFinding], package: str, version: str) -> list[AuditFinding]:

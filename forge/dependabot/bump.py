@@ -88,6 +88,10 @@ _NAME_RE = re.compile(r'[-+]? ?name = "([^"]+)"')
 _VERSION_RE = re.compile(r'[-+]? ?version = "([^"]+)"')
 # Hunk header indicating a uv.lock file (git/jj unified diff).
 _LOCK_HEADER_RE = re.compile(r"^(?:---|\+\+\+) .*/?uv\.lock")
+# Any file header — used to LEAVE the uv.lock section when the diff moves to another file,
+# so that file's `version = "..."` lines (e.g. pyproject's project version) can't be
+# misattributed to the last lockfile package.
+_FILE_HEADER_RE = re.compile(r"^(?:diff --git |--- |\+\+\+ )")
 
 
 def _parse_lockfile_diff(diff_text: str) -> list[str]:
@@ -102,15 +106,22 @@ def _parse_lockfile_diff(diff_text: str) -> list[str]:
     # Ordered insertion map: seq_id -> {name, removed: str|None, added: str|None}
     entries: list[dict[str, str | None]] = []
 
+    def _flush() -> None:
+        for entry in entries:
+            if entry["removed"] and entry["added"]:
+                deltas.append(f"{entry['name']} {entry['removed']}->{entry['added']}")
+        entries.clear()
+
     for line in diff_text.splitlines():
         # Detect lock-file hunk header (--- a/uv.lock / +++ b/uv.lock)
         if _LOCK_HEADER_RE.match(line):
-            # Flush previous hunk
-            for entry in entries:
-                if entry["removed"] and entry["added"]:
-                    deltas.append(f"{entry['name']} {entry['removed']}->{entry['added']}")
-            entries.clear()
+            _flush()
             in_lock_hunk = True
+            continue
+        if _FILE_HEADER_RE.match(line):
+            # The diff moved on to a different file — leave the lock section.
+            _flush()
+            in_lock_hunk = False
             continue
 
         if not in_lock_hunk:
@@ -132,9 +143,5 @@ def _parse_lockfile_diff(diff_text: str) -> list[str]:
                 last["added"] = ver_m.group(1)
             continue
 
-    # Flush final hunk
-    for entry in entries:
-        if entry["removed"] and entry["added"]:
-            deltas.append(f"{entry['name']} {entry['removed']}->{entry['added']}")
-
+    _flush()  # final hunk
     return deltas

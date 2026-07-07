@@ -1,53 +1,27 @@
-[
-  {
-    "vuln": {
-      "id": "CVE-2024-1234",
-      "all_vulns": [
+{
+  "dependencies": [
+    {
+      "name": "annotated-doc",
+      "version": "0.0.4",
+      "vulns": []
+    },
+    {
+      "name": "idna",
+      "version": "3.11",
+      "vulns": [
         {
-          "id": "CVE-2024-1234",
-          "fix_versions": ["2.0.1"],
-          "aliases": ["GHSA-abc123"],
-          "description": "Buffer overflow in the parser module allows remote code execution."
+          "id": "PYSEC-2026-215",
+          "fix_versions": [
+            "3.15"
+          ],
+          "aliases": [
+            "CVE-2026-45409",
+            "GHSA-65pc-fj4g-8rjx"
+          ],
+          "description": "Internationalized Domain Names in Applications (IDNA) for Python provides support for Internationalized Domain Names in "
         }
-      ],
-      "database_id": "CVE-2024-1234"
-    },
-    "package": {
-      "name": "vulnerable-pkg",
-      "version": "1.0.0",
-      "subpath": null,
-      "link": "https://pypi.org/project/vulnerable-pkg/"
-    },
-    "dependencies": [
-      {
-        "package_name": "vulnerable-pkg",
-        "package_version": "1.0.0",
-        "subpath": null,
-        "vulnerable_versions": [">=1.0,<=1.99"],
-        "fix_versions": ["2.0.1"]
-      }
-    ]
-  },
-  {
-    "vuln": {
-      "id": "",
-      "all_vulns": [],
-      "database_id": ""
-    },
-    "package": {
-      "name": "clean-package",
-      "version": "3.0.0",
-      "subpath": null,
-      "link": "https://pypi.org/project/clean-package/"
-    },
-    "dependencies": [
-      {
-        "package_name": "clean-package",
-        "package_version": "3.0.0",
-        "subpath": null,
-        "vulnerable_versions": [],
-        "fix_versions": []
-      }
-    ]
-  }
-]
+      ]
+    }
+  ],
+  "fixes": []
+}

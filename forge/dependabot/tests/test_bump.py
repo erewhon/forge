@@ -123,6 +123,26 @@ class TestLockfileDelta:
             result = lockfile_delta(Path("/fake/repo"))
         assert result == []
 
+    def test_later_files_in_diff_are_not_misattributed(self):
+        """A file appearing AFTER uv.lock in the diff must end the lock section — its
+        ``version = "..."`` lines (e.g. pyproject's project version) are not package bumps."""
+        diff_text = (
+            "--- a/uv.lock\n+++ b/uv.lock\n@@ -1,0 +0,0 @@\n"
+            ' name = "foo"\n-version = "1.0.0"\n+version = "1.0.1"\n'
+            "--- a/pyproject.toml\n+++ b/pyproject.toml\n@@ -1,0 +0,0 @@\n"
+            ' name = "my-project"\n-version = "0.1.0"\n+version = "0.2.0"\n'
+        )
+        with patch("agents.dependabot.bump.working_diff", return_value=diff_text):
+            result = lockfile_delta(Path("/fake/repo"))
+        assert result == ["foo 1.0.0->1.0.1"]  # pyproject's version change ignored
+
+    def test_context_name_line_groups_versions(self):
+        """Real bump diffs keep ``name = ...`` as an unchanged context line."""
+        body = ' name = "foo"\n-version = "1.0.0"\n+version = "1.0.1"\n'
+        with patch("agents.dependabot.bump.working_diff", return_value=self._make_diff(body)):
+            result = lockfile_delta(Path("/fake/repo"))
+        assert result == ["foo 1.0.0->1.0.1"]
+
     def test_vcsonerror_returns_empty(self):
         """VCS error -> best-effort empty list."""
         from agents.task_worker.vcs import VCSError
