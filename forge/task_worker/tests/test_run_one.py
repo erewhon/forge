@@ -167,6 +167,99 @@ def test_mentioning_blocked_protocol_mid_line_does_not_skip(wired):
     assert out.status == "done"
 
 
+# --- repo override (concurrent dispatch runs leaves inside jj workspaces) -------
+
+
+def test_repo_override_pins_every_collaborator_to_the_same_dir(wired, monkeypatch, tmp_path):
+    """SAFETY: the clean-WC guard, sandbox, executor, lint, tests, revert, and commit must
+    all act on the override dir — a mixed state (gate on the workspace, commit on the
+    settings path) would corrupt the host checkout."""
+    workspace = tmp_path / "cw-leaf-abc123"
+    workspace.mkdir()
+    # The conventional resolution must never be consulted: point it somewhere nonexistent.
+    monkeypatch.setattr(tw.settings, "projects_dir", tmp_path / "nowhere")
+
+    boundaries = ("vcs", "sandbox", "changed", "exec", "lint", "tests", "commit")
+    seen: dict[str, list] = {k: [] for k in boundaries}
+    monkeypatch.setattr(tw, "detect_vcs", lambda p: seen["vcs"].append(p) or "jj")
+    fake_sandbox = SimpleNamespace(preflight=lambda: (True, "ok"))
+    monkeypatch.setattr(tw, "make_sandbox", lambda p: seen["sandbox"].append(p) or fake_sandbox)
+
+    changed_calls = {"n": 0}
+
+    def fake_changed(p):
+        seen["changed"].append(p)
+        changed_calls["n"] += 1
+        return [] if changed_calls["n"] == 1 else ["agents/x.py"]
+
+    monkeypatch.setattr(tw, "get_changed_files", fake_changed)
+    monkeypatch.setattr(
+        tw,
+        "execute_task_with_opencode",
+        lambda task, spec, pdir, model, timeout, sandbox=None: (
+            seen["exec"].append(pdir) or (True, "ok", False)
+        ),
+    )
+    monkeypatch.setattr(
+        tw, "run_lint", lambda p, files, sandbox=None: seen["lint"].append(p) or (True, "", False)
+    )
+    monkeypatch.setattr(
+        tw, "run_tests", lambda p, sandbox=None: seen["tests"].append(p) or (True, "green")
+    )
+    monkeypatch.setattr(tw, "commit", lambda p, msg: seen["commit"].append(p) or "abc123")
+
+    out = tw.run_one(_task(), repo=workspace)
+    assert out.status == "done"
+    for boundary, paths in seen.items():
+        assert paths, f"{boundary} never called"
+        assert all(p == workspace for p in paths), f"{boundary} saw {paths}, not the override"
+
+
+def test_missing_repo_override_skips_without_falling_back(wired, monkeypatch, tmp_path):
+    # The override is authoritative: a missing workspace must NOT fall back to the
+    # conventional checkout (which exists here and would silently absorb the leaf).
+    out = tw.run_one(_task(), repo=tmp_path / "gone")
+    assert out.status == "skipped"
+    assert "repo override not found" in out.reason
+    assert wired == []  # nothing executed, no status writes
+
+
+def test_no_override_keeps_conventional_resolution(wired):
+    out = tw.run_one(_task())  # the wired fixture's projects_dir/Meta path
+    assert out.status == "done"  # byte-for-byte the pre-override behavior
+
+
+def test_sandbox_kind_passes_through_to_factory(wired, monkeypatch):
+    kinds = []
+    fake_sandbox = SimpleNamespace(preflight=lambda: (True, "ok"))
+
+    def fake_factory(p, kind=None):
+        kinds.append(kind)
+        return fake_sandbox
+
+    monkeypatch.setattr(tw, "make_sandbox", fake_factory)
+    out = tw.run_one(_task(), sandbox_kind="gaol-run-once")
+    assert out.status == "done"
+    assert kinds == ["gaol-run-once"]
+
+
+def test_no_sandbox_kind_calls_factory_without_kind(wired, monkeypatch):
+    """None must stay byte-for-byte today's single-argument call — the factory only grows
+    its ``kind`` parameter in the run-once leaf, and a kind=None pass-through would crash
+    against the current signature."""
+    calls = []
+    fake_sandbox = SimpleNamespace(preflight=lambda: (True, "ok"))
+
+    def fake_factory(p):  # today's signature: kind would TypeError
+        calls.append(p)
+        return fake_sandbox
+
+    monkeypatch.setattr(tw, "make_sandbox", fake_factory)
+    out = tw.run_one(_task())
+    assert out.status == "done"
+    assert len(calls) == 1
+
+
 # --- failure paths ------------------------------------------------------------
 
 

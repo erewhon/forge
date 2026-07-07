@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import re
 import time
+from pathlib import Path
 
 from agents.shared.task_store import get_task_store
 from agents.task_worker.config import settings
@@ -90,12 +91,22 @@ def _safe_status(task_name: str, status: str, notes: str = "") -> bool:
         return False
 
 
-def run_one(task: TaskInfo, *, spec: str | None = None) -> RunOutcome:
+def run_one(
+    task: TaskInfo,
+    *,
+    spec: str | None = None,
+    repo: Path | None = None,
+    sandbox_kind: str | None = None,
+) -> RunOutcome:
     """Execute one specific task through the full safety path; return a structured outcome.
 
-    Pass ``spec`` to skip the Nous spec fetch (the CLI path fetches it here). Every failure
-    path maps to a distinct ``RunOutcome.reason``; any revert happens before the task's status
-    is written back.
+    Pass ``spec`` to skip the Nous spec fetch (the CLI path fetches it here). ``repo``
+    replaces the conventional-checkout resolution entirely — the concurrent dispatcher runs
+    each leaf inside its own jj workspace, and the clean-WC guard, revert-on-fail, sandbox,
+    and commit must ALL act on that same directory (a mixed state would corrupt the host
+    checkout). ``sandbox_kind`` selects the sandbox implementation for ``make_sandbox``;
+    None keeps the env-keyed default. Every failure path maps to a distinct
+    ``RunOutcome.reason``; any revert happens before the task's status is written back.
     """
     start = time.time()
 
@@ -139,15 +150,21 @@ def run_one(task: TaskInfo, *, spec: str | None = None) -> RunOutcome:
         print("Spec contains BLOCKED marker, skipping")
         return _outcome("skipped", "spec contains BLOCKED marker")
 
-    # Forge project names are Title Case ("Meta"); checkouts are conventionally lowercase.
-    project_dir = settings.projects_dir / task.project
-    if not project_dir.is_dir():
-        lowered = settings.projects_dir / task.project.lower()
-        if lowered.is_dir():
-            project_dir = lowered
-    if not project_dir.is_dir():
-        print(f"Project dir not found: {project_dir}")
-        return _outcome("skipped", f"project dir not found: {project_dir}")
+    if repo is not None:
+        project_dir = repo
+        if not project_dir.is_dir():
+            print(f"Repo override not found: {project_dir}")
+            return _outcome("skipped", f"repo override not found: {project_dir}")
+    else:
+        # Forge project names are Title Case ("Meta"); checkouts are conventionally lowercase.
+        project_dir = settings.projects_dir / task.project
+        if not project_dir.is_dir():
+            lowered = settings.projects_dir / task.project.lower()
+            if lowered.is_dir():
+                project_dir = lowered
+        if not project_dir.is_dir():
+            print(f"Project dir not found: {project_dir}")
+            return _outcome("skipped", f"project dir not found: {project_dir}")
 
     vcs = detect_vcs(project_dir)
     if not vcs:
@@ -155,8 +172,13 @@ def run_one(task: TaskInfo, *, spec: str | None = None) -> RunOutcome:
         return _outcome("skipped", f"no VCS detected in {project_dir}")
     print(f"  repo={project_dir} vcs={vcs}")
 
-    # 3. Preflight: require a ready sandbox (a running gaol dx container by default)
-    sandbox = make_sandbox(project_dir)
+    # 3. Preflight: require a ready sandbox (a running gaol dx container by default).
+    # The kind pass-through stays out of the default call so None is byte-for-byte today's
+    # env-keyed behavior; the factory grows its ``kind`` parameter in the run-once leaf.
+    if sandbox_kind is None:
+        sandbox = make_sandbox(project_dir)
+    else:
+        sandbox = make_sandbox(project_dir, kind=sandbox_kind)
     dx_ready, dx_status = sandbox.preflight()
     if not dx_ready:
         print(
