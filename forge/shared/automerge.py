@@ -308,6 +308,41 @@ def _git_advance_main(repo_path: Path, change_id: str, *, main: str, push: bool)
     )
 
 
+def working_copy_base(repo_path: Path) -> str:
+    """The revision the working copy currently sits on — capture BEFORE a loop mutates the
+    working copy so :func:`repark_working_copy` can return there after a branch push.
+    jj: the ``@-`` commit id; git: the current branch name."""
+    vcs = detect_vcs(repo_path)
+    if vcs == "jj":
+        res = _run(["jj", "log", "--no-graph", "-r", "@-", "-T", "commit_id"], repo_path)
+        if res.returncode != 0:
+            raise VCSError(f"jj log @- failed: {res.stderr.strip()}")
+        return res.stdout.strip()
+    if vcs == "git":
+        branch = _git_current_branch(repo_path)
+        if not branch:
+            raise VCSError("git: could not determine current branch")
+        return branch
+    raise VCSError(f"No VCS detected in {repo_path}")
+
+
+def repark_working_copy(repo_path: Path, base: str) -> None:
+    """Return the working copy to *base* after :func:`push_branch`, so the pushed branch stays
+    a side head instead of becoming the mainline's parent. Without this, every advisory or
+    branched outcome stacks its bump commit under all subsequent work (live-smoke finding:
+    a failed advisory push left a dep bump inside an epic branch's lineage).
+    jj: ``jj new <base>``; git: ``git checkout <base>``."""
+    vcs = detect_vcs(repo_path)
+    if vcs == "jj":
+        res = _run(["jj", "new", base], repo_path)
+    elif vcs == "git":
+        res = _run(["git", "checkout", base], repo_path)
+    else:
+        raise VCSError(f"No VCS detected in {repo_path}")
+    if res.returncode != 0:
+        raise VCSError(f"repark onto {base} failed: {res.stderr.strip()}")
+
+
 def working_diff(repo_path: Path) -> str:
     """Unified (git-format) diff of the working copy vs its parent/HEAD, including new files.
 

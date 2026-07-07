@@ -73,6 +73,8 @@ def loop(monkeypatch, tmp_path):
         "emit_advisory": patch.object(ab, "emit_advisory", return_value=None),
         "revert_changes": patch.object(ab, "revert_changes"),
         "get_changed_files": patch.object(ab, "get_changed_files", return_value=[]),
+        "working_copy_base": patch.object(ab, "working_copy_base", return_value="base123"),
+        "repark_working_copy": patch.object(ab, "repark_working_copy"),
     }
     monkeypatch.setattr(ab.settings, "auto_log_path", tmp_path / "auto.jsonl")
     started = {name: p.start() for name, p in mocks.items()}
@@ -95,6 +97,21 @@ def test_default_pushes_branch_only(loop, tmp_path):
     assert not result.merged_to_main
     loop["push_branch"].assert_called_once()
     loop["advance_main"].assert_not_called()
+    # The bump branch stays a side head — the working copy returns to where it started.
+    loop["repark_working_copy"].assert_called_once_with(tmp_path, "base123")
+
+
+def test_merged_run_does_not_repark(loop, tmp_path):
+    # After advance_main the bump commit IS main; continuing from it is correct.
+    ab.auto_bump(tmp_path, auto_merge=True, log=lambda m: None)
+    loop["repark_working_copy"].assert_not_called()
+
+
+def test_advisory_reparks_too(loop, tmp_path):
+    loop["collect_evidence"].side_effect = lambda c, f, d: _evidence(c, complete=False)
+    result = ab.auto_bump(tmp_path, log=lambda m: None)
+    assert result.status == "advisory"
+    loop["repark_working_copy"].assert_called_once_with(tmp_path, "base123")
 
 
 def test_policy_ineligible_goes_advisory_without_expensive_gates(loop, tmp_path):

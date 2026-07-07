@@ -35,7 +35,9 @@ from agents.shared.automerge import (
     classify_manifest_only,
     log_decision,
     push_branch,
+    repark_working_copy,
     slugify,
+    working_copy_base,
     working_diff,
 )
 from agents.shared.signoff import SignoffResult, SignoffSeat, full_quorum_signoff
@@ -128,6 +130,10 @@ def auto_bump(
             ),
         )
 
+    # Where the working copy sits NOW — after any branch push that doesn't advance main, the
+    # loop reparks here so the bump branch stays a side head, never the mainline's parent.
+    base = working_copy_base(repo_path)
+
     # 1. Apply the bump (manifest+lockfile-only by construction of `uv lock -P`).
     changed = apply_bump(repo_path, candidate)
     if not changed:
@@ -145,6 +151,7 @@ def auto_bump(
         log(f"advisory: {reason}")
         try:
             push_branch(repo_path, branch, _commit_message(candidate, evidence))
+            repark_working_copy(repo_path, base)
         except VCSError as e:
             revert_changes(repo_path)
             _log(repo_path, "error", f"{reason}; push failed: {e}", candidate, evidence, so=so)
@@ -186,12 +193,16 @@ def auto_bump(
         detail = so.reason + (f"; blockers: {'; '.join(so.blockers[:3])}" if so.blockers else "")
         return _advisory(f"sign-off gate: {detail}", passed=True, so=so)
 
-    # 6. Action — push the branch; advance main only under the explicit flag.
+    # 6. Action — push the branch; advance main only under the explicit flag. A merge leaves
+    # the working copy on the bump commit (that IS main now); a plain branch reparks so the
+    # bump stays a side head.
     push = push_branch(repo_path, branch, _commit_message(candidate, evidence))
     status, merged = "branched", False
     if auto_merge:
         advance_main(repo_path, push.change_id)
         status, merged = "merged", True
+    else:
+        repark_working_copy(repo_path, base)
 
     _log(repo_path, status, "", candidate, evidence, passed=True, so=so, change_id=push.change_id)
     log(f"{status}: {branch} @ {push.change_id}" + (" (merged to main)" if merged else ""))

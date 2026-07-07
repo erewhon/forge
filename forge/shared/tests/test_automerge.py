@@ -106,6 +106,40 @@ def test_jj_push_branch_argv_has_no_allow_new(monkeypatch):
     assert "--allow-new" not in push_cmd
 
 
+def test_working_copy_base_and_repark_jj(monkeypatch):
+    import agents.shared.automerge as am
+
+    captured: list[list[str]] = []
+
+    def fake_run(cmd, cwd, timeout=30):
+        captured.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "abc123def", "")
+
+    monkeypatch.setattr(am, "_run", fake_run)
+    monkeypatch.setattr(am, "detect_vcs", lambda p: "jj")
+
+    assert am.working_copy_base(Path("/tmp")) == "abc123def"
+    am.repark_working_copy(Path("/tmp"), "abc123def")
+    assert captured[-1] == ["jj", "new", "abc123def"]
+
+
+def test_repark_git_checks_out_base_branch(monkeypatch):
+    import agents.shared.automerge as am
+
+    captured: list[list[str]] = []
+
+    def fake_run(cmd, cwd, timeout=30):
+        captured.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "main", "")
+
+    monkeypatch.setattr(am, "_run", fake_run)
+    monkeypatch.setattr(am, "detect_vcs", lambda p: "git")
+
+    assert am.working_copy_base(Path("/tmp")) == "main"
+    am.repark_working_copy(Path("/tmp"), "main")
+    assert captured[-1] == ["git", "checkout", "main"]
+
+
 def test_manifest_only_pure_bump_ok():
     v = classify_manifest_only(Path("/nope"), changed=["pyproject.toml", "uv.lock"])
     assert v.ok
