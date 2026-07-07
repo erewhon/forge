@@ -1,0 +1,10 @@
+[Unit]
+Description=Dependabot bumper (daily 05:37, before the morning brief picks up results)
+
+[Timer]
+OnCalendar=*-*-* 05:37:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

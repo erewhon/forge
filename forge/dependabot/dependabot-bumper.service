@@ -1,0 +1,31 @@
+[Unit]
+Description=Dependabot bumper - scan, gate, and auto-merge one clean low-risk dependency bump
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/user/Projects/erewhon/meta/agents/dependabot/run.sh
+WorkingDirectory=/home/user/Projects/erewhon/meta
+
+Environment=HOME=/home/user
+Environment=PATH=/home/linuxbrew/.linuxbrew/bin:/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+# Suite + audit + sign-off can take a while on a busy day.
+TimeoutStartSec=2400
+
+# Exit codes: 0 = merged/branched/no-candidates; 1 = advisory or error. An advisory run
+# therefore shows this unit as "failed" — that is deliberate visibility: the details are in
+# the Forge task it filed and in agents/dependabot/logs/auto.jsonl.
+
+# Sandboxing — unlike the read-only agents, this unit legitimately WRITES: the repo
+# (uv.lock, jj commits, decision log), uv's cache, and jj/uv state.
+ProtectSystem=strict
+ReadWritePaths=/home/user/Projects/erewhon/meta
+ReadWritePaths=/home/user/.cache
+ReadWritePaths=/home/user/.local/state
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
