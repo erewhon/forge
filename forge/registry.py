@@ -119,4 +119,10 @@ REGISTRY: list[AgentCommand] = [
         module="agents.evals.main",
         exposes_mcp=False,
     ),
+    AgentCommand(
+        name="deps",
+        summary="Dependency bumper: scan, gate, and auto-merge clean low-risk bumps.",
+        module="agents.dependabot.main",
+        exposes_mcp=False,
+    ),
 ]
