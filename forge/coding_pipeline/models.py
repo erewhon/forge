@@ -177,6 +177,9 @@ class LeafSpec(BaseModel):
     # bare "auto" often answers text-only in opencode sessions (e2e dry-run finding).
     model_tier: Literal["auto", "auto-free", "auto-full", "coder"] | None = None
     boundedness: BoundednessCheck | None = None
+    # Prediction only — nothing enforces it; correctness never depends on file_scope.
+    # The conflict-free batch picker reads this at decomposition time.
+    file_scope: list[str] = []
 
     @field_validator("title")
     @classmethod
@@ -193,6 +196,17 @@ class LeafSpec(BaseModel):
         for dep in v:
             if "," in dep:
                 raise ValueError(f"dependency title {dep!r} contains a comma")
+        return v
+
+    @field_validator("file_scope")
+    @classmethod
+    def _file_scope_comma_free(cls, v: list[str]) -> list[str]:
+        for entry in v:
+            if "," in entry:
+                raise ValueError(
+                    f"file_scope entry {entry!r} contains a comma — "
+                    "Forge cells split on commas; use path prefixes without commas"
+                )
         return v
 
 

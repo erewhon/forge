@@ -218,6 +218,11 @@ Each leaf's "content" is a COMPLETE worker spec — the worker sees nothing else
 what/why (one short paragraph), acceptance criteria (bulleted, testable), a files hint, and \
 test expectations.
 
+The architect also predicts which files/directories a leaf will touch. Include a \
+"file_scope" array in each leaf with repo-relative path prefixes (e.g. "agents/task_worker/\
+main.py" or "agents/shared/ensemble/"). Entries must NOT contain commas. This is prediction \
+only — the batch picker uses it to schedule disjoint leaves together.
+
 Conservative autonomy tagging:
 - routine mechanical leaves in well-tested areas: execution_mode="Auto-OK", requires_tests=true, \
 max_files <= 5, model_tier="auto";
@@ -235,11 +240,12 @@ must NOT contain commas.
 
 Respond with ONLY a JSON object: {"leaves": [<LeafSpec>, ...]} where each LeafSpec is
 {"title": str, "content": str, "feature": str, "depends_on": [str], "priority": int,
- "phase": "Feature"|"Infrastructure"|"Polish"|"Bugfix"|"Launch", "status": "Ready"|"Spec Needed",
- "execution_mode": "Manual"|"Auto-OK"|"Auto-Preferred", "complexity": "routine"|"novel"|null,
- "estimate": "xs"|"s"|"m"|"l"|"xl"|null, "task_type": "bug-fix"|"feature"|"refactor"|"docs"|
- "test"|"chore", "requires_tests": bool, "max_files": int|null,
- "model_tier": "auto"|"auto-free"|"auto-full"|null}"""
+  "phase": "Feature"|"Infrastructure"|"Polish"|"Bugfix"|"Launch", "status": "Ready"|"Spec Needed",
+  "execution_mode": "Manual"|"Auto-OK"|"Auto-Preferred", "complexity": "routine"|"novel"|null,
+  "estimate": "xs"|"s"|"m"|"l"|"xl"|null, "task_type": "bug-fix"|"feature"|"refactor"|"docs"|
+  "test"|"chore", "requires_tests": bool, "max_files": int|null,
+  "model_tier": "auto"|"auto-free"|"auto-full"|null,
+  "file_scope": [str]}"""
 
 BOUNDEDNESS_SYSTEM = """You are a skeptical senior engineer reviewing ONE proposed task leaf for \
 an autonomous coding worker. Judge it against five criteria, strictly — an optimistic pass here \
@@ -428,9 +434,11 @@ def render_tree(leaves: list[LeafSpec]) -> str:
         b = leaf.boundedness
         shaped = "?" if b is None else ("✓" if b.worker_shaped else "✗")
         deps = f" ← {', '.join(leaf.depends_on)}" if leaf.depends_on else ""
+        scope = f" files:{', '.join(leaf.file_scope)}" if leaf.file_scope else ""
         lines.append(
             f"- [{leaf.execution_mode}/{leaf.status}] **{leaf.title}** "
             f"(p{leaf.priority}, {leaf.estimate or '?'}, {leaf.feature}, shaped:{shaped}){deps}"
+            f"{scope}"
         )
     return "\n".join(lines)
 

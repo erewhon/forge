@@ -17,6 +17,7 @@ from agents.coding_pipeline.models import (
     LeafOutcome,
     LeafSpec,
     SuiteResult,
+    TaskTree,
     WaveRecord,
     WaveReport,
 )
@@ -175,3 +176,70 @@ def test_wave_record_round_trips_discriminated_actions():
     assert [a.kind for a in revived.actions] == ["fixup", "escalate", "halt"]
     assert isinstance(revived.actions[0], FixupAction)  # union revives the right class
     assert revived.actions[0].leaf.title == "fix dangling ref"
+
+
+# --- LeafSpec file_scope -----------------------------------------------------
+
+
+def test_leaf_file_scope_defaults_empty():
+    leaf = _leaf()
+    assert leaf.file_scope == []
+
+
+def test_leaf_file_scope_accepted_values():
+    leaf = LeafSpec(
+        title="scaffold models",
+        content="spec",
+        feature="F",
+        file_scope=["agents/coding_pipeline/models.py", "agents/shared/"],
+    )
+    assert leaf.file_scope == ["agents/coding_pipeline/models.py", "agents/shared/"]
+
+
+def test_leaf_file_scope_comma_rejected():
+    with pytest.raises(ValidationError, match="comma"):
+        LeafSpec(
+            title="ok title",
+            content="body",
+            feature="F",
+            file_scope=["agents/foo.py,baz.py"],
+        )
+
+
+def test_file_scope_round_trips_through_json():
+    leaf = LeafSpec(
+        title="scope leaf",
+        content="spec",
+        feature="F",
+        file_scope=["path/to/file.py", "dir/"],
+    )
+    revived = LeafSpec.model_validate_json(leaf.model_dump_json())
+    assert revived.file_scope == ["path/to/file.py", "dir/"]
+
+
+def test_legacy_tree_json_without_file_scope_loads_empty(tmp_path):
+    """Old tree.json files that lack file_scope must load with []."""
+    import json
+
+    legacy = '{"leaves": [{"title": "old leaf", "content": "spec", "feature": "F"}]}'
+    p = tmp_path / "tree.json"
+    p.write_text(legacy)
+    tree = TaskTree.model_validate(json.loads(legacy))
+    assert tree.leaves[0].file_scope == []
+
+
+def test_task_tree_round_trip_with_file_scope(tmp_path):
+    leaves = [
+        LeafSpec(
+            title="scoped leaf",
+            content="spec",
+            feature="F",
+            file_scope=["a/b.py"],
+        ),
+        LeafSpec(title="unscoped leaf", content="spec", feature="F"),
+    ]
+    tree = TaskTree(leaves=leaves)
+    json_str = tree.model_dump_json(indent=2)
+    revived = TaskTree.model_validate_json(json_str)
+    assert revived.leaves[0].file_scope == ["a/b.py"]
+    assert revived.leaves[1].file_scope == []
