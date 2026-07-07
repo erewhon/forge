@@ -16,6 +16,7 @@ and its exact user-facing messages, and moving it here would change behavior.
 from __future__ import annotations
 
 import shutil
+import socket
 import subprocess
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -137,6 +138,19 @@ class GaolRunOnceSandbox:
             mounts.append((str(state), f"{home}/.local/share/opencode"))
         return mounts
 
+    def _extra_host_args(self) -> list[str]:
+        """--add-host entries for LAN/mesh names the sandbox's NAT'd DNS can't resolve,
+        resolved on the host (which has LAN/LAN DNS). Unresolvable names are skipped
+        — the sandbox just won't know them, same as before the flag existed."""
+        args: list[str] = []
+        for name in settings.runonce_extra_hosts:
+            try:
+                ip = socket.gethostbyname(name)
+            except OSError:
+                continue
+            args += ["--add-host", f"{name}:{ip}"]
+        return args
+
     def run(self, cmd: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
         # KEEP ARGS PLAIN: gaol re-joins argv into an unquoted shell string, so a
         # metacharacter in any element (backticks!) would be shell-interpreted in the
@@ -158,6 +172,9 @@ class GaolRunOnceSandbox:
             args += ["--memory", settings.runonce_memory]
         if settings.runonce_cpus:
             args += ["--cpus", str(settings.runonce_cpus)]
+        args += self._extra_host_args()
+        if settings.runonce_wait_network_secs > 0:
+            args += ["--wait-network", str(settings.runonce_wait_network_secs)]
         args += [
             "--workdir",
             ws,

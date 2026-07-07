@@ -112,9 +112,11 @@ def _capture_run(monkeypatch):
 
 def test_run_once_argv_shape(tmp_path, monkeypatch, bare_home):
     """The workspace is mounted writable at the SAME path (opencode derives its project
-    root from PWD), caps and the in-container timeout are set, and the command follows
-    the ``--`` separator verbatim."""
+    root from PWD), caps and the in-container timeout are set, host-resolved LAN names
+    are injected, the network readiness gate is on, and the command follows the ``--``
+    separator verbatim."""
     seen = _capture_run(monkeypatch)
+    monkeypatch.setattr(sb.socket, "gethostbyname", lambda name: "100.72.235.6")
     repo = tmp_path / "cw-leaf"
     repo.mkdir()
     box = GaolRunOnceSandbox(repo)
@@ -132,11 +134,25 @@ def test_run_once_argv_shape(tmp_path, monkeypatch, bare_home):
     assert "HOME=/home/dev" in args
     assert args[args.index("--memory") + 1] == "4GiB"
     assert args[args.index("--cpus") + 1] == "2"
+    # LAN/mesh names the NAT'd sandbox DNS can't resolve, injected host-resolved
+    assert args[args.index("--add-host") + 1] == "localhost:100.72.235.6"
+    # DHCP readiness gate — a network command must not start before the NIC is up
+    assert args[args.index("--wait-network") + 1] == "30"
     assert args[args.index("--timeout") + 1] == "600"
     assert args[args.index("--") + 1 :] == ["uv", "run", "pytest"]
     # host-side kill is a delayed backstop beyond the in-container timeout
     assert seen["kwargs"]["timeout"] == 600 + GaolRunOnceSandbox._HOST_GRACE_S
     assert seen["kwargs"]["cwd"] == repo
+
+
+def test_run_once_unresolvable_extra_host_is_skipped(tmp_path, monkeypatch, bare_home):
+    def boom(name):
+        raise OSError("no such host")
+
+    seen = _capture_run(monkeypatch)
+    monkeypatch.setattr(sb.socket, "gethostbyname", boom)
+    GaolRunOnceSandbox(tmp_path).run(["true"], timeout=5)
+    assert "--add-host" not in seen["args"]  # skipped, never a crash
 
 
 def test_run_once_metachars_pass_through_as_single_elements(tmp_path, monkeypatch, bare_home):

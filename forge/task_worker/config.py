@@ -31,6 +31,15 @@ class TaskWorkerSettings(BaseSettings):
     runonce_home: str = "/home/dev"
     runonce_memory: str | None = "4GiB"  # per-sandbox cap; None = uncapped
     runonce_cpus: int | None = 2
+    # The sandbox NIC is NAT'd (incusbr0) and its DNS can't resolve LAN/mesh hostnames
+    # (live smoke finding: opencode hung a full 30-minute timeout failing to reach the
+    # router by name). Each name here is resolved ON THE HOST at run() time and injected
+    # into the sandbox's /etc/hosts via run-once --add-host; unresolvable names are
+    # skipped. "localhost" carries the LLM router.
+    runonce_extra_hosts: list[str] = ["localhost"]
+    # DHCP in a fresh container takes ~5-10s; without the readiness gate a
+    # network-dependent command starts too early and hangs to its kill timeout.
+    runonce_wait_network_secs: int = 30
 
     # Degenerate-session retry: a session that ends this fast with zero file changes is
     # an empty generation (router hiccup), not a real attempt — retry in-process up to
