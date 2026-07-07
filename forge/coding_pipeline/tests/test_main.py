@@ -274,6 +274,34 @@ def test_run_defaults_to_whole_epic_scope(tmp_path, _tmp_runs_dir):
     assert result == 0
     assert seen["feature"] is None  # whole-epic scope, not one feature
     assert seen["project"] == "Meta"
+    assert seen["concurrency"] is None  # settings default rules unless the flag is given
+
+
+def test_run_concurrency_flag_plumbs_through(tmp_path, _tmp_runs_dir):
+    from agents.coding_pipeline.models import FramingProposal
+
+    run_dir = _tmp_runs_dir / "my-epic"
+    run_dir.mkdir(parents=True)
+    (run_dir / "framing.json").write_text(
+        FramingProposal(
+            goal_as_stated="x",
+            restated_goal="x",
+            recommendation="y",
+            epic_slug="my-epic",
+            approved=True,
+        ).model_dump_json()
+    )
+
+    seen = {}
+    with patch(
+        "agents.coding_pipeline.main.run_epic",
+        lambda **kw: (
+            seen.update(kw) or MagicMock(status="dry", epic_slug="my-epic", waves_run=0, notes=[])
+        ),
+    ):
+        result = main(["run", "my-epic", "--project", "Meta", "--concurrency", "3"])
+    assert result == 0
+    assert seen["concurrency"] == 3
 
 
 def test_status_accepts_epic_slug_argument(tmp_path):

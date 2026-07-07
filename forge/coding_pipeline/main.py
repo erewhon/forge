@@ -214,6 +214,15 @@ def _cmd_run(argv: list[str]) -> int:
         action="store_true",
         help="Plan waves and print, no dispatch/writes.",
     )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=None,
+        help=(
+            "Leaves in flight per wave (default: settings.dispatch_concurrency). "
+            "1 = serial; above 1 uses per-leaf jj workspaces + the reconcile barrier."
+        ),
+    )
     args = parser.parse_args(argv)
 
     run_dir = settings.runs_dir / args.epic_slug
@@ -231,6 +240,7 @@ def _cmd_run(argv: list[str]) -> int:
         max_waves=args.max_waves,
         wave_gate=args.wave_gate,
         dry_run=args.dry_run,
+        concurrency=args.concurrency,
     )
 
     _print_orchestrator_result(result)

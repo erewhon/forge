@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import os
+import threading
+import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -276,3 +279,283 @@ def test_injection_journaled_with_deps_and_size(wired, tmp_path):
     assert len(records) == 1
     assert records[0]["deps_landed"] == ["landed dep"]
     assert records[0]["chars"] > 0
+
+
+# --- concurrent dispatch (workspace fan-out + reconcile barrier) --------------------
+
+
+def _done_at(title: str) -> RunOutcome:
+    return _done(title).model_copy(update={"commit_id": f"cid-{title}"})
+
+
+@pytest.fixture
+def cw(monkeypatch, tmp_path):
+    """Fake every seam the concurrent path uses: workspace lifecycle, reconcile, task
+    store. Records what happened so tests assert behavior, not wiring trivia."""
+    import agents.coding_pipeline.reconcile as rcmod
+    import agents.shared.task_store as tsmod
+    import agents.shared.workspaces as wsmod
+
+    state = SimpleNamespace(
+        created=[],  # (dest, base_rev)
+        forgotten=[],
+        demotes=[],  # (task, status)
+        reconcile_landed=None,  # [(leaf, commit_id)] as received, in order
+        reconcile_result=None,  # override to script demotions
+        preflight_kinds=[],
+    )
+
+    def fake_preflight(repo, kind=None):
+        state.preflight_kinds.append(kind)
+        return ""
+
+    monkeypatch.setattr(dp, "_preflight", fake_preflight)
+    monkeypatch.setattr(wsmod, "resolve_base_rev", lambda repo, rev="@": "base0")
+    monkeypatch.setattr(
+        wsmod,
+        "workspace_destination",
+        lambda repo, label, base_dir=None, prefix="ws": tmp_path / f"{prefix}-{label}",
+    )
+
+    def fake_create(repo, dest, *, base_rev):
+        state.created.append((dest, base_rev))
+        dest.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(wsmod, "create_workspace", fake_create)
+    monkeypatch.setattr(wsmod, "forget_workspace", lambda repo, ws: state.forgotten.append(ws))
+
+    def fake_reconcile(repo, base, landed, *, on_demote, log):
+        state.reconcile_landed = [(o.leaf, c) for o, c in landed]
+        if state.reconcile_result is not None:
+            return state.reconcile_result(landed, on_demote)
+        return [o for o, _ in landed]
+
+    monkeypatch.setattr(rcmod, "reconcile_wave", fake_reconcile)
+
+    class _Store:
+        def update_status(self, task, status, notes="", **kw):
+            state.demotes.append((task, status))
+
+        def find_task(self, title):  # only reached when a test omits find=
+            return _task(title)
+
+        def get_spec(self, title):  # only reached when a test omits fetch_spec=
+            return "spec"
+
+    monkeypatch.setattr(tsmod, "get_task_store", lambda: _Store())
+    return state
+
+
+def test_concurrent_runs_each_leaf_in_its_own_workspace(cw, tmp_path):
+    seen: dict[str, dict] = {}
+
+    def fake_run(task, spec=None, repo=None, sandbox_kind=None):
+        seen[task.task] = {"repo": repo, "sandbox_kind": sandbox_kind}
+        return _done_at(task.task)
+
+    outcomes = run_wave(
+        _plan("a", "b", "c"),
+        tmp_path,
+        run_leaf=fake_run,
+        find=_task,
+        concurrency=3,
+        log=lambda m: None,
+    )
+    assert [o.status for o in outcomes] == ["done", "done", "done"]
+    # one workspace per leaf, all pinned to the SAME base rev
+    assert len(cw.created) == 3
+    assert {base for _, base in cw.created} == {"base0"}
+    # each worker ran against ITS workspace, under the run-once sandbox
+    workspace_paths = {dest for dest, _ in cw.created}
+    assert {v["repo"] for v in seen.values()} == workspace_paths
+    assert {v["sandbox_kind"] for v in seen.values()} == {"gaol-run-once"}
+    # preflight probed the sandbox kind the wave actually runs under
+    assert cw.preflight_kinds == ["gaol-run-once"]
+    # every workspace forgotten at the end
+    assert sorted(cw.forgotten) == sorted(workspace_paths)
+
+
+def test_concurrent_cap_bounds_leaves_in_flight(cw, tmp_path):
+    lock = threading.Lock()
+    gauge = {"now": 0, "max": 0}
+
+    def fake_run(task, spec=None, repo=None, sandbox_kind=None):
+        with lock:
+            gauge["now"] += 1
+            gauge["max"] = max(gauge["max"], gauge["now"])
+        time.sleep(0.05)
+        with lock:
+            gauge["now"] -= 1
+        return _done_at(task.task)
+
+    run_wave(
+        _plan("a", "b", "c", "d"),
+        tmp_path,
+        run_leaf=fake_run,
+        find=_task,
+        concurrency=2,
+        log=lambda m: None,
+    )
+    assert gauge["max"] <= 2
+
+
+def test_concurrent_reconcile_receives_dispatch_order_not_completion_order(cw, tmp_path):
+    def fake_run(task, spec=None, repo=None, sandbox_kind=None):
+        if task.task == "a":
+            time.sleep(0.1)  # a finishes LAST
+        return _done_at(task.task)
+
+    run_wave(
+        _plan("a", "b"),
+        tmp_path,
+        run_leaf=fake_run,
+        find=_task,
+        concurrency=2,
+        log=lambda m: None,
+    )
+    assert cw.reconcile_landed == [("a", "cid-a"), ("b", "cid-b")]
+
+
+def test_concurrent_worker_crash_fails_only_that_leaf(cw, tmp_path):
+    def fake_run(task, spec=None, repo=None, sandbox_kind=None):
+        if task.task == "b":
+            raise RuntimeError("thread died")
+        return _done_at(task.task)
+
+    outcomes = run_wave(
+        _plan("a", "b", "c"),
+        tmp_path,
+        run_leaf=fake_run,
+        find=_task,
+        concurrency=3,
+        log=lambda m: None,
+    )
+    assert [o.status for o in outcomes] == ["done", "failed", "done"]
+    assert "worker crashed" in outcomes[1].reason
+    # the crashed leaf never reaches the barrier; batch-mates do
+    assert cw.reconcile_landed == [("a", "cid-a"), ("c", "cid-c")]
+    assert len(cw.forgotten) == 3  # cleanup includes the crashed leaf's workspace
+
+
+def test_concurrent_demotion_replaces_outcome_and_journals_own_event(cw, tmp_path):
+    import json as _json
+
+    def scripted(landed, on_demote):
+        out = []
+        for o, _ in landed:
+            if o.leaf == "b":
+                on_demote("b", "conflict with a")
+                out.append(o.model_copy(update={"status": "failed", "reason": "conflict"}))
+            else:
+                out.append(o)
+        return out
+
+    cw.reconcile_result = scripted
+    journal_dir = tmp_path / "runs"
+    journal_dir.mkdir()
+    outcomes = run_wave(
+        _plan("a", "b"),
+        tmp_path,
+        journal_dir=journal_dir,
+        run_leaf=lambda t, spec=None, repo=None, sandbox_kind=None: _done_at(t.task),
+        find=_task,
+        concurrency=2,
+        log=lambda m: None,
+    )
+    assert [o.status for o in outcomes] == ["done", "failed"]
+    assert ("b", "Ready") in cw.demotes  # flipped back for replan
+    records = [
+        _json.loads(line) for line in (journal_dir / "journal.jsonl").read_text().splitlines()
+    ]
+    dispatches = [r for r in records if r["event"] == "leaf_dispatch" and r["leaf"] == "b"]
+    demotions = [r for r in records if r["event"] == "reconcile_demotion" and r["leaf"] == "b"]
+    assert len(dispatches) == 1  # ONE dispatch = ONE attempt, however it ends
+    assert len(demotions) == 1  # the demotion is its own event, not a second attempt
+
+
+def test_concurrent_missing_task_gets_no_workspace(cw, tmp_path):
+    ran: list[str] = []
+    outcomes = run_wave(
+        _plan("ghost", "real"),
+        tmp_path,
+        run_leaf=lambda t, spec=None, repo=None, sandbox_kind=None: (
+            ran.append(t.task) or _done_at(t.task)
+        ),
+        find=lambda title: None if title == "ghost" else _task(title),
+        concurrency=2,
+        log=lambda m: None,
+    )
+    assert outcomes[0].status == "skipped"
+    assert outcomes[1].status == "done"
+    assert ran == ["real"]
+    assert len(cw.created) == 1
+
+
+def test_concurrent_workspace_setup_failure_aborts_with_cleanup(cw, tmp_path, monkeypatch):
+    import agents.shared.workspaces as wsmod
+
+    calls = {"n": 0}
+
+    def failing_create(repo, dest, *, base_rev):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise wsmod.JJError("workspace add exploded")
+        cw.created.append((dest, base_rev))
+
+    monkeypatch.setattr(wsmod, "create_workspace", failing_create)
+    ran: list[str] = []
+    with pytest.raises(DispatchError, match="workspace setup failed"):
+        run_wave(
+            _plan("a", "b"),
+            tmp_path,
+            run_leaf=lambda t, **kw: ran.append(t.task) or _done_at(t.task),
+            find=_task,
+            concurrency=2,
+            log=lambda m: None,
+        )
+    assert ran == []  # nothing dispatched
+    assert len(cw.forgotten) == 1  # the one workspace that DID get created is cleaned up
+
+
+def test_concurrent_reconcile_error_is_a_loud_dispatch_error(cw, tmp_path, monkeypatch):
+    import agents.coding_pipeline.reconcile as rcmod
+
+    def exploding_reconcile(repo, base, landed, *, on_demote, log):
+        raise rcmod.ReconcileError("could not reposition")
+
+    monkeypatch.setattr(rcmod, "reconcile_wave", exploding_reconcile)
+    with pytest.raises(DispatchError, match="reconcile barrier"):
+        run_wave(
+            _plan("a"),
+            tmp_path,
+            run_leaf=lambda t, **kw: _done_at(t.task),
+            find=_task,
+            concurrency=2,
+            log=lambda m: None,
+        )
+    assert len(cw.forgotten) == 1  # cleanup still ran
+
+
+def test_serial_path_never_touches_workspace_or_reconcile_code(wired, monkeypatch):
+    """The serial-fallback invariant: concurrency 1 (the default) is byte-for-byte the old
+    path — no workspaces, no reconcile, dx-kind preflight."""
+
+    def bomb(*a, **kw):
+        raise AssertionError("workspace/reconcile code reached from the serial path")
+
+    import agents.coding_pipeline.reconcile as rcmod
+    import agents.shared.workspaces as wsmod
+
+    monkeypatch.setattr(wsmod, "create_workspace", bomb)
+    monkeypatch.setattr(wsmod, "resolve_base_rev", bomb)
+    monkeypatch.setattr(rcmod, "reconcile_wave", bomb)
+    monkeypatch.setattr(dp, "_run_concurrent", bomb)
+
+    outcomes = run_wave(
+        _plan("a", "b"),
+        wired,
+        run_leaf=lambda t: _done(t.task),
+        find=_task,
+        log=lambda m: None,  # concurrency omitted -> settings default (1)
+    )
+    assert [o.status for o in outcomes] == ["done", "done"]

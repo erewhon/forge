@@ -166,6 +166,7 @@ def run_epic(
     max_waves: int | None = None,
     wave_gate: bool = False,
     dry_run: bool = False,
+    concurrency: int | None = None,
     log: Callable[[str], None] = print,
 ) -> OrchestratorResult:
     """Run up to ``max_waves`` waves of the epic; re-run to continue (numbering resumes).
@@ -244,7 +245,14 @@ def run_epic(
             )
 
         try:
-            outcomes = run_wave(plan, repo, journal_dir=run_dir, preamble_for=_preamble, log=log)
+            outcomes = run_wave(
+                plan,
+                repo,
+                journal_dir=run_dir,
+                preamble_for=_preamble,
+                concurrency=concurrency,
+                log=log,
+            )
         except DispatchError as e:
             append_gate_result(run_dir, "dispatch-preflight", False, details=str(e))
             result.status = "aborted"
