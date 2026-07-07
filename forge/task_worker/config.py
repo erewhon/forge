@@ -40,6 +40,16 @@ class TaskWorkerSettings(BaseSettings):
     # DHCP in a fresh container takes ~5-10s; without the readiness gate a
     # network-dependent command starts too early and hangs to its kill timeout.
     runonce_wait_network_secs: int = 30
+    # Host paths bind-mounted same-path into every run-once sandbox, beyond the repo
+    # itself. Two standing needs: out-of-repo path deps (meta's pyproject points at
+    # ../nous/nous-py — invisible from a workspace mount, so uv can't resolve it), and
+    # the shared uv cache (fresh workspaces build their venv inside the sandbox; without
+    # the cache every suite run re-downloads the world). Non-existent paths are skipped
+    # with a log line — safe on hosts without them.
+    runonce_extra_mounts: list[Path] = [
+        Path.home() / "Projects" / "erewhon" / "nous",
+        Path.home() / ".cache" / "uv",
+    ]
 
     # Degenerate-session retry: a session that ends this fast with zero file changes is
     # an empty generation (router hiccup), not a real attempt — retry in-process up to

@@ -138,6 +138,19 @@ class GaolRunOnceSandbox:
             mounts.append((str(state), f"{home}/.local/share/opencode"))
         return mounts
 
+    def _extra_mount_args(self) -> list[str]:
+        """Same-path mounts beyond the repo: out-of-repo path deps and the shared uv
+        cache (see the settings comment). Missing paths skip with a log line — never
+        a crash, and never a mount incus would reject as absent."""
+        args: list[str] = []
+        for path in settings.runonce_extra_mounts:
+            p = path.expanduser()
+            if not p.exists():
+                print(f"  run-once: extra mount missing, skipping: {p}")
+                continue
+            args += ["--mount", f"{p}:{p}"]
+        return args
+
     def _extra_host_args(self) -> list[str]:
         """--add-host entries for LAN/mesh names the sandbox's NAT'd DNS can't resolve,
         resolved on the host (which has LAN/LAN DNS). Unresolvable names are skipped
@@ -168,6 +181,7 @@ class GaolRunOnceSandbox:
         ]
         for host, container in self._opencode_mounts():
             args += ["--mount", f"{host}:{container}"]
+        args += self._extra_mount_args()
         if settings.runonce_memory:
             args += ["--memory", settings.runonce_memory]
         if settings.runonce_cpus:

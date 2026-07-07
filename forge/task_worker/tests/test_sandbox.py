@@ -91,10 +91,14 @@ def test_gaol_dx_run_tests_delegates_to_tester(tmp_path, monkeypatch):
 
 @pytest.fixture
 def bare_home(monkeypatch, tmp_path):
-    """A fake $HOME with no opencode setup, so the host's real config never leaks in."""
+    """A fake $HOME with no opencode setup and no extra mounts, so the host's real
+    config/dirs never leak into argv assertions."""
+    from agents.task_worker.config import settings as tw_settings
+
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setattr(sb.Path, "home", staticmethod(lambda: home))
+    monkeypatch.setattr(tw_settings, "runonce_extra_mounts", [])
     return home
 
 
@@ -143,6 +147,32 @@ def test_run_once_argv_shape(tmp_path, monkeypatch, bare_home):
     # host-side kill is a delayed backstop beyond the in-container timeout
     assert seen["kwargs"]["timeout"] == 600 + GaolRunOnceSandbox._HOST_GRACE_S
     assert seen["kwargs"]["cwd"] == repo
+
+
+def test_run_once_extra_mounts_same_path_and_missing_skipped(tmp_path, monkeypatch, bare_home):
+    """Out-of-repo path deps and the uv cache ride along same-path; a missing entry is
+    skipped (never a crash, never a mount incus would reject as absent)."""
+    from agents.task_worker.config import settings as tw_settings
+
+    present = tmp_path / "nous"
+    present.mkdir()
+    missing = tmp_path / "not-there"
+    monkeypatch.setattr(tw_settings, "runonce_extra_mounts", [present, missing])
+    seen = _capture_run(monkeypatch)
+    GaolRunOnceSandbox(tmp_path / "ws").run(["true"], timeout=5)
+    mounts = [seen["args"][i + 1] for i, a in enumerate(seen["args"]) if a == "--mount"]
+    assert f"{present}:{present}" in mounts
+    assert not any(str(missing) in m for m in mounts)
+
+
+def test_run_once_no_extra_mounts_by_config(tmp_path, monkeypatch, bare_home):
+    from agents.task_worker.config import settings as tw_settings
+
+    monkeypatch.setattr(tw_settings, "runonce_extra_mounts", [])
+    seen = _capture_run(monkeypatch)
+    GaolRunOnceSandbox(tmp_path).run(["true"], timeout=5)
+    mounts = [seen["args"][i + 1] for i, a in enumerate(seen["args"]) if a == "--mount"]
+    assert mounts == [f"{tmp_path}:{tmp_path}"]  # just the workspace
 
 
 def test_run_once_unresolvable_extra_host_is_skipped(tmp_path, monkeypatch, bare_home):
