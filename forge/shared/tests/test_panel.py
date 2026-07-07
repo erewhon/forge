@@ -83,6 +83,17 @@ def test_parse_miss_is_retried_before_costing_the_seat():
     assert res.failures == []
 
 
+def test_empty_output_failure_names_the_thinking_budget():
+    """ok + zero chars is its own diagnosis (live epic-gate finding: sonnet-5 via the
+    router burned the whole max_tokens on thinking and emitted no text) — the failure
+    reason must say 'empty', not the generic parse-miss line."""
+    execs = [FakeExec("empty", output="   ")]
+    res = run_panel(executors=execs, system="s", user="u", floor=1)
+    failures = dict(res.failures)
+    assert "empty output" in failures["empty"]
+    assert "max_tokens" in failures["empty"]
+
+
 def test_dropped_members_are_recorded_as_failures_with_reasons():
     execs = [
         FakeExec("a", output=_j({"x": 1})),

@@ -108,7 +108,13 @@ async def _run_member_panel(
         if not result.ok:
             reason = result.error or "no response"
             if reason == "output failed validation":  # Pool's demotion label for a parse miss
-                reason = "responded but returned no parseable JSON (retried)"
+                # An EMPTY response is its own diagnosis: a thinking model can burn the
+                # whole max_tokens budget before emitting any text (live epic-gate finding:
+                # sonnet-5 via the router returned ok + zero chars at max_tokens=4096).
+                if not (result.output or "").strip():
+                    reason = "responded with empty output (thinking may have consumed max_tokens)"
+                else:
+                    reason = "responded but returned no parseable JSON (retried)"
             failures.append((label, reason))
             continue
         data = extract_json(result.output)

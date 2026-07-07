@@ -55,6 +55,11 @@ class CodingPipelineSettings(BaseSettings):
     # Wave verification (advisory review pass over the wave diff)
     review_max_tokens: int = 4096
     review_timeout: float = 180.0
+    # Epic-gate seat budget. Thinking models spend reasoning tokens INSIDE max_tokens: at
+    # 4096 the anthropic seat (sonnet-5 via the router) burned the whole budget on a
+    # 140k-char epic diff and returned ok + ZERO text — "no verdict", gate blocked
+    # structurally (live finding, 2026-07-07). 16k leaves room to think AND answer.
+    epic_gate_signoff_max_tokens: int = 16_000
     review_max_findings: int = 12  # cap the candidate pool before the confirm vote
     confirm_concurrency: int = 4
 
@@ -66,7 +71,10 @@ class CodingPipelineSettings(BaseSettings):
     # truncating (gate sub-epics separately, or raise the cap deliberately).
     epic_gate_max_diff_chars: int = 300_000
     epic_gate_chunk_chars: int = 100_000
-    epic_gate_map_max_tokens: int = 2048
+    # Map summaries are mechanical, but a thinking seat serving a slice via failover
+    # spends reasoning tokens inside this budget too — and a failed slice fails the
+    # gate closed. Same hazard as epic_gate_signoff_max_tokens, smaller scale.
+    epic_gate_map_max_tokens: int = 8192
     epic_gate_map_concurrency: int = 4
     epic_gate_max_chunks: int = 64
     # Slice summaries are mechanical, so the map pool tries this seat first (failover to the
