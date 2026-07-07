@@ -11,6 +11,7 @@ and never touch the network.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 
@@ -265,6 +266,179 @@ def typosquat_suspect(name: str) -> str | None:
     return None
 
 
+# --- v2 provenance signals --------------------------------------------------------------------
+# Best-effort by contract: None = "could not determine", which never marks evidence incomplete
+# and never blocks on its own; only a provably-True signal is a policy stop.
+
+_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+
+
+def _identity(info: dict) -> tuple[frozenset[str], str] | None:
+    """(email set, name string) from a release's author/maintainer fields; None when the
+    release exposes no identity at all. Emails are extracted from BOTH author_email and
+    maintainer_email (projects move names between the fields; PyPI capture 2026-07-06 shows
+    idna embedding the name in author_email while mcp splits author + maintainer_email)."""
+    emails = frozenset(
+        e.lower()
+        for field in (info.get("author_email"), info.get("maintainer_email"))
+        if field
+        for e in _EMAIL_RE.findall(field)
+    )
+    names = " / ".join(
+        str(info.get(k)).strip().lower() for k in ("author", "maintainer") if info.get(k)
+    )
+    if not emails and not names:
+        return None
+    return emails, names
+
+
+def maintainer_change(current_info: dict | None, target_info: dict | None) -> bool | None:
+    """Did the author/maintainer identity change between the two releases?
+
+    Emails are the primary key (a set difference is a change); name strings only decide when
+    NEITHER release exposes an email. None when either side exposes no identity to compare.
+    """
+    if current_info is None or target_info is None:
+        return None
+    cur, tgt = _identity(current_info), _identity(target_info)
+    if cur is None or tgt is None:
+        return None
+    cur_emails, cur_names = cur
+    tgt_emails, tgt_names = tgt
+    if cur_emails or tgt_emails:
+        return cur_emails != tgt_emails
+    return cur_names != tgt_names
+
+
+_SDIST_MAX_BYTES = 15 * 1024 * 1024  # far above the typical few-hundred-KB sdist
+_MEMBER_MAX_BYTES = 256 * 1024
+
+
+def _sdist_url(version_meta: dict | None) -> str | None:
+    for f in (version_meta or {}).get("urls", []):
+        if f.get("packagetype") == "sdist" and f.get("url"):
+            return f["url"]
+    return None
+
+
+def fetch_sdist(
+    url: str, *, timeout: float | None = None, max_bytes: int = _SDIST_MAX_BYTES
+) -> bytes | None:
+    """Download an sdist into memory, aborting past *max_bytes*. None on ANY failure."""
+    try:
+        with httpx.stream(
+            "GET",
+            url,
+            timeout=timeout if timeout is not None else settings.metadata_timeout,
+            follow_redirects=True,
+        ) as resp:
+            if resp.status_code != 200:
+                return None
+            chunks: list[bytes] = []
+            total = 0
+            for chunk in resp.iter_bytes():
+                total += len(chunk)
+                if total > max_bytes:
+                    return None
+                chunks.append(chunk)
+        return b"".join(chunks)
+    except Exception:
+        return None
+
+
+def _sdist_traits(data: bytes) -> tuple[bool, str | None] | None:
+    """(has top-level setup.py, build-backend or None) from sdist bytes, WITHOUT extracting to
+    disk — member names plus a size-capped read of pyproject.toml only, nothing executed.
+    Handles tar.* and zip sdists. None when the archive can't be read."""
+    import io
+    import tarfile
+    import tomllib
+    import zipfile
+
+    def _traits(names: list[str], read: Callable[[str], bytes | None]) -> tuple[bool, str | None]:
+        # sdist members live under one root dir: match depth <= 2 paths only.
+        def top(name: str, leaf: str) -> bool:
+            parts = name.split("/")
+            return parts[-1] == leaf and len(parts) <= 2
+
+        has_setup = any(top(n, "setup.py") for n in names)
+        backend = None
+        pyproject = next((n for n in names if top(n, "pyproject.toml")), None)
+        if pyproject:
+            raw = read(pyproject)
+            if raw is not None:
+                try:
+                    backend = (
+                        tomllib.loads(raw.decode("utf-8"))
+                        .get("build-system", {})
+                        .get("build-backend")
+                    )
+                except (tomllib.TOMLDecodeError, UnicodeDecodeError):
+                    backend = None
+        return has_setup, backend
+
+    try:
+        with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as tf:
+
+            def read_tar(name: str) -> bytes | None:
+                member = tf.getmember(name)
+                if member.size > _MEMBER_MAX_BYTES:
+                    return None
+                fh = tf.extractfile(member)
+                return fh.read() if fh else None
+
+            return _traits(tf.getnames(), read_tar)
+    except tarfile.TarError:
+        pass
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+
+            def read_zip(name: str) -> bytes | None:
+                if zf.getinfo(name).file_size > _MEMBER_MAX_BYTES:
+                    return None
+                return zf.read(name)
+
+            return _traits(zf.namelist(), read_zip)
+    except (zipfile.BadZipFile, KeyError):
+        return None
+
+
+def install_script_change(
+    current_meta: dict | None,
+    target_meta: dict | None,
+    *,
+    fetch_bytes: Callable[[str], bytes | None] = fetch_sdist,
+) -> bool | None:
+    """Does the TARGET release gain install/build-script surface over the current one?
+
+    True when the target sdist introduces a top-level setup.py the current lacks, or when both
+    declare build backends and they differ. False when neither release ships an sdist (a pure
+    wheel has no install-time script surface) or when traits match. None whenever the
+    comparison can't be made — a missing metadata fetch, a one-sided sdist, or a fetch/archive
+    failure. Missing metadata is never proof of absence.
+    """
+    if current_meta is None or target_meta is None:
+        return None
+    cur_url, tgt_url = _sdist_url(current_meta), _sdist_url(target_meta)
+    if cur_url is None and tgt_url is None:
+        return False
+    if cur_url is None or tgt_url is None:
+        return None
+    cur_data, tgt_data = fetch_bytes(cur_url), fetch_bytes(tgt_url)
+    if cur_data is None or tgt_data is None:
+        return None
+    cur_traits, tgt_traits = _sdist_traits(cur_data), _sdist_traits(tgt_data)
+    if cur_traits is None or tgt_traits is None:
+        return None
+    cur_setup, cur_backend = cur_traits
+    tgt_setup, tgt_backend = tgt_traits
+    if tgt_setup and not cur_setup:
+        return True
+    if cur_backend and tgt_backend and cur_backend != tgt_backend:
+        return True
+    return False
+
+
 # --- the bundle ------------------------------------------------------------------------------
 
 
@@ -275,13 +449,18 @@ def collect_evidence(
     *,
     fetch_version: Callable[..., dict | None] = fetch_pypi_version,
     fetch_project: Fetcher = fetch_pypi_project,
+    fetch_bytes: Callable[[str], bytes | None] = fetch_sdist,
     now: datetime | None = None,
 ) -> EvidenceBundle:
-    """Assemble the bundle. ``complete`` is True iff BOTH PyPI fetches returned data AND the
-    lockfile delta is non-empty (a changed lock with an unparseable delta is unproven change).
-    Audit findings may legitimately be empty — emptiness there is not incompleteness."""
+    """Assemble the bundle. ``complete`` is True iff BOTH target-version PyPI fetches returned
+    data AND the lockfile delta is non-empty (a changed lock with an unparseable delta is
+    unproven change). Audit findings may legitimately be empty — emptiness there is not
+    incompleteness. The v2 provenance signals (maintainer change, install scripts) compare the
+    CURRENT release's metadata/sdist against the target's; their unavailability yields None and
+    deliberately does not affect ``complete`` — they gate only when provably True."""
     version_meta = fetch_version(candidate.name, candidate.latest)
     project_meta = fetch_project(candidate.name)
+    current_meta = fetch_version(candidate.name, candidate.current)
 
     findings_current, findings_target = split_findings(findings, candidate)
     info = (version_meta or {}).get("info", {})
@@ -297,6 +476,13 @@ def collect_evidence(
         package_age_days=package_age_days(version_meta, now=now) if version_meta else None,
         changelog_url=changelog_url(project_urls),
         typosquat_suspect=typosquat_suspect(candidate.name),
+        maintainer_changed=maintainer_change(
+            (current_meta or {}).get("info") if current_meta else None,
+            info if version_meta else None,
+        ),
+        new_install_scripts=install_script_change(
+            current_meta, version_meta, fetch_bytes=fetch_bytes
+        ),
         lockfile_changes=lock_delta,
         complete=version_meta is not None and project_meta is not None and bool(lock_delta),
     )

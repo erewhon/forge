@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import io
 import json
+import tarfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -10,6 +12,8 @@ from agents.dependabot.models import AuditFinding, BumpCandidate
 from agents.dependabot.supply_chain import (
     changelog_url,
     collect_evidence,
+    install_script_change,
+    maintainer_change,
     package_age_days,
     split_findings,
     typosquat_suspect,
@@ -105,6 +109,113 @@ def test_typosquat_distant_name_is_clean():
     assert typosquat_suspect("meta-agents-dependabot") is None
 
 
+# --- v2 provenance signals ------------------------------------------------------------------
+
+
+def test_maintainer_same_identity_is_false():
+    # Real shape (idna capture 2026-07-06): name embedded in author_email, no maintainer.
+    info = {"author": None, "author_email": "Kim Davies <kim+pypi@gumleaf.org>"}
+    assert maintainer_change(info, dict(info)) is False
+
+
+def test_maintainer_email_change_is_true():
+    cur = {"author_email": "Kim Davies <kim+pypi@gumleaf.org>"}
+    tgt = {"author_email": "Kim Davies <totally-new-owner@evil.example>"}
+    assert maintainer_change(cur, tgt) is True
+
+
+def test_maintainer_multi_email_set_compare():
+    # Real shape (mcp capture): author name + comma-separated maintainer_email addresses.
+    cur = {"author": "Anthropic, PBC.", "maintainer_email": "David <d@a.com>, Justin <j@a.com>"}
+    tgt = {"author": "Anthropic, PBC.", "maintainer_email": "Justin <j@a.com>, David <d@a.com>"}
+    assert maintainer_change(cur, tgt) is False  # same SET, different order
+
+
+def test_maintainer_name_fallback_when_no_emails():
+    cur = {"author": "Alice"}
+    assert maintainer_change(cur, {"author": "Alice"}) is False
+    assert maintainer_change(cur, {"author": "Mallory"}) is True
+
+
+def test_maintainer_undeterminable_is_none():
+    assert maintainer_change(None, {"author": "Alice"}) is None
+    assert maintainer_change({}, {"author": "Alice"}) is None  # no identity on one side
+    assert maintainer_change({"author": "Alice"}, {}) is None
+
+
+def _sdist_bytes(members: dict[str, str]) -> bytes:
+    """A tiny in-memory .tar.gz sdist with the given root-relative members."""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+        for name, content in members.items():
+            data = content.encode()
+            info = tarfile.TarInfo(name=f"pkg-1.0/{name}")
+            info.size = len(data)
+            tf.addfile(info, io.BytesIO(data))
+    return buf.getvalue()
+
+
+def _meta_with_sdist(url: str) -> dict:
+    return {"urls": [{"packagetype": "sdist", "url": url}]}
+
+
+_PYPROJECT = '[build-system]\nbuild-backend = "hatchling.build"\n'
+
+
+def test_install_scripts_identical_sdists_is_false():
+    blobs = {
+        "cur": _sdist_bytes({"pyproject.toml": _PYPROJECT}),
+        "tgt": _sdist_bytes({"pyproject.toml": _PYPROJECT}),
+    }
+    result = install_script_change(
+        _meta_with_sdist("cur"), _meta_with_sdist("tgt"), fetch_bytes=lambda u: blobs[u]
+    )
+    assert result is False
+
+
+def test_install_scripts_new_setup_py_is_true():
+    blobs = {
+        "cur": _sdist_bytes({"pyproject.toml": _PYPROJECT}),
+        "tgt": _sdist_bytes({"pyproject.toml": _PYPROJECT, "setup.py": "import os"}),
+    }
+    result = install_script_change(
+        _meta_with_sdist("cur"), _meta_with_sdist("tgt"), fetch_bytes=lambda u: blobs[u]
+    )
+    assert result is True
+
+
+def test_install_scripts_backend_change_is_true():
+    changed = _PYPROJECT.replace("hatchling.build", "evil_backend.hooks")
+    blobs = {
+        "cur": _sdist_bytes({"pyproject.toml": _PYPROJECT}),
+        "tgt": _sdist_bytes({"pyproject.toml": changed}),
+    }
+    result = install_script_change(
+        _meta_with_sdist("cur"), _meta_with_sdist("tgt"), fetch_bytes=lambda u: blobs[u]
+    )
+    assert result is True
+
+
+def test_install_scripts_no_sdists_anywhere_is_false():
+    # Pure-wheel releases have no install-time script surface.
+    assert install_script_change({"urls": []}, {"urls": []}, fetch_bytes=lambda u: None) is False
+
+
+def test_install_scripts_one_sided_sdist_is_none():
+    blobs = {"tgt": _sdist_bytes({"pyproject.toml": _PYPROJECT})}
+    result = install_script_change(
+        {"urls": []}, _meta_with_sdist("tgt"), fetch_bytes=lambda u: blobs[u]
+    )
+    assert result is None
+
+
+def test_install_scripts_fetch_failure_is_none():
+    result = install_script_change(
+        _meta_with_sdist("cur"), _meta_with_sdist("tgt"), fetch_bytes=lambda u: None
+    )
+    assert result is None
+
+
 # --- collect_evidence -----------------------------------------------------------------------
 
 
@@ -179,6 +290,27 @@ def test_yanked_target_is_flagged():
         fetch_project=lambda n: meta["project"],
     )
     assert bundle.target_yanked is True
+
+
+def test_v2_signal_unavailability_does_not_mark_incomplete():
+    """Contract: maintainer/install-script signals are best-effort — a current-version fetch
+    failure yields None for both, while `complete` (target fetches + delta) stays True."""
+    meta = _meta()
+
+    def fetch_version(name, version):
+        return None if version == "3.11" else meta["version"]  # current fetch fails
+
+    bundle = collect_evidence(
+        _candidate(),
+        [],
+        ["idna 3.11->3.15"],
+        fetch_version=fetch_version,
+        fetch_project=lambda n: meta["project"],
+        fetch_bytes=lambda u: None,
+    )
+    assert bundle.complete  # target-side evidence is all present
+    assert bundle.maintainer_changed is None
+    assert bundle.new_install_scripts is None
 
 
 def test_empty_findings_is_not_incompleteness():

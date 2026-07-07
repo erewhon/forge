@@ -75,6 +75,21 @@ class TestAutoEligible:
         eligible, _ = auto_eligible(_evidence(findings_current=[finding]))
         assert eligible
 
+    def test_maintainer_change_is_ineligible(self):
+        eligible, reason = auto_eligible(_evidence(maintainer_changed=True))
+        assert not eligible
+        assert "maintainer" in reason
+
+    def test_new_install_scripts_are_ineligible(self):
+        eligible, reason = auto_eligible(_evidence(new_install_scripts=True))
+        assert not eligible
+        assert "install/build scripts" in reason
+
+    def test_undeterminable_v2_signals_do_not_block(self):
+        # None = best-effort signal unavailable; by contract it must NOT become a block.
+        eligible, _ = auto_eligible(_evidence(maintainer_changed=None, new_install_scripts=None))
+        assert eligible
+
 
 class TestPrompt:
     def test_prompt_carries_the_verdict_contract(self):
@@ -101,6 +116,8 @@ class TestRenderEvidence:
         assert "30 day(s)" in out
         assert "https://example.com/CHANGES" in out
         assert "typosquat signal: none" in out
+        assert "maintainer identity changed across the bump: unknown" in out
+        assert "new install/build scripts at target: unknown" in out
         assert "idna 3.11->3.15" in out
         assert "evidence complete: yes" in out
 

@@ -32,4 +32,16 @@ def auto_eligible(evidence: EvidenceBundle) -> tuple[bool, str]:
             f"name {c.name!r} is one edit from popular package "
             f"{evidence.typosquat_suspect!r} — possible typosquat"
         )
+    # v2 provenance signals: block only when provably True — None (undeterminable) passes,
+    # by contract these are best-effort and must not turn missing data into a block.
+    if evidence.maintainer_changed:
+        return False, (
+            f"maintainer/author identity changed between {c.current} and {c.latest} — "
+            "possible package takeover; needs human eyes"
+        )
+    if evidence.new_install_scripts:
+        return False, (
+            f"target {c.latest} introduces new install/build scripts or changes the build "
+            "backend — install-time code surface grew"
+        )
     return True, ""

@@ -23,7 +23,8 @@ diff. Approve for automatic merge ONLY if ALL hold:
   that the target FIXES is a POSITIVE signal — that is what a good bump looks like.)
 - The version delta class matches the diff, and nothing about the release smells wrong. Weigh
   AGAINST approval: a brand-new release (less than ~2 days old), a missing changelog, a yanked
-  or typosquat-suspect signal, or lockfile changes beyond the target package and its pins.
+  or typosquat-suspect signal, a maintainer-identity change across the bump, new install/build
+  scripts at the target, or lockfile changes beyond the target package and its pins.
 
 You are judging METADATA, not the dependency's source code — you cannot see what the new version
 actually does, so do not pretend to. Uncertainty weighs against approval. Be strict: an approval
@@ -57,6 +58,8 @@ def render_evidence(evidence: EvidenceBundle) -> str:
             if evidence.typosquat_suspect
             else "none"
         ),
+        f"- maintainer identity changed across the bump: {_tri(evidence.maintainer_changed)}",
+        f"- new install/build scripts at target: {_tri(evidence.new_install_scripts)}",
         f"- lockfile changes: {'; '.join(evidence.lockfile_changes) or 'none parsed'}",
         f"- evidence complete: {'yes' if evidence.complete else 'NO'}",
     ]

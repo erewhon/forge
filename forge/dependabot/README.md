@@ -31,35 +31,23 @@ task, never a merge (fail-closed).
 Decisions are appended as JSONL records to `agents/dependabot/logs/auto.jsonl` in the agent's
 package directory.
 
-## Honest scope
-
-The evidence bundle is collected at the metadata level: pip-audit CVE findings, yank status,
-package age, changelog availability, and typosquat suspicion. This agent does **not** perform
-dependency source diff analysis — it reviews metadata, risk evidence, and manifest changes only.
-
-## Usage
-
-```
-meta deps                  # scan, gate, and push (auto-merge OFF by default)
-meta deps --dry-run        # plan only — no writes, no gates
-meta deps --auto-merge     # also advance main when every gate passes
-meta deps --repo /path     # run against a specific repo root
-meta deps --project Foo    # file advisory tasks into the "Foo" Forge project
-```
-
-Exit codes: 0 = merged / branched / planned / no-candidates; 1 = advisory / error (scriptable).
-
-## Honest scope — what the evidence does NOT cover (v1)
+## Honest scope — what the evidence does and does NOT cover
 
 The sign-off judges **metadata**: audit findings, version delta, release age, yanked flag,
-changelog presence, typosquat distance, and the lockfile delta. Two signals named in the
-original brief are **deliberately descoped** in v1 because PyPI's JSON API cannot provide them:
+changelog presence, typosquat distance, the lockfile delta, and (v2) two provenance signals
+compared across the bump itself:
 
-- **Maintainer/owner change** — PyPI does not expose versioned maintainer history via the JSON
-  API; detecting a handover needs an external feed or a stored per-package baseline.
-- **New install/build scripts** — requires downloading and inspecting the sdist/wheel, which is
-  source-level analysis, not metadata.
+- **Maintainer-identity change** — the current and target releases' author/maintainer
+  fields (emails primarily, names as fallback) are compared; a difference blocks the auto
+  track. Stateless and scoped to the exact bump window; deeper history would need an
+  external feed.
+- **New install/build scripts** — both releases' sdists are downloaded (size-capped, read
+  in memory, never executed): a target that introduces a top-level `setup.py` or changes
+  its build backend blocks the auto track.
 
-Both are v2 candidates (tracked in Forge: "Dependabot: maintainer-change and install-script
-evidence signals"). Until then the conservative dial compensates: patch/minor only, complete
-evidence required, unanimous cross-family sign-off, one bump per branch.
+Both signals are best-effort: when they cannot be determined they report `unknown`, which
+never blocks on its own and never marks the evidence incomplete. What v1+v2 still do NOT do
+is diff the dependency's source: a compromised release with stable metadata, an unchanged
+build backend, and no new scripts can pass — the conservative dial (patch/minor only,
+complete evidence, unanimous cross-family sign-off, one bump per branch) is the mitigation,
+not a detection claim.

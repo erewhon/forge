@@ -40,6 +40,10 @@ class EvidenceBundle(BaseModel):
     package_age_days: int | None = None
     changelog_url: str | None = None
     typosquat_suspect: str | None = None  # the popular name this is one edit away from
+    # v2 provenance signals — best-effort: None means "could not determine" and deliberately
+    # does NOT mark the evidence incomplete (they block only when provably True).
+    maintainer_changed: bool | None = None  # identity differs between current and target release
+    new_install_scripts: bool | None = None  # target sdist adds setup.py / changes build backend
     lockfile_changes: list[str] = Field(default_factory=list)
     complete: bool = False
 
