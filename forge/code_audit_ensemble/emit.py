@@ -19,7 +19,8 @@ import re
 from collections.abc import Callable
 
 from agents.code_audit_ensemble.models import SEVERITY_RANK, AuditReport, ScoredFinding
-from agents.shared.forge_emit import EmitSpec, EmitSummary, emit_tasks
+from agents.shared.forge_emit import EmitSpec, EmitSummary
+from agents.shared.task_store import get_task_store
 
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
 
@@ -98,7 +99,7 @@ def emit_report(
     until a human reviews and promotes them.
     """
     specs = report_to_specs(report, min_severity=min_severity)
-    return emit_tasks(
+    return get_task_store().emit(
         specs,
         project=project,
         status="Spec Needed",

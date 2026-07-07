@@ -21,16 +21,16 @@ def test_title_is_comma_free():
 
 
 def test_project_none_is_a_noop():
-    with patch("agents.dependabot.emit.emit_tasks") as mock_emit:
+    with patch("agents.dependabot.emit.get_task_store") as mock_store:
         assert emit_advisory(_candidate(), None, "reason", project=None, branch=None) is None
-        mock_emit.assert_not_called()
+        mock_store.return_value.emit.assert_not_called()
 
 
 def test_spec_carries_reason_branch_and_evidence():
     evidence = EvidenceBundle(
         candidate=_candidate(), lockfile_changes=["idna 3.11->3.15"], complete=True
     )
-    with patch("agents.dependabot.emit.emit_tasks") as mock_emit:
+    with patch("agents.dependabot.emit.get_task_store") as mock_store:
         emit_advisory(
             _candidate(),
             evidence,
@@ -39,7 +39,7 @@ def test_spec_carries_reason_branch_and_evidence():
             branch="deps/idna-3-15",
             log=lambda m: None,
         )
-    (specs,), kwargs = mock_emit.call_args
+    (specs,), kwargs = mock_store.return_value.emit.call_args
     assert kwargs["project"] == "Meta"
     assert kwargs["status"] == "Ready"
     spec = specs[0]

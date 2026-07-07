@@ -12,7 +12,8 @@ from collections.abc import Callable
 
 from agents.dependabot.models import BumpCandidate, EvidenceBundle
 from agents.dependabot.prompts import render_evidence
-from agents.shared.forge_emit import EmitSpec, EmitSummary, emit_tasks
+from agents.shared.forge_emit import EmitSpec, EmitSummary
+from agents.shared.task_store import get_task_store
 
 
 def external_ref(candidate: BumpCandidate) -> str:
@@ -61,4 +62,4 @@ def emit_advisory(
         content=_content(candidate, evidence, reason, branch),
         external_ref=external_ref(candidate),
     )
-    return emit_tasks([spec], project=project, status="Ready", log=log)
+    return get_task_store().emit([spec], project=project, status="Ready", log=log)

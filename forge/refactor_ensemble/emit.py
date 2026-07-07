@@ -13,7 +13,8 @@ import re
 from collections.abc import Callable
 
 from agents.refactor_ensemble.models import IMPACT_RANK, RefactorPlan, ScoredSmell
-from agents.shared.forge_emit import EmitSpec, EmitSummary, emit_tasks
+from agents.shared.forge_emit import EmitSpec, EmitSummary
+from agents.shared.task_store import get_task_store
 
 # effort -> Forge estimate; refactors are sized small/medium/large.
 _EFFORT_TO_ESTIMATE = {"small": "s", "medium": "m", "large": "l"}
@@ -100,7 +101,7 @@ def emit_plan(
     them up until a human reviews and promotes them.
     """
     specs = plan_to_specs(plan, min_impact=min_impact)
-    return emit_tasks(
+    return get_task_store().emit(
         specs,
         project=project,
         status="Spec Needed",
