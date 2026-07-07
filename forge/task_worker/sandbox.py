@@ -4,8 +4,9 @@ The worker's safety story is "execution is sandboxed; VCS is host-only" — but 
 environment-specific. The local-lab uses `gaol dx` containers; the work environment (no gaol) will
 need its own implementation. This module is the seam: a small ``Sandbox`` protocol, the
 ``GaolDxSandbox`` implementation (delegating to the existing ``dx``/``tester`` code, behavior
-unchanged), and a ``make_sandbox`` factory keyed by ``TASK_WORKER_SANDBOX`` (only ``gaol-dx``
-exists today; the work implementation belongs to the work-harness task).
+unchanged), the ``GaolRunOnceSandbox`` implementation (ephemeral containers for repos without a
+dx container — the concurrent dispatcher's jj workspaces), and a ``make_sandbox`` factory keyed
+by ``TASK_WORKER_SANDBOX`` with a per-call ``kind`` override.
 
 ``run`` deliberately returns the raw ``CompletedProcess`` and lets ``TimeoutExpired`` /
 ``FileNotFoundError`` propagate — the callers (executor, tester) already own that error handling
@@ -14,6 +15,7 @@ and its exact user-facing messages, and moving it here would change behavior.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -75,9 +77,122 @@ class GaolDxSandbox:
         return tester.run_tests(self.repo, sandbox=self)
 
 
-def make_sandbox(repo: Path) -> Sandbox:
-    """Build the configured sandbox for *repo*. Unknown kinds raise — never guess a sandbox."""
-    kind = settings.sandbox
-    if kind == "gaol-dx":
+class GaolRunOnceSandbox:
+    """Ephemeral sandboxes for repos without a dx container — the dispatcher's jj workspaces.
+
+    Every ``run()`` is its own ``gaol run-once`` container with the repo bind-mounted writable
+    at the SAME absolute path (opencode derives its project root from PWD, so cwd semantics
+    must match the host). opencode's host config dir is mounted shared; a per-sandbox data dir
+    seeded with only ``auth.json`` gives each concurrent worker a private ``opencode.db``
+    (concurrent sessions corrupt the shared sqlite WAL — parallel_edit finding). That state
+    dir lives under the repo's self-ignored ``.task_worker/``, so it dies with the workspace
+    and never dirties the diff. Per-sandbox memory/CPU caps keep fan-out from exhausting the
+    host.
+
+    run-once's own ``--timeout`` does the deterministic in-container kill + teardown (the
+    coreutils-timeout wrapper GaolDxSandbox needs is built into run-once); the host-side
+    subprocess timeout is a delayed backstop that should never fire first.
+    """
+
+    _HOST_GRACE_S = 60
+
+    def __init__(self, repo: Path) -> None:
+        self.repo = repo
+
+    def preflight(self) -> tuple[bool, str]:
+        if shutil.which(settings.gaol_binary) is None:
+            return False, f"gaol binary {settings.gaol_binary!r} not on PATH"
+        try:
+            probe = subprocess.run(
+                [settings.gaol_binary, "run-once", "--help"],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+        except (subprocess.TimeoutExpired, OSError) as e:
+            return False, f"gaol run-once probe failed: {e}"
+        if probe.returncode != 0:
+            return False, f"gaol run-once probe exited {probe.returncode}"
+        return True, "gaol run-once (ephemeral per command)"
+
+    def _opencode_mounts(self) -> list[tuple[str, str]]:
+        """Host opencode config (shared, read-mostly) + a per-sandbox data dir seeded with
+        only auth.json. Empty when opencode isn't set up on the host — plain commands
+        (pytest, ruff) don't need it."""
+        mounts: list[tuple[str, str]] = []
+        home = settings.runonce_home
+        host_cfg = Path.home() / ".config" / "opencode"
+        if host_cfg.is_dir():
+            mounts.append((str(host_cfg), f"{home}/.config/opencode"))
+        host_auth = Path.home() / ".local" / "share" / "opencode" / "auth.json"
+        if host_auth.is_file():
+            state = self.repo / ".task_worker" / "opencode-state"
+            state.mkdir(parents=True, exist_ok=True)
+            gitignore = state.parent / ".gitignore"  # executor's self-ignore convention
+            if not gitignore.exists():
+                gitignore.write_text("*\n", encoding="utf-8")
+            target = state / "auth.json"
+            if not target.exists():
+                shutil.copy2(host_auth, target)
+            mounts.append((str(state), f"{home}/.local/share/opencode"))
+        return mounts
+
+    def run(self, cmd: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
+        # KEEP ARGS PLAIN: gaol re-joins argv into an unquoted shell string, so a
+        # metacharacter in any element (backticks!) would be shell-interpreted in the
+        # container. Elements pass through verbatim; nothing here may quote or join them.
+        ws = str(self.repo)
+        args = [
+            settings.gaol_binary,
+            "run-once",
+            "--runtime",
+            settings.runonce_runtime,
+            "--image",
+            settings.runonce_image,
+            "--mount",
+            f"{ws}:{ws}",
+        ]
+        for host, container in self._opencode_mounts():
+            args += ["--mount", f"{host}:{container}"]
+        if settings.runonce_memory:
+            args += ["--memory", settings.runonce_memory]
+        if settings.runonce_cpus:
+            args += ["--cpus", str(settings.runonce_cpus)]
+        args += [
+            "--workdir",
+            ws,
+            "--env",
+            f"PWD={ws}",
+            "--env",
+            f"HOME={settings.runonce_home}",
+            "--timeout",
+            str(max(1, timeout)),
+            "--",
+            *cmd,
+        ]
+        return subprocess.run(
+            args,
+            cwd=self.repo,
+            capture_output=True,
+            text=True,
+            timeout=timeout + self._HOST_GRACE_S,
+        )
+
+    def run_tests(self) -> tuple[bool, str]:
+        from agents.task_worker import tester  # local import: tester uses make_sandbox
+
+        return tester.run_tests(self.repo, sandbox=self)
+
+
+def make_sandbox(repo: Path, kind: str | None = None) -> Sandbox:
+    """Build the configured sandbox for *repo*. ``kind`` overrides the env-keyed default —
+    the concurrent dispatcher selects ``gaol-run-once`` for jj workspaces, which have no dx
+    container. Unknown kinds raise — never guess a sandbox."""
+    resolved = kind or settings.sandbox
+    if resolved == "gaol-dx":
         return GaolDxSandbox(repo)
-    raise ValueError(f"unknown TASK_WORKER_SANDBOX {kind!r} (only 'gaol-dx' is implemented)")
+    if resolved == "gaol-run-once":
+        return GaolRunOnceSandbox(repo)
+    raise ValueError(
+        f"unknown sandbox kind {resolved!r} (implemented: 'gaol-dx', 'gaol-run-once')"
+    )

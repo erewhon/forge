@@ -11,7 +11,12 @@ from agents.task_worker import executor as ex
 from agents.task_worker import sandbox as sb
 from agents.task_worker import tester
 from agents.task_worker.models import TaskInfo
-from agents.task_worker.sandbox import GaolDxSandbox, Sandbox, make_sandbox
+from agents.task_worker.sandbox import (
+    GaolDxSandbox,
+    GaolRunOnceSandbox,
+    Sandbox,
+    make_sandbox,
+)
 
 
 class FakeSandbox:
@@ -40,6 +45,7 @@ class FakeSandbox:
 def test_fake_satisfies_protocol(tmp_path):
     assert isinstance(FakeSandbox(tmp_path), Sandbox)
     assert isinstance(GaolDxSandbox(tmp_path), Sandbox)
+    assert isinstance(GaolRunOnceSandbox(tmp_path), Sandbox)
 
 
 # --- GaolDxSandbox delegation ---------------------------------------------------
@@ -80,11 +86,155 @@ def test_gaol_dx_run_tests_delegates_to_tester(tmp_path, monkeypatch):
     assert seen["sandbox"] is box  # tester runs commands through the same sandbox
 
 
+# --- GaolRunOnceSandbox ------------------------------------------------------------
+
+
+@pytest.fixture
+def bare_home(monkeypatch, tmp_path):
+    """A fake $HOME with no opencode setup, so the host's real config never leaks in."""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(sb.Path, "home", staticmethod(lambda: home))
+    return home
+
+
+def _capture_run(monkeypatch):
+    seen: dict = {}
+
+    def fake_run(args, **kwargs):
+        seen["args"] = args
+        seen["kwargs"] = kwargs
+        return subprocess.CompletedProcess(args, 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(sb.subprocess, "run", fake_run)
+    return seen
+
+
+def test_run_once_argv_shape(tmp_path, monkeypatch, bare_home):
+    """The workspace is mounted writable at the SAME path (opencode derives its project
+    root from PWD), caps and the in-container timeout are set, and the command follows
+    the ``--`` separator verbatim."""
+    seen = _capture_run(monkeypatch)
+    repo = tmp_path / "cw-leaf"
+    repo.mkdir()
+    box = GaolRunOnceSandbox(repo)
+    result = box.run(["uv", "run", "pytest"], timeout=600)
+    assert result.stdout == "ok"
+
+    args = seen["args"]
+    ws = str(repo)
+    assert args[:2] == ["gaol", "run-once"]
+    assert args[args.index("--runtime") + 1] == "incus"
+    assert args[args.index("--image") + 1] == "gaol-candidate-base"
+    assert f"{ws}:{ws}" in args  # same-path writable mount
+    assert args[args.index("--workdir") + 1] == ws
+    assert f"PWD={ws}" in args
+    assert "HOME=/home/dev" in args
+    assert args[args.index("--memory") + 1] == "4GiB"
+    assert args[args.index("--cpus") + 1] == "2"
+    assert args[args.index("--timeout") + 1] == "600"
+    assert args[args.index("--") + 1 :] == ["uv", "run", "pytest"]
+    # host-side kill is a delayed backstop beyond the in-container timeout
+    assert seen["kwargs"]["timeout"] == 600 + GaolRunOnceSandbox._HOST_GRACE_S
+    assert seen["kwargs"]["cwd"] == repo
+
+
+def test_run_once_metachars_pass_through_as_single_elements(tmp_path, monkeypatch, bare_home):
+    # gaol re-joins argv into an unquoted shell string (backticks execute!) — the sandbox
+    # must never quote, join, or mangle an element on its way through.
+    seen = _capture_run(monkeypatch)
+    box = GaolRunOnceSandbox(tmp_path)
+    box.run(["echo", "`boom` && $(id)"], timeout=5)
+    assert seen["args"][-1] == "`boom` && $(id)"
+    assert seen["args"][-2] == "echo"
+
+
+def test_run_once_without_host_opencode_mounts_only_the_workspace(
+    tmp_path, monkeypatch, bare_home
+):
+    seen = _capture_run(monkeypatch)
+    box = GaolRunOnceSandbox(tmp_path)
+    box.run(["true"], timeout=5)
+    mounts = [seen["args"][i + 1] for i, a in enumerate(seen["args"]) if a == "--mount"]
+    assert mounts == [f"{tmp_path}:{tmp_path}"]
+    assert not (tmp_path / ".task_worker").exists()  # no state dir created for nothing
+
+
+def test_run_once_mounts_opencode_config_and_seeds_private_state(
+    tmp_path, monkeypatch, bare_home
+):
+    """Host config is shared read-mostly; the data dir is per-sandbox, seeded with ONLY
+    auth.json (private opencode.db per worker — concurrent sessions corrupt the shared
+    sqlite WAL), and lives under the repo's self-ignored .task_worker/."""
+    (bare_home / ".config" / "opencode").mkdir(parents=True)
+    auth_dir = bare_home / ".local" / "share" / "opencode"
+    auth_dir.mkdir(parents=True)
+    (auth_dir / "auth.json").write_text('{"llm": "key"}')
+    (auth_dir / "opencode.db").write_text("HOST DB — must not be copied")
+
+    seen = _capture_run(monkeypatch)
+    repo = tmp_path / "ws"
+    repo.mkdir()
+    box = GaolRunOnceSandbox(repo)
+    box.run(["true"], timeout=5)
+
+    mounts = [seen["args"][i + 1] for i, a in enumerate(seen["args"]) if a == "--mount"]
+    state = repo / ".task_worker" / "opencode-state"
+    assert mounts == [
+        f"{repo}:{repo}",
+        f"{bare_home / '.config' / 'opencode'}:/home/dev/.config/opencode",
+        f"{state}:/home/dev/.local/share/opencode",
+    ]
+    assert (state / "auth.json").read_text() == '{"llm": "key"}'
+    assert not (state / "opencode.db").exists()  # seeded with auth ONLY
+    assert (repo / ".task_worker" / ".gitignore").read_text() == "*\n"  # self-ignored
+
+
+def test_run_once_preflight_fails_without_gaol_binary(tmp_path, monkeypatch):
+    monkeypatch.setattr(sb.shutil, "which", lambda name: None)
+    ready, status = GaolRunOnceSandbox(tmp_path).preflight()
+    assert not ready
+    assert "not on PATH" in status
+
+
+def test_run_once_preflight_probes_run_once(tmp_path, monkeypatch):
+    monkeypatch.setattr(sb.shutil, "which", lambda name: "/usr/bin/gaol")
+    seen = _capture_run(monkeypatch)
+    ready, status = GaolRunOnceSandbox(tmp_path).preflight()
+    assert ready
+    assert seen["args"] == ["gaol", "run-once", "--help"]
+
+
+def test_run_once_run_tests_delegates_to_tester(tmp_path, monkeypatch):
+    seen = {}
+
+    def fake_run_tests(repo, sandbox=None):
+        seen.update(repo=repo, sandbox=sandbox)
+        return True, "green"
+
+    monkeypatch.setattr(tester, "run_tests", fake_run_tests)
+    box = GaolRunOnceSandbox(tmp_path)
+    assert box.run_tests() == (True, "green")
+    assert seen["sandbox"] is box
+
+
 # --- factory ---------------------------------------------------------------------
 
 
 def test_make_sandbox_default_is_gaol_dx(tmp_path):
     assert isinstance(make_sandbox(tmp_path), GaolDxSandbox)
+
+
+def test_make_sandbox_kind_overrides_env_default(tmp_path):
+    assert isinstance(make_sandbox(tmp_path, kind="gaol-run-once"), GaolRunOnceSandbox)
+    assert isinstance(make_sandbox(tmp_path, kind="gaol-dx"), GaolDxSandbox)
+
+
+def test_make_sandbox_env_can_select_run_once(tmp_path, monkeypatch):
+    from agents.task_worker.config import settings
+
+    monkeypatch.setattr(settings, "sandbox", "gaol-run-once")
+    assert isinstance(make_sandbox(tmp_path), GaolRunOnceSandbox)
 
 
 def test_make_sandbox_unknown_kind_raises(tmp_path, monkeypatch):
@@ -93,6 +243,8 @@ def test_make_sandbox_unknown_kind_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "sandbox", "warp-drive")
     with pytest.raises(ValueError, match="warp-drive"):
         make_sandbox(tmp_path)
+    with pytest.raises(ValueError, match="warp-drive"):
+        make_sandbox(tmp_path, kind="warp-drive")
 
 
 # --- tester through the seam --------------------------------------------------------

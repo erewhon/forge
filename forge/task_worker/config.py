@@ -21,7 +21,16 @@ class TaskWorkerSettings(BaseSettings):
     task_timeout_seconds: int = 1800  # 30 min max per task
     default_max_files: int = 5  # used when task has no max_files set
     model_tier_default: str = "auto"  # router alias
-    sandbox: str = "gaol-dx"  # execution sandbox kind; only "gaol-dx" is implemented today
+    sandbox: str = "gaol-dx"  # default sandbox kind: "gaol-dx" or "gaol-run-once"
+
+    # gaol run-once sandbox — ephemeral per-command containers for repos without a dx
+    # container (the concurrent dispatcher's jj workspaces). Defaults mirror parallel_edit.
+    gaol_binary: str = "gaol"
+    runonce_runtime: str = "incus"
+    runonce_image: str = "gaol-candidate-base"
+    runonce_home: str = "/home/dev"
+    runonce_memory: str | None = "4GiB"  # per-sandbox cap; None = uncapped
+    runonce_cpus: int | None = 2
 
     # Degenerate-session retry: a session that ends this fast with zero file changes is
     # an empty generation (router hiccup), not a real attempt — retry in-process up to
