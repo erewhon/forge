@@ -245,7 +245,10 @@ def _log(
 
 
 def render_bump(result: BumpResult) -> str:
-    """One-screen human summary of a bumper run."""
+    """One-screen human summary of a bumper run. A merged security fix appends the human-gated
+    release proposal (rendered commands only — the bumper never cuts releases)."""
+    from agents.dependabot.release import render_release_proposal, should_propose_release
+
     lines = [f"# meta deps — {result.status}"]
     if result.reason:
         lines.append(f"\n{result.reason}")
@@ -262,4 +265,18 @@ def render_bump(result: BumpResult) -> str:
     if result.branch:
         merged = " → merged to main" if result.merged_to_main else ""
         lines.append(f"- Branch: {result.branch}{merged}")
+    if (
+        result.merged_to_main
+        and result.evidence is not None
+        and result.change_id
+        and should_propose_release(result.evidence)
+    ):
+        lines += [
+            "",
+            render_release_proposal(
+                result.evidence,
+                merged_change_id=result.change_id,
+                on=datetime.now(UTC).date(),
+            ),
+        ]
     return "\n".join(lines)
