@@ -18,14 +18,12 @@ TimeoutStartSec=2400
 # therefore shows this unit as "failed" — that is deliberate visibility: the details are in
 # the Forge task it filed and in agents/dependabot/logs/auto.jsonl.
 
-# Sandboxing — unlike the read-only agents, this unit legitimately WRITES: the repo
-# (uv.lock, jj commits, decision log), uv's cache, and jj/uv state.
-ProtectSystem=strict
-ReadWritePaths=/home/user/Projects/erewhon/meta
-ReadWritePaths=/home/user/.cache
-ReadWritePaths=/home/user/.local/state
-NoNewPrivileges=true
-PrivateTmp=true
+# NO sandboxing, deliberately (first supervised run finding, 2026-07-06): in USER units,
+# systemd implements ProtectSystem/PrivateTmp/NoNewPrivileges via unprivileged user
+# namespaces, which remap root-owned files to nobody — breaking both sudo (gaol's watchdog
+# under run_tests: "/etc/sudo.conf owned by uid 65534") and ssh pushes ("bad owner on
+# /etc/ssh/ssh_config.d"). This is trusted first-party automation running as the user; the
+# bumper's own gates are the containment.
 
 [Install]
 WantedBy=default.target

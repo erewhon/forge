@@ -219,6 +219,19 @@ def test_no_vcs_is_an_error(loop, tmp_path):
     loop["scan_outdated"].assert_not_called()
 
 
+def test_advisory_push_failure_also_reparks(loop, tmp_path):
+    """The advisory path's push can fail after its commit landed (live finding: sandboxed ssh)
+    — the cleanup must repark so the bump commit doesn't become the mainline's parent."""
+    from agents.task_worker.vcs import VCSError
+
+    loop["collect_evidence"].side_effect = lambda c, f, d: _evidence(c, complete=False)
+    loop["push_branch"].side_effect = VCSError("ssh exploded")
+    result = ab.auto_bump(tmp_path, log=lambda m: None)
+    assert result.status == "error"
+    loop["revert_changes"].assert_called_once()
+    loop["repark_working_copy"].assert_called_once_with(tmp_path, "base123")
+
+
 def test_vcs_failure_after_gates_is_fail_closed_error(loop, tmp_path):
     """The post-gate VCS action can still fail (live finding: stale sideways bookmark).
     That must be a logged error result with cleanup — never a traceback, never a half-merge."""

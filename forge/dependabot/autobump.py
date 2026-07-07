@@ -153,7 +153,14 @@ def auto_bump(
             push_branch(repo_path, branch, _commit_message(candidate, evidence))
             repark_working_copy(repo_path, base)
         except VCSError as e:
-            revert_changes(repo_path)
+            # Same cleanup contract as the post-gate action: revert whatever is uncommitted,
+            # then best-effort repark — push_branch may have already committed the bump, and
+            # without the repark that commit becomes the mainline's parent (live finding).
+            try:
+                revert_changes(repo_path)
+                repark_working_copy(repo_path, base)
+            except VCSError as cleanup_err:
+                log(f"warning: cleanup after failed advisory push also failed: {cleanup_err}")
             _log(repo_path, "error", f"{reason}; push failed: {e}", candidate, evidence, so=so)
             return BumpResult(
                 status="error", reason=f"{reason}; push failed: {e}", candidate=candidate
