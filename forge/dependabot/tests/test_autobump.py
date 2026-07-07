@@ -72,6 +72,7 @@ def loop(monkeypatch, tmp_path):
         "advance_main": patch.object(ab, "advance_main", return_value=_push()),
         "emit_advisory": patch.object(ab, "emit_advisory", return_value=None),
         "revert_changes": patch.object(ab, "revert_changes"),
+        "get_changed_files": patch.object(ab, "get_changed_files", return_value=[]),
     }
     monkeypatch.setattr(ab.settings, "auto_log_path", tmp_path / "auto.jsonl")
     started = {name: p.start() for name, p in mocks.items()}
@@ -174,6 +175,24 @@ def test_dry_run_stops_after_selection(loop, tmp_path):
     assert result.branch == "deps/idna-3-15"
     loop["apply_bump"].assert_not_called()
     loop["_signoff"].assert_not_called()
+
+
+def test_dirty_working_copy_refuses_to_run(loop, tmp_path):
+    """push_branch commits the WHOLE working copy — running over uncommitted work would scoop
+    it into the bump branch (the incident that added this guard)."""
+    loop["get_changed_files"].return_value = ["agents/dependabot/main.py"]
+    result = ab.auto_bump(tmp_path, log=lambda m: None)
+    assert result.status == "error"
+    assert "not clean" in result.reason
+    assert "agents/dependabot/main.py" in result.reason
+    loop["apply_bump"].assert_not_called()
+    loop["push_branch"].assert_not_called()
+
+
+def test_dirty_working_copy_still_allows_dry_run(loop, tmp_path):
+    loop["get_changed_files"].return_value = ["some/file.py"]
+    result = ab.auto_bump(tmp_path, dry_run=True, log=lambda m: None)
+    assert result.status == "planned"  # read-only path is exempt
 
 
 def test_no_vcs_is_an_error(loop, tmp_path):

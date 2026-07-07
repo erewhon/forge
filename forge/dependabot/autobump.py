@@ -40,7 +40,7 @@ from agents.shared.automerge import (
 )
 from agents.shared.signoff import SignoffResult, SignoffSeat, full_quorum_signoff
 from agents.task_worker.tester import run_tests
-from agents.task_worker.vcs import VCSError, detect_vcs, revert_changes
+from agents.task_worker.vcs import VCSError, detect_vcs, get_changed_files, revert_changes
 
 
 def _signoff(diff_text: str, *, pr_ref: str, context: str) -> SignoffResult:
@@ -112,6 +112,21 @@ def auto_bump(
             f"{candidate.latest} ({candidate.delta}) on {branch}; track: {track}"
         )
         return BumpResult(status="planned", candidate=candidate, branch=branch)
+
+    # Clean-WC guard (same rule as the task worker): push_branch commits the WHOLE working
+    # copy, so running over uncommitted work would scoop it into the bump branch — the exact
+    # incident that added this guard (a worker's half-finished CLI files rode a real advisory
+    # branch). Dry runs above are read-only and exempt.
+    dirty = [f for f in get_changed_files(repo_path) if f.strip()]
+    if dirty:
+        return BumpResult(
+            status="error",
+            reason=(
+                f"working copy not clean ({len(dirty)} changed file(s): "
+                f"{', '.join(dirty[:5])}) — the bumper owns the whole working copy; "
+                "commit or revert first"
+            ),
+        )
 
     # 1. Apply the bump (manifest+lockfile-only by construction of `uv lock -P`).
     changed = apply_bump(repo_path, candidate)
