@@ -16,11 +16,11 @@ own fix-up epics (2026-07-03/04).
  A0 inventory → A1 framing ──[HUMAN approves]──→ A2 decompose → A3 emit to Forge
                                                                      │
         ┌────────────────────────── wave loop ───────────────────────┘
-        │  reconcile orphans → plan wave (epic ref-prefix scope)
-        │  → dispatch serially (worker, sandboxed, epic-context preamble)
-        │  → verify (suite gate + review: collect → consolidate → confirm)
-        │  → replan (deterministic escalations first; model for judgment)
-        │  → persist wave record → [--wave-gate: stop for human review]
+         │  reconcile orphans → plan wave (epic ref-prefix scope)
+         │  → dispatch (serial by default; concurrent: fan-out → per-leaf workspaces → run-once sandboxes)
+         │  → verify (suite gate + review: collect → consolidate → confirm)
+         │  → replan (deterministic escalations first; model for judgment)
+         │  → persist wave record → [--wave-gate: stop for human review]
         └──→ dry (tree exhausted) │ waiting-on-human │ max-waves
                                                                      │
  epic gate: full-quorum cross-family sign-off on main..pipeline/<epic>
@@ -83,13 +83,12 @@ replans.
 
 ## What a dispatched leaf gets
 
-The dispatcher prepends an **epic-context preamble** to the worker's spec:
-the landed interfaces of the leaf's direct dependencies (ast-extracted
-signatures, public methods, module constants — read from the current tree, so
-they cannot drift), plus titles-only fencing for the rest of the epic. Capped
-at 4k chars, truncation announced, injection failures journal and dispatch
-plain — context can never block a wave. Audit trail: `leaf_context` records in
-the journal.
+The dispatcher prepends an **epic-context preamble** to the worker's spec in both the serial
+and concurrent paths: the landed interfaces of the leaf's direct dependencies (ast-extracted
+signatures, public methods, module constants — read from the current tree, so they cannot drift),
+plus titles-only fencing for the rest of the epic. Capped at 4k chars, truncation announced,
+injection failures journal and dispatch plain — context can never block a wave. Audit trail:
+`leaf_context` records in the journal.
 
 Per-leaf safety is the worker's (fresh gate re-check, clean-WC guard,
 `max_files`, lint gate with autofix, tests, revert-on-fail, degenerate-session
@@ -142,6 +141,7 @@ There is deliberately no auto-merge code path.
 | `MAX_WAVES` | `3` | Waves per *run* (re-run to continue) |
 | `WAVE_SIZE` | `4` | Max leaves dispatched per wave |
 | `MAX_LEAF_ATTEMPTS` | `2` | Journal-counted attempts before escalation |
+| `DISPATCH_CONCURRENCY` | `3` | Bounded fan-out for concurrent dispatch (1 = serial, the old path) |
 | `BRANCH_PREFIX` | `pipeline` | Epic bookmark prefix |
 | `INVENTORY_MAX_CHARS` | `40000` | A0 budget (tree-first trim, drops counted) |
 | `INVENTORY_TREE_DEPTH` | `3` | A0 tree depth |
@@ -162,11 +162,107 @@ There is deliberately no auto-merge code path.
 
 Worker knobs (`TASK_WORKER_*`: sandbox, timeouts, degenerate-session retry,
 commit prefix) are documented in [`../task_worker/README.md`](../task_worker/README.md).
+Concurrent dispatch uses a per-repo lockfile (`.task_worker/dispatch.lock`) to prevent
+racing waves; see the [Concurrent dispatch](#concurrent-dispatch) section above.
 The interactive strong-tier architect is [`/meta-architect`](../../../.claude/skills/)
 — same stages, the session is the model; `meta build plan` is the headless path.
 
 **Judgment evals** for the coding pipeline agents live in [`../evals/`](../evals/README.md) —
 frozen gold-set grading that catches prompt regressions from distillation or model swaps.
+
+## Concurrent dispatch
+
+When `dispatch_concurrency` (env: `CODING_PIPELINE_DISPATCH_CONCURRENCY`, flag: `--concurrency`)
+is **1** — the default path reproduced in the pre-concurrency runs — leaves dispatch **serially**
+against the main working copy, one at a time. This is the byte-for-byte old behaviour.
+
+Above **1** the dispatcher runs a bounded-fan-out pattern:
+
+```
+  ready-set (N leaves)
+        │
+        ▼
+  per-leaf jj workspaces (at shared base rev)
+        │  (ephemeral gaol run-once sandboxes)
+        ▼
+  fan-out: cap K concurrent workers   ← dispatch_concurrency / --concurrency
+        │
+        ▼
+  serial reconcile barrier
+    • rebase each landed commit in dispatch order
+    • conflict (jj first-class) → abandon + demote to Ready
+    • jj infra failure → skip (don't abandon) + demote to Ready
+        │
+        ▼
+  wave-level suite gate
+        │
+        ▼
+  bisect-on-red (concurrent only, 2+ landed, suite red)
+    → locate the first offending leaf, back it out, demote to Ready
+        │
+        ▼
+  replan (demoted leaves flow into the existing machinery)
+```
+
+### The two kinds of independence
+
+- **DAG gives logical independence.** Dependency edges in the epic tree define a topological
+  order — leaves without unresolved deps are *logically* safe to run in any order.
+- **The barrier enforces physical independence.** Concurrent dispatch ignores the DAG beyond
+  topological readiness; the serial reconcile barrier catches the physical conflicts that the
+  DAG can't predict (unrelated files touching shared behaviour, test fixtures colliding, etc.).
+  Correctness rests entirely on the barrier.
+- **`file_scope` only optimises.** The scheduler (scheduling.py) reads architect-predicted
+  file-scopes from the tree and greedily batches leaves with disjoint scopes, deferring
+  overlapping ones to the next wave. A wrong pick costs wasted parallel work (a colliding
+  leaf burns a worker run before detection reverts it), never corruption. Leaves with an
+  empty scope (replan fix-ups carry none) dispatch alone. Unknown scope = fall back to full
+  optimistic fan-out. This epic shipped the file-scope hint emission through the tree
+  (LeafSpec) and the conflict-free batch picker; it is a pure optimisation layered on top
+  of the barrier.
+
+### `dispatch_concurrency` and `--concurrency`
+
+| Setting | Behaviour |
+|---|---|
+| `dispatch_concurrency = 1` (default) | Serial path — every leaf runs one at a time on the main working copy. Reproduces today's behaviour exactly. |
+| `dispatch_concurrency = K > 1` | Bounded fan-out: at most K leaves run concurrently, each in its own jj workspace under an ephemeral `gaol run-once` sandbox. Integrates through the serial reconcile barrier. |
+
+The `--concurrency N` flag on `meta build run` overrides the config default for that invocation.
+The default is **3** (raised from 1 after the deliberate-conflict smoke passed on 2026-07-07:
+a colliding pair was dispatched; one leaf landed cleanly, the other was detected, demoted,
+and retried onto the updated head by the reconcile barrier).
+
+### Conflict demotion semantics
+
+When the smoke passes (the concurrent epic completed with a deliberate-conflict end-to-end
+smoke test), the following invariants hold:
+
+- **Done-then-Ready flips carry notes.** A leaf that lands Done in its workspace but conflicts
+  during the reconcile barrier is demoted back to `Ready` with a note explaining the conflict
+  paths and that the commit was abandoned. The demotion is a *separate* journal event
+  (`reconcile_demotion`), not a second `leaf_dispatch`, so the attempt cap is never double-counted.
+- **Bisect-on-red.** If the concurrent wave's batch suite goes red but no leaf conflicted at
+  the barrier (a semantic conflict: green in isolation, red combined), a linear walk over the
+  integrated chain locates the first offending leaf, backs it out, and demotes it. Single-leaf
+  waves and serial waves already have leaf-level attribution — bisect is concurrent-only.
+- **Serial-fallback guarantee.** `dispatch_concurrency = 1` is the escape hatch: it reproduces
+  the pre-concurrency serial path exactly. Use it when debugging, when the suite is too noisy,
+  or when running on repos that don't support jj workspaces.
+
+### Repo lock
+
+A per-repo lockfile (`.task_worker/dispatch.lock`, pid inside) prevents two dispatch waves
+from racing on the same working copy. A live holder raises `DispatchError` and aborts the
+wave; a dead holder's lock is stolen. The lock covers workspace creation, fan-out, and
+reconcile — the entire dispatch critical section.
+
+### Workspaces and sandboxes
+
+Each leaf gets its own jj workspace created at the wave's shared base revision. Workers run
+under `gaol run-once` sandboxes (ephemeral — they don't persist across invocations) rather
+than the path-bound dx container. After dispatch (success, conflict, or crash) all workspaces
+are forgotten, so the main repo is the only persistent artefact.
 
 ## Operator playbook (what the dry-runs taught)
 
