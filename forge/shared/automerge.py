@@ -229,7 +229,12 @@ def _jj_push_branch(repo_path: Path, branch: str, message: str, *, push: bool) -
     change_id = commit(repo_path, message)  # describes @, then advances with `jj new`
     if not change_id:
         raise VCSError("jj commit did not return a change id")
-    set_bm = _run(["jj", "bookmark", "set", branch, "-r", change_id], repo_path)
+    # --allow-backwards: automation branches are force-moved on re-runs. A stale bookmark from
+    # an earlier run may sit on a sibling lineage (live finding: a pre-merge branched run's
+    # bookmark blocked the first post-merge auto-merge with "refusing to move sideways").
+    set_bm = _run(
+        ["jj", "bookmark", "set", branch, "-r", change_id, "--allow-backwards"], repo_path
+    )
     if set_bm.returncode != 0:
         raise VCSError(f"jj bookmark set {branch} failed: {set_bm.stderr.strip()}")
     detail, pushed = "", False

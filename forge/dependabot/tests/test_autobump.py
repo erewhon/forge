@@ -219,6 +219,22 @@ def test_no_vcs_is_an_error(loop, tmp_path):
     loop["scan_outdated"].assert_not_called()
 
 
+def test_vcs_failure_after_gates_is_fail_closed_error(loop, tmp_path):
+    """The post-gate VCS action can still fail (live finding: stale sideways bookmark).
+    That must be a logged error result with cleanup — never a traceback, never a half-merge."""
+    from agents.task_worker.vcs import VCSError
+
+    loop["push_branch"].side_effect = VCSError("refusing to move bookmark sideways")
+    result = ab.auto_bump(tmp_path, auto_merge=True, log=lambda m: None)
+    assert result.status == "error"
+    assert "after all gates passed" in result.reason
+    assert result.tests_passed is True  # the gates DID pass; only the action failed
+    loop["advance_main"].assert_not_called()
+    loop["revert_changes"].assert_called_once()
+    loop["repark_working_copy"].assert_called_once_with(tmp_path, "base123")
+    assert (tmp_path / "auto.jsonl").exists()  # the failure is in the decision log
+
+
 def test_render_bump_shows_the_story(loop, tmp_path):
     result = ab.auto_bump(tmp_path, auto_merge=True, log=lambda m: None)
     out = ab.render_bump(result)

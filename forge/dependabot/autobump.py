@@ -195,14 +195,31 @@ def auto_bump(
 
     # 6. Action — push the branch; advance main only under the explicit flag. A merge leaves
     # the working copy on the bump commit (that IS main now); a plain branch reparks so the
-    # bump stays a side head.
-    push = push_branch(repo_path, branch, _commit_message(candidate, evidence))
-    status, merged = "branched", False
-    if auto_merge:
-        advance_main(repo_path, push.change_id)
-        status, merged = "merged", True
-    else:
-        repark_working_copy(repo_path, base)
+    # bump stays a side head. A VCS failure here is still fail-closed: revert, best-effort
+    # repark, log, error status — never a traceback and never a half-acted merge.
+    try:
+        push = push_branch(repo_path, branch, _commit_message(candidate, evidence))
+        status, merged = "branched", False
+        if auto_merge:
+            advance_main(repo_path, push.change_id)
+            status, merged = "merged", True
+        else:
+            repark_working_copy(repo_path, base)
+    except VCSError as e:
+        log(f"error: VCS action failed after all gates passed: {e}")
+        try:
+            revert_changes(repo_path)
+            repark_working_copy(repo_path, base)
+        except VCSError as cleanup_err:
+            log(f"warning: cleanup after failed VCS action also failed: {cleanup_err}")
+        _log(repo_path, "error", f"VCS action failed: {e}", candidate, evidence, so=so)
+        return BumpResult(
+            status="error",
+            reason=f"VCS action failed after all gates passed: {e}",
+            candidate=candidate,
+            evidence=evidence,
+            tests_passed=True,
+        )
 
     _log(repo_path, status, "", candidate, evidence, passed=True, so=so, change_id=push.change_id)
     log(f"{status}: {branch} @ {push.change_id}" + (" (merged to main)" if merged else ""))

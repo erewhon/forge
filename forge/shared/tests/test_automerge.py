@@ -101,6 +101,11 @@ def test_jj_push_branch_argv_has_no_allow_new(monkeypatch):
 
     result = am.push_branch(Path("/tmp"), "deps/foo", "msg")
     assert result.pushed
+    set_cmd = captured[0]
+    # Re-runs force-move automation bookmarks: a stale bookmark on a sibling lineage must not
+    # block the push (live finding: first post-merge auto-merge died on "sideways" refusal).
+    assert set_cmd[:3] == ["jj", "bookmark", "set"]
+    assert "--allow-backwards" in set_cmd
     push_cmd = captured[-1]
     assert "--bookmark" in push_cmd
     assert "--allow-new" not in push_cmd
