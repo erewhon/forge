@@ -1,0 +1,29 @@
+{
+  "version": {
+    "info": {
+      "yanked": false,
+      "project_urls": {
+        "Changelog": "https://github.com/kjd/idna/blob/master/HISTORY.md",
+        "Issue tracker": "https://github.com/kjd/idna/issues",
+        "Source": "https://github.com/kjd/idna"
+      }
+    },
+    "urls": [
+      {
+        "upload_time_iso_8601": "2026-05-12T22:45:55.733813Z"
+      },
+      {
+        "upload_time_iso_8601": "2026-05-12T22:45:57.011321Z"
+      }
+    ]
+  },
+  "project": {
+    "info": {
+      "project_urls": {
+        "Changelog": "https://github.com/kjd/idna/blob/master/HISTORY.md",
+        "Issue tracker": "https://github.com/kjd/idna/issues",
+        "Source": "https://github.com/kjd/idna"
+      }
+    }
+  }
+}
