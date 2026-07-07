@@ -181,6 +181,173 @@ def test_reposition_failure_is_repo_level(jj, tmp_path, monkeypatch):
         )
 
 
+# --- bisect-on-red -------------------------------------------------------------------
+
+
+def _suite_script(red_after: set[str]):
+    """A run_suite fake keyed on the LAST `jj new <rev>` the ScriptedJJ saw: red when the
+    working copy sits on (a child of) a rev in `red_after`."""
+
+    def make(jj: ScriptedJJ):
+        def run_suite():
+            positioned = [c[1] for c in jj.calls if c[0] == "new"]
+            here = positioned[-1] if positioned else "base0"
+            return (here not in red_after), f"suite at {here}"
+
+        return run_suite
+
+    return make
+
+
+def _chain3():
+    return [("A", "chg-a"), ("B", "chg-b"), ("C", "chg-c")]
+
+
+def test_bisect_attributes_first_red_and_repairs(jj, tmp_path):
+    # green at A, red at B (and would be red at C — never tested: walk stops at first red)
+    run_suite = _suite_script({"chg-b"})(jj)
+    demotes: list[tuple[str, str]] = []
+    result = rc.bisect_red(
+        tmp_path, "base0", _chain3(), run_suite, on_demote=lambda t, n: demotes.append((t, n)),
+        log=lambda m: None,
+    )
+    assert result is not None
+    assert result.offender == "B"
+    assert result.repaired_green is True  # C on A is green in this script
+    # the rest of the chain moved off B before B was abandoned, then @ went to the tip
+    rebase_i = jj.calls.index(["rebase", "-s", "chg-c", "-d", "chg-a"])
+    abandon_i = jj.calls.index(["abandon", "chg-b"])
+    assert rebase_i < abandon_i
+    assert ["new", "chg-c"] in jj.calls
+    assert demotes and demotes[0][0] == "B"
+    assert "semantic conflict" in demotes[0][1]
+
+
+def test_bisect_offender_first_rebases_rest_onto_base(jj, tmp_path):
+    run_suite = _suite_script({"chg-a"})(jj)
+    result = rc.bisect_red(
+        tmp_path, "base0", _chain3(), run_suite, on_demote=lambda t, n: None, log=lambda m: None
+    )
+    assert result is not None and result.offender == "A"
+    assert ["rebase", "-s", "chg-b", "-d", "base0"] in jj.calls
+
+
+def test_bisect_offender_last_needs_no_rebase(jj, tmp_path):
+    run_suite = _suite_script({"chg-c"})(jj)
+    result = rc.bisect_red(
+        tmp_path, "base0", _chain3(), run_suite, on_demote=lambda t, n: None, log=lambda m: None
+    )
+    assert result is not None and result.offender == "C"
+    assert not any(c[:2] == ["rebase", "-s"] for c in jj.calls)
+    assert ["abandon", "chg-c"] in jj.calls
+    assert ["new", "chg-b"] in jj.calls  # tip is now the previous leaf
+
+
+def test_bisect_all_green_returns_none_and_touches_nothing(jj, tmp_path):
+    run_suite = _suite_script(set())(jj)  # flake: red wave, green walk
+    result = rc.bisect_red(
+        tmp_path, "base0", _chain3(), run_suite, on_demote=lambda t, n: None, log=lambda m: None
+    )
+    assert result is None
+    assert not any(c[0] in ("abandon", "rebase") for c in jj.calls)
+
+
+def test_bisect_still_red_after_repair_demotes_anyway(jj, tmp_path):
+    # B is the first red point; backing it out does NOT green the suite (C×A conflict too).
+    run_suite = _suite_script({"chg-b", "chg-c"})(jj)
+    demotes: list[str] = []
+    result = rc.bisect_red(
+        tmp_path, "base0", _chain3(), run_suite, on_demote=lambda t, n: demotes.append(t),
+        log=lambda m: None,
+    )
+    assert result is not None
+    assert result.offender == "B"  # first-red evidence stands
+    assert result.repaired_green is False  # the remaining red flows to replan
+    assert demotes == ["B"]
+
+
+def test_bisect_jj_failure_fails_open(jj, tmp_path):
+    jj.fail_rebase_of = {"chg-c"}  # the back-out rebase explodes
+    run_suite = _suite_script({"chg-b"})(jj)
+    demotes: list[str] = []
+    result = rc.bisect_red(
+        tmp_path, "base0", _chain3(), run_suite, on_demote=lambda t, n: demotes.append(t),
+        log=lambda m: None,
+    )
+    assert result is None
+    assert demotes == []  # no attribution claimed when the surgery failed
+
+
+# --- apply_bisect (the orchestrator hook) ---------------------------------------------
+
+
+def _report(*outcomes: LeafOutcome, green: bool):
+    from agents.coding_pipeline.models import SuiteResult, WaveReport
+
+    return WaveReport(
+        wave=1, outcomes=list(outcomes), suite=SuiteResult(passed=green, output_tail="t")
+    )
+
+
+def _done_leaf(title: str) -> LeafOutcome:
+    return LeafOutcome(leaf=title, status="done", commit_id=f"cid-{title}")
+
+
+def test_apply_bisect_noop_when_suite_green(jj, tmp_path):
+    report = _report(_done_leaf("A"), _done_leaf("B"), green=True)
+    out = rc.apply_bisect(
+        report, repo=tmp_path, base_rev="base0", concurrency=3,
+        run_suite=lambda: (True, ""), on_demote=lambda t, n: None, log=lambda m: None,
+    )
+    assert out is None
+    assert jj.calls == []
+
+
+def test_apply_bisect_noop_for_serial_waves(jj, tmp_path):
+    report = _report(_done_leaf("A"), _done_leaf("B"), green=False)
+    out = rc.apply_bisect(
+        report, repo=tmp_path, base_rev="base0", concurrency=1,
+        run_suite=lambda: (True, ""), on_demote=lambda t, n: None, log=lambda m: None,
+    )
+    assert out is None
+    assert jj.calls == []
+
+
+def test_apply_bisect_noop_for_single_landed_leaf(jj, tmp_path):
+    failed = LeafOutcome(leaf="B", status="failed", reason="x")
+    report = _report(_done_leaf("A"), failed, green=False)
+    out = rc.apply_bisect(
+        report, repo=tmp_path, base_rev="base0", concurrency=3,
+        run_suite=lambda: (True, ""), on_demote=lambda t, n: None, log=lambda m: None,
+    )
+    assert out is None  # one landed leaf IS the attribution already
+
+
+def test_apply_bisect_rewrites_offender_and_suite(jj, tmp_path):
+    report = _report(_done_leaf("A"), _done_leaf("B"), green=False)
+    # apply_bisect builds the chain from commit_ids (cid-A, cid-B); ScriptedJJ echoes
+    # them back as their own change ids, so "red at cid-B" scripts the walk directly
+
+    def run_suite():
+        news = [c[1] for c in jj.calls if c[0] == "new"]
+        here = news[-1] if news else "base0"
+        return (here != "cid-B"), "tail-text"
+
+    demotes: list[str] = []
+    out = rc.apply_bisect(
+        report, repo=tmp_path, base_rev="base0", concurrency=3,
+        run_suite=run_suite, on_demote=lambda t, n: demotes.append(t), log=lambda m: None,
+    )
+    assert out is not None and out.offender == "B"
+    by_leaf = {o.leaf: o for o in report.outcomes}
+    assert by_leaf["B"].status == "failed"
+    assert by_leaf["B"].commit_id is None
+    assert "bisect" in by_leaf["B"].reason
+    assert by_leaf["A"].status == "done"
+    assert report.suite is not None and report.suite.passed is True  # repaired verdict
+    assert demotes == ["B"]
+
+
 # --- the real thing -----------------------------------------------------------------
 
 

@@ -19,7 +19,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from agents.coding_pipeline.models import LeafOutcome
+from pydantic import BaseModel
+
+from agents.coding_pipeline.models import LeafOutcome, SuiteResult, WaveReport
 from agents.shared.workspaces import JJError, _run_jj
 
 
@@ -134,3 +136,125 @@ def reconcile_wave(
                 f"failed: {e}"
             ) from e
     return results
+
+
+# --- bisect-on-red (semantic conflicts: green in isolation, red combined) -------------
+
+
+class BisectResult(BaseModel):
+    """What bisect attributed and what state it left the wave in."""
+
+    offender: str  # leaf title backed out of the chain
+    repaired_green: bool  # the suite verdict AFTER the back-out
+    repaired_tail: str = ""
+
+
+def bisect_red(
+    repo: Path,
+    base_rev: str,
+    chain: list[tuple[str, str]],
+    run_suite: Callable[[], tuple[bool, str]],
+    *,
+    on_demote: Callable[[str, str], None],
+    log: Callable[[str], None] = print,
+) -> BisectResult | None:
+    """Locate the first red point along the integrated ``chain`` (title, change_id pairs in
+    integration order), back that leaf out, demote it, and re-verify once.
+
+    Serial dispatch catches an integration break at the leaf that introduces it (each leaf's
+    suite runs on the accumulated state); concurrent dispatch tests leaves in isolation, so
+    a semantic conflict first surfaces at the wave's batch suite gate with no attribution.
+    This walk restores parity: position the working copy on each chain point, run the suite,
+    stop at the first red. Linear on purpose — wave_size is 4; a true bisect buys nothing.
+
+    The offender is demoted even when the repaired state is still red: first-red-at-X is
+    confirmed evidence against X, and restoring X would leave Forge and the chain agreeing
+    on a state the suite already condemned. Remaining redness flows to replan exactly like
+    a red serial wave. Returns None (fail open, VCS untouched beyond repositioning to the
+    chain tip) when every point is green — a flaky suite, not a semantic conflict — or when
+    any jj step fails.
+    """
+    offender_i: int | None = None
+    try:
+        for i, (title, change) in enumerate(chain):
+            _run_jj(["new", change], cwd=repo)
+            passed, _ = run_suite()
+            log(f"  bisect: {title} -> {'green' if passed else 'RED'}")
+            if not passed:
+                offender_i = i
+                break
+        if offender_i is None:
+            # Every point green — the wave-level red was flake. @ already sits on the tip.
+            log("  bisect: every chain point green — no attribution (flaky suite?)")
+            return None
+
+        title, change = chain[offender_i]
+        parent = base_rev if offender_i == 0 else chain[offender_i - 1][1]
+        if offender_i < len(chain) - 1:
+            # Move the rest of the chain off the offender before abandoning it.
+            _run_jj(["rebase", "-s", chain[offender_i + 1][1], "-d", parent], cwd=repo)
+        _run_jj(["abandon", change], cwd=repo)
+        new_tip = chain[-1][1] if offender_i < len(chain) - 1 else parent
+        _run_jj(["new", new_tip], cwd=repo)
+    except JJError as e:
+        log(f"  bisect: jj failed mid-walk — no attribution ({e})")
+        return None
+
+    repaired_green, tail = run_suite()
+    note = (
+        "Demoted by bisect-on-red: this leaf was green in its own workspace but is the "
+        "first point where the integrated wave suite goes red — a semantic conflict with "
+        "an earlier wave sibling. Its commit was backed out of the epic chain; retry "
+        "against the updated head.\n\n"
+        f"Suite after the back-out: {'green' if repaired_green else 'still RED'}."
+    )
+    try:
+        on_demote(title, note)
+    except Exception as e:  # noqa: BLE001 — attribution stands even if the write fails
+        log(f"  bisect: demotion write FAILED for {title}: {e} — Forge still shows Done")
+    log(f"  bisect: backed out {title}; repaired suite {'green' if repaired_green else 'RED'}")
+    return BisectResult(offender=title, repaired_green=repaired_green, repaired_tail=tail)
+
+
+def apply_bisect(
+    report: WaveReport,
+    *,
+    repo: Path,
+    base_rev: str,
+    concurrency: int,
+    run_suite: Callable[[], tuple[bool, str]],
+    on_demote: Callable[[str, str], None],
+    log: Callable[[str], None] = print,
+) -> BisectResult | None:
+    """The orchestrator's one-line hook: attribute a red CONCURRENT wave, mutate ``report``.
+
+    No-op unless the suite is red, the wave ran concurrently, and more than one leaf
+    landed (a single landed leaf IS the attribution; serial waves already attribute).
+    On attribution the offender's outcome is rewritten to failed (commit gone) and
+    ``report.suite`` is replaced with the repaired verdict, so replan sees a demoted
+    leaf instead of a mystery-red wave.
+    """
+    if report.suite_green or concurrency <= 1:
+        return None
+    chain = [(o.leaf, o.commit_id) for o in report.landed if o.commit_id]
+    if len(chain) < 2:
+        return None
+    result = bisect_red(repo, base_rev, chain, run_suite, on_demote=on_demote, log=log)
+    if result is None:
+        return None
+    report.outcomes = [
+        o.model_copy(
+            update={
+                "status": "failed",
+                "reason": "semantic integration conflict (bisect-on-red)",
+                "commit_id": None,
+            }
+        )
+        if o.leaf == result.offender
+        else o
+        for o in report.outcomes
+    ]
+    report.suite = SuiteResult(
+        passed=result.repaired_green, output_tail=result.repaired_tail[-2000:]
+    )
+    return result

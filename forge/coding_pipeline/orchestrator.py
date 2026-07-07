@@ -59,10 +59,12 @@ from agents.coding_pipeline.models import (
     WaveRecord,
     WaveReport,
 )
+from agents.coding_pipeline.reconcile import apply_bisect
 from agents.coding_pipeline.vcs_epic import ensure_epic_bookmark, update_epic_bookmark
 from agents.coding_pipeline.verify import verify_wave, wave_start_rev
 from agents.coding_pipeline.waves import fetch_epic_rows, fetch_feature_rows, plan_wave
 from agents.shared.task_store import TaskStore, get_task_store
+from agents.task_worker.tester import run_tests
 from agents.task_worker.vcs import VCSError, get_changed_files
 
 ExitStatus = Literal[
@@ -273,6 +275,29 @@ def run_epic(
         append_gate_result(
             run_dir, "suite", report.suite_green, details="" if report.suite_green else suite_tail
         )
+        # A red CONCURRENT wave with several landed leaves is unattributed — serial dispatch
+        # would have caught the breaking leaf at its own suite run. Bisect restores parity:
+        # back out the first-red leaf, demote it, and let replan see a failure, not a mystery.
+        effective_cap = concurrency if concurrency is not None else settings.dispatch_concurrency
+        bisected = apply_bisect(
+            report,
+            repo=repo,
+            base_rev=wave_start,
+            concurrency=effective_cap,
+            run_suite=lambda: run_tests(repo),
+            on_demote=lambda title, note: store.update_status(title, "Ready", notes=note),
+            log=log,
+        )
+        if bisected is not None:
+            append_gate_result(
+                run_dir,
+                "bisect",
+                report.suite_green,
+                details=(
+                    f"offender: {bisected.offender}; suite after back-out: "
+                    f"{'green' if bisected.repaired_green else 'still red'}"
+                ),
+            )
         confirmed = [f for f in report.findings if f.confirmed]
         review_detail = (
             f"{len(confirmed)} confirmed of {len(report.findings)} canonical "
