@@ -47,7 +47,10 @@ def _failed(title: str) -> RunOutcome:
 
 @pytest.fixture
 def wired(monkeypatch, tmp_path):
+    """Serial-path harness: preflight mocked AND concurrency pinned to 1 — the shipped
+    default is 3 (post-smoke), and these tests exercise the serial dispatcher."""
     monkeypatch.setattr(dp, "_preflight", lambda repo: "")
+    monkeypatch.setattr(dp.settings, "dispatch_concurrency", 1)
     return tmp_path
 
 
@@ -106,6 +109,7 @@ def test_outcomes_journaled_as_they_land(wired, tmp_path):
 
 
 def test_preflight_failure_aborts_with_nothing_dispatched(monkeypatch, tmp_path):
+    monkeypatch.setattr(dp.settings, "dispatch_concurrency", 1)
     monkeypatch.setattr(dp, "_preflight", lambda repo: "sandbox not ready: not created")
     calls: list[str] = []
     with pytest.raises(DispatchError, match="preflight"):
@@ -537,8 +541,10 @@ def test_concurrent_reconcile_error_is_a_loud_dispatch_error(cw, tmp_path, monke
 
 
 def test_serial_path_never_touches_workspace_or_reconcile_code(wired, monkeypatch):
-    """The serial-fallback invariant: concurrency 1 (the default) is byte-for-byte the old
-    path — no workspaces, no reconcile, no scheduler, dx-kind preflight."""
+    """The serial-fallback invariant: concurrency 1 is byte-for-byte the old path — no
+    workspaces, no reconcile, no scheduler, dx-kind preflight. Pinned explicitly via the
+    setting (the shipped default is 3 since the smoke passed) to prove the settings-driven
+    path selects serial, not just the explicit argument."""
 
     def bomb(*a, **kw):
         raise AssertionError("workspace/reconcile code reached from the serial path")
@@ -552,13 +558,14 @@ def test_serial_path_never_touches_workspace_or_reconcile_code(wired, monkeypatc
     monkeypatch.setattr(rcmod, "reconcile_wave", bomb)
     monkeypatch.setattr(schedmod, "pick_disjoint", bomb)
     monkeypatch.setattr(dp, "_run_concurrent", bomb)
+    monkeypatch.setattr(dp.settings, "dispatch_concurrency", 1)
 
     outcomes = run_wave(
         _plan("a", "b"),
         wired,
         run_leaf=lambda t: _done(t.task),
         find=_task,
-        log=lambda m: None,  # concurrency omitted -> settings default (1)
+        log=lambda m: None,  # concurrency omitted -> settings value (pinned to 1 here)
     )
     assert [o.status for o in outcomes] == ["done", "done"]
 

@@ -21,11 +21,12 @@ class CodingPipelineSettings(BaseSettings):
     wave_size: int = 4
     max_leaf_attempts: int = 2
 
-    # Leaves in flight per wave. 1 = the proven serial path (no workspaces, dx sandbox).
-    # Above 1, leaves fan out into per-leaf jj workspaces under run-once sandboxes and
-    # integrate through the serial reconcile barrier. Stays 1 until the deliberate-conflict
-    # smoke passes (concurrent-workers epic); wave_size is the outer bound either way.
-    dispatch_concurrency: int = 1
+    # Leaves in flight per wave. 1 = the serial path (no workspaces, dx sandbox). Above 1,
+    # leaves fan out into per-leaf jj workspaces under run-once sandboxes and integrate
+    # through the serial reconcile barrier. Default 3 since the deliberate-conflict smoke
+    # passed (2026-07-07: colliding pair detected, one landed, one demoted-and-retried
+    # onto the updated head); wave_size is the outer bound either way.
+    dispatch_concurrency: int = 3
 
     # All epic work lands on {branch_prefix}/{epic_slug}; main only moves at the epic gate.
     branch_prefix: str = "pipeline"
