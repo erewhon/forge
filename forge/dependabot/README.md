@@ -48,3 +48,18 @@ meta deps --project Foo    # file advisory tasks into the "Foo" Forge project
 ```
 
 Exit codes: 0 = merged / branched / planned / no-candidates; 1 = advisory / error (scriptable).
+
+## Honest scope — what the evidence does NOT cover (v1)
+
+The sign-off judges **metadata**: audit findings, version delta, release age, yanked flag,
+changelog presence, typosquat distance, and the lockfile delta. Two signals named in the
+original brief are **deliberately descoped** in v1 because PyPI's JSON API cannot provide them:
+
+- **Maintainer/owner change** — PyPI does not expose versioned maintainer history via the JSON
+  API; detecting a handover needs an external feed or a stored per-package baseline.
+- **New install/build scripts** — requires downloading and inspecting the sdist/wheel, which is
+  source-level analysis, not metadata.
+
+Both are v2 candidates (tracked in Forge: "Dependabot: maintainer-change and install-script
+evidence signals"). Until then the conservative dial compensates: patch/minor only, complete
+evidence required, unanimous cross-family sign-off, one bump per branch.
