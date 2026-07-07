@@ -538,17 +538,19 @@ def test_concurrent_reconcile_error_is_a_loud_dispatch_error(cw, tmp_path, monke
 
 def test_serial_path_never_touches_workspace_or_reconcile_code(wired, monkeypatch):
     """The serial-fallback invariant: concurrency 1 (the default) is byte-for-byte the old
-    path — no workspaces, no reconcile, dx-kind preflight."""
+    path — no workspaces, no reconcile, no scheduler, dx-kind preflight."""
 
     def bomb(*a, **kw):
         raise AssertionError("workspace/reconcile code reached from the serial path")
 
     import agents.coding_pipeline.reconcile as rcmod
+    import agents.coding_pipeline.scheduling as schedmod
     import agents.shared.workspaces as wsmod
 
     monkeypatch.setattr(wsmod, "create_workspace", bomb)
     monkeypatch.setattr(wsmod, "resolve_base_rev", bomb)
     monkeypatch.setattr(rcmod, "reconcile_wave", bomb)
+    monkeypatch.setattr(schedmod, "pick_disjoint", bomb)
     monkeypatch.setattr(dp, "_run_concurrent", bomb)
 
     outcomes = run_wave(
@@ -559,3 +561,97 @@ def test_serial_path_never_touches_workspace_or_reconcile_code(wired, monkeypatc
         log=lambda m: None,  # concurrency omitted -> settings default (1)
     )
     assert [o.status for o in outcomes] == ["done", "done"]
+
+
+def test_concurrent_scheduler_defers_overlapping_scopes(cw, tmp_path):
+    """Leaves with colliding predicted scopes never co-dispatch: the later one stays
+    Ready for the next wave, and the deferral is journaled — no silent capping."""
+    import json as _json
+
+    from agents.coding_pipeline.architect import persist_tree
+    from agents.coding_pipeline.models import LeafSpec
+
+    journal_dir = tmp_path / "runs"
+    journal_dir.mkdir()
+    persist_tree(
+        [
+            LeafSpec(
+                title="a", content="x", feature="F", file_scope=["agents/x.py"], priority=1
+            ),
+            LeafSpec(
+                title="b", content="x", feature="F", file_scope=["agents/x.py"], priority=2
+            ),
+            LeafSpec(
+                title="c", content="x", feature="F", file_scope=["agents/y.py"], priority=3
+            ),
+        ],
+        journal_dir,
+    )
+    ran: list[str] = []
+    outcomes = run_wave(
+        _plan("a", "b", "c"),
+        tmp_path,
+        journal_dir=journal_dir,
+        run_leaf=lambda t, spec=None, repo=None, sandbox_kind=None: (
+            ran.append(t.task) or _done_at(t.task)
+        ),
+        find=_task,
+        concurrency=3,
+        log=lambda m: None,
+    )
+    assert sorted(ran) == ["a", "c"]  # b's scope collides with a's — deferred
+    assert [o.leaf for o in outcomes] == ["a", "c"]
+    assert len(cw.created) == 2  # no workspace burned on the deferred leaf
+    records = [
+        _json.loads(line) for line in (journal_dir / "journal.jsonl").read_text().splitlines()
+    ]
+    deferred = [r for r in records if r["event"] == "scheduler_deferred"]
+    assert deferred and deferred[0]["leaves"] == ["b"]
+
+
+def test_concurrent_without_any_scope_data_stays_fully_optimistic(cw, tmp_path):
+    """No tree.json = no scope data = the picker never engages: the whole ready-set fans
+    out and the reconcile barrier is the correctness floor. Prediction reduces wasted
+    work when present; it must never become a gate when absent."""
+    journal_dir = tmp_path / "runs"
+    journal_dir.mkdir()
+    ran: list[str] = []
+    run_wave(
+        _plan("a", "b"),
+        tmp_path,
+        journal_dir=journal_dir,
+        run_leaf=lambda t, spec=None, repo=None, sandbox_kind=None: (
+            ran.append(t.task) or _done_at(t.task)
+        ),
+        find=_task,
+        concurrency=2,
+        log=lambda m: None,
+    )
+    assert sorted(ran) == ["a", "b"]
+
+
+def test_concurrent_scopeless_fixup_serializes_when_tree_has_scopes(cw, tmp_path):
+    """Once ANY leaf carries a scope, an unscoped leaf (a replan fix-up) is unknown
+    territory: it dispatches alone, never concurrently with a sibling."""
+    from agents.coding_pipeline.architect import persist_tree
+    from agents.coding_pipeline.models import LeafSpec
+
+    journal_dir = tmp_path / "runs"
+    journal_dir.mkdir()
+    persist_tree(
+        [LeafSpec(title="a", content="x", feature="F", file_scope=["agents/x.py"], priority=1)],
+        journal_dir,
+    )
+    ran: list[str] = []
+    run_wave(
+        _plan("a", "fixup-not-in-tree"),
+        tmp_path,
+        journal_dir=journal_dir,
+        run_leaf=lambda t, spec=None, repo=None, sandbox_kind=None: (
+            ran.append(t.task) or _done_at(t.task)
+        ),
+        find=_task,
+        concurrency=2,
+        log=lambda m: None,
+    )
+    assert ran == ["a"]  # the fix-up waits for the next wave

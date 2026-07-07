@@ -263,6 +263,19 @@ def _slug(title: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:30] or "leaf"
 
 
+def _scopes_from_tree(journal_dir: Path | None) -> dict[str, list[str]]:
+    """title -> architect-predicted file_scope from the run dir's tree.json. Fail open to
+    {} — unknown scopes serialize the wave (safe), they never block it."""
+    if journal_dir is None:
+        return {}
+    try:
+        from agents.coding_pipeline.architect import load_tree
+
+        return {leaf.title: leaf.file_scope for leaf in load_tree(journal_dir) or []}
+    except Exception:  # noqa: BLE001 — scheduling is an optimization, never a gate
+        return {}
+
+
 def _run_concurrent(
     plan: WavePlan,
     repo: Path,
@@ -300,8 +313,31 @@ def _run_concurrent(
     base = resolve_base_rev(repo, "@-")
     log(f"concurrent dispatch: {len(plan.dispatch)} leaf(s), cap {cap}, base {base[:12]}")
 
+    # Scheduling optimization — engaged only when the tree carries scope data at all.
+    # With scopes: disjoint scopes co-dispatch, scope-less leaves (fix-ups) serialize.
+    # Without any scopes (legacy tree, no tree): full optimistic fan-out — the reconcile
+    # barrier is the correctness floor, and prediction must never become a gate.
+    # Deferred leaves stay Ready for the next wave.
+    titles = list(plan.dispatch)
+    if len(titles) > 1:
+        scopes = _scopes_from_tree(journal_dir)
+        if any(scopes.get(t) for t in titles):
+            from agents.coding_pipeline.scheduling import pick_disjoint
+
+            titles, deferred = pick_disjoint([(t, scopes.get(t, [])) for t in titles])
+            if deferred:
+                log(
+                    "  scheduler: deferring to the next wave (scope overlap): "
+                    + ", ".join(deferred)
+                )
+                if journal_dir is not None:
+                    log_decision(
+                        {"event": "scheduler_deferred", "leaves": deferred},
+                        _journal_path(journal_dir),
+                    )
+
     prepared: list[tuple[str, TaskInfo | None, str | None]] = []
-    for title in plan.dispatch:
+    for title in titles:
         task = find(title)
         if task is None:
             log(f"leaf not found in Forge, skipping: {title}")
