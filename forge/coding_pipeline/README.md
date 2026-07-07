@@ -233,7 +233,12 @@ Above **1** the dispatcher runs a bounded-fan-out pattern:
 The `--concurrency N` flag on `meta build run` overrides the config default for that invocation.
 The default is **3** (raised from 1 after the deliberate-conflict smoke passed on 2026-07-07:
 a colliding pair was dispatched; one leaf landed cleanly, the other was detected, demoted,
-and retried onto the updated head by the reconcile barrier).
+and retried onto the updated head by the reconcile barrier). The full evidence record —
+leaf specs, run transcripts, journal excerpts, end-state verification, and the reproduction
+runbook — is checked in at
+[`examples/cw-smoke-2026-07-07.md`](examples/cw-smoke-2026-07-07.md); the live smoke is a
+Manual leaf by design (it needs the router, gaol, and Forge), so it is a recorded run, not
+a suite test.
 
 ### Conflict demotion semantics
 
