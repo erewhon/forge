@@ -1,10 +1,10 @@
-from __future__ import annotations
-
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel
+
+from agents.shared.workspaces import DiffStat
 
 EditStatus = Literal["ok", "no_changes", "timeout", "error"]
 CandidateKind = Literal["claude", "opencode"]
@@ -25,12 +25,6 @@ class CandidateSpec(BaseModel):
     kind: CandidateKind
     model: str
     display: str
-
-
-class DiffStat(BaseModel):
-    files_changed: int = 0
-    insertions: int = 0
-    deletions: int = 0
 
 
 class EditRun(BaseModel):
