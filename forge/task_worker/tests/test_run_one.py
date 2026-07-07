@@ -30,17 +30,46 @@ def _task(**overrides) -> TaskInfo:
     return TaskInfo.model_validate(base)
 
 
+class _FakeStore:
+    """The worker's task backend under test. Tweak ``gate`` / ``gate_exc`` / ``spec`` /
+    ``next_task`` per test; ``update_status`` records ('status', status) into the shared
+    event log (for sequence asserts) and its notes into ``notes``."""
+
+    def __init__(self, events: list) -> None:
+        self.events = events
+        self.gate = ""  # worker_gate return; non-"" refuses the leaf
+        self.gate_exc: Exception | None = None  # set to raise from worker_gate
+        self.spec = "SPEC BODY"
+        self.next_task = None  # next_ready return
+        self.notes: list[str] = []
+
+    def worker_gate(self, name: str) -> str:
+        if self.gate_exc is not None:
+            raise self.gate_exc
+        return self.gate
+
+    def get_spec(self, name: str) -> str:
+        return self.spec
+
+    def update_status(self, task, status, notes="", execution_mode=None):
+        self.events.append(("status", status))
+        self.notes.append(notes)
+
+    def next_ready(self, projects):
+        return self.next_task
+
+
 @pytest.fixture
 def wired(monkeypatch, tmp_path):
     """Happy path across every boundary; returns an ordered event log for sequence asserts."""
     events: list = []
+    store = _FakeStore(events)
     (tmp_path / "Meta").mkdir()
     monkeypatch.setattr(tw.settings, "projects_dir", tmp_path)
     monkeypatch.setattr(tw.settings, "dry_run", False)
     monkeypatch.setattr(tw.settings, "default_max_files", 5)
 
-    monkeypatch.setattr(tw, "check_worker_gate", lambda name: "")
-    monkeypatch.setattr(tw, "get_task_spec", lambda name: "SPEC BODY")
+    monkeypatch.setattr(tw, "get_task_store", lambda: store)
     monkeypatch.setattr(tw, "detect_vcs", lambda p: "jj")
     fake_sandbox = SimpleNamespace(preflight=lambda: (True, "dx status: running"))
     monkeypatch.setattr(tw, "make_sandbox", lambda p: fake_sandbox)
@@ -62,11 +91,6 @@ def wired(monkeypatch, tmp_path):
     monkeypatch.setattr(tw, "run_tests", lambda p, sandbox=None: (True, "all green"))
     monkeypatch.setattr(tw, "commit", lambda p, msg: events.append("commit") or "abc123")
     monkeypatch.setattr(tw, "revert_changes", lambda p: events.append("revert"))
-    monkeypatch.setattr(
-        tw,
-        "update_task_status",
-        lambda name, status, notes="": events.append(("status", status)),
-    )
     return events
 
 
@@ -74,7 +98,7 @@ def wired(monkeypatch, tmp_path):
 
 
 def test_gate_refusal_skips_without_touching_anything(wired, monkeypatch):
-    monkeypatch.setattr(tw, "check_worker_gate", lambda name: "status is 'Done', not Ready")
+    tw.get_task_store().gate = "status is 'Done', not Ready"
     out = tw.run_one(_task())
     assert out.status == "skipped"
     assert out.reason == "worker gate: status is 'Done', not Ready"
@@ -82,10 +106,7 @@ def test_gate_refusal_skips_without_touching_anything(wired, monkeypatch):
 
 
 def test_gate_check_error_fails_closed(wired, monkeypatch):
-    def boom(name):
-        raise RuntimeError("daemon down")
-
-    monkeypatch.setattr(tw, "check_worker_gate", boom)
+    tw.get_task_store().gate_exc = RuntimeError("daemon down")
     out = tw.run_one(_task())
     assert out.status == "skipped"
     assert "gate check failed: daemon down" in out.reason
@@ -236,7 +257,7 @@ def test_dry_run_executes_then_reverts_without_nous_writes(wired, monkeypatch):
 
 def test_run_delegates_selection_to_run_one(wired, monkeypatch):
     picked = _task()
-    monkeypatch.setattr(tw, "find_next_task", lambda allowed: picked)
+    tw.get_task_store().next_task = picked
     seen = []
     monkeypatch.setattr(tw, "run_one", lambda task, **kw: seen.append(task))
     tw.run(project_filter="Meta")
@@ -244,7 +265,7 @@ def test_run_delegates_selection_to_run_one(wired, monkeypatch):
 
 
 def test_run_no_ready_tasks_is_quiet_noop(wired, monkeypatch, capsys):
-    monkeypatch.setattr(tw, "find_next_task", lambda allowed: None)
+    tw.get_task_store().next_task = None  # store's default: nothing ready
     tw.run()
     assert "No worker-ready tasks found" in capsys.readouterr().out
 
@@ -313,15 +334,9 @@ def test_no_change_failure_notes_carry_session_tail(wired, monkeypatch):
         "execute_task_with_opencode",
         lambda *a, **k: (True, "model said: I analyzed the code thoroughly", False),
     )
-    notes_seen = []
-    monkeypatch.setattr(
-        tw,
-        "update_task_status",
-        lambda name, status, notes="": notes_seen.append(notes),
-    )
     out = tw.run_one(_task())
     assert out.status == "failed"
-    final_note = notes_seen[-1]
+    final_note = tw.get_task_store().notes[-1]
     assert "Session tail" in final_note
     assert "analyzed the code thoroughly" in final_note
 

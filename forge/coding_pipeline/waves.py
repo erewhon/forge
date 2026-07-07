@@ -62,33 +62,29 @@ def _row_from_raw(raw: dict, blocked: bool, blocking: list[str]) -> LeafRow:
 
 
 def fetch_feature_rows(project: str, feature: str) -> list[LeafRow]:
-    """All task rows (any status, Done included) for *feature*, via the worker's
-    daemon-backed Nous read path — no new HTTP code.
+    """All task rows (any status, Done included) for *feature*, via the task store.
 
     Feature-scoped on purpose: SplitSubtreeAction parks a *feature's* subtree.
     The wave loop itself scopes by epic ref — see :func:`fetch_epic_rows`."""
-    from nous_mcp.workflow import _query_tasks
+    from agents.shared.task_store import get_task_store
 
-    from agents.task_worker.nous_client import _read_db_content
-
-    db_content = _read_db_content()
-    raw_rows = _query_tasks(
-        db_content, project=project, feature=feature, include_done=True, limit=None
-    )
-    return _rows_from_raw(raw_rows, db_content)
+    return get_task_store().list_rows(project, feature=feature)
 
 
 def fetch_epic_rows(project: str, epic_slug: str, *, feature: str | None = None) -> list[LeafRow]:
     """All task rows (any status, Done included) belonging to the epic by ref prefix,
-    across every Feature value; ``feature`` narrows when given."""
-    from nous_mcp.workflow import _query_tasks
+    across every Feature value; ``feature`` narrows the store query when given.
 
-    from agents.task_worker.nous_client import _read_db_content
+    Membership is the epic's ref prefix, applied on the store's normalized rows — the
+    same rule as :func:`is_epic_row`, expressed against ``LeafRow.external_ref``."""
+    from agents.shared.task_store import get_task_store
 
-    db_content = _read_db_content()
-    raw_rows = _query_tasks(db_content, project=project, include_done=True, limit=None)
-    epic_rows = [raw for raw in raw_rows if is_epic_row(raw, epic_slug, feature)]
-    return _rows_from_raw(epic_rows, db_content)
+    prefix = epic_ref_prefix(epic_slug)
+    return [
+        row
+        for row in get_task_store().list_rows(project, feature=feature)
+        if row.external_ref.startswith(prefix)
+    ]
 
 
 def _rows_from_raw(raw_rows: list[dict], db_content) -> list[LeafRow]:

@@ -28,7 +28,6 @@ from agents.coding_pipeline.journal import append_leaf_context, append_leaf_outc
 from agents.coding_pipeline.models import LeafOutcome, WavePlan
 from agents.task_worker.main import run_one
 from agents.task_worker.models import RunOutcome, TaskInfo
-from agents.task_worker.nous_client import find_task, get_task_spec
 from agents.task_worker.sandbox import make_sandbox
 from agents.task_worker.vcs import detect_vcs
 
@@ -144,9 +143,9 @@ def run_wave(
     *,
     journal_dir: Path | None = None,
     run_leaf: Callable[..., RunOutcome] = run_one,
-    find: Callable[[str], TaskInfo | None] = find_task,
+    find: Callable[[str], TaskInfo | None] | None = None,
     preamble_for: Callable[[TaskInfo], str] | None = None,
-    fetch_spec: Callable[[str], str] = get_task_spec,
+    fetch_spec: Callable[[str], str] | None = None,
     log: Callable[[str], None] = print,
 ) -> list[LeafOutcome]:
     """Dispatch ``plan.dispatch`` serially; return one ``LeafOutcome`` per leaf, in order.
@@ -155,10 +154,18 @@ def run_wave(
     mid-wave loses nothing. Raises :class:`DispatchError` if preflight or the repo lock
     fails — in that case nothing was dispatched and Forge state is untouched.
 
-    ``preamble_for`` (the epic-context builder) prepends sibling-contract context to
-    the spec passed into ``run_leaf``; when absent, empty, or failing, the leaf runs
+    ``find`` and ``fetch_spec`` default to the configured task store (injectable for
+    tests). ``preamble_for`` (the epic-context builder) prepends sibling-contract context
+    to the spec passed into ``run_leaf``; when absent, empty, or failing, the leaf runs
     plain and the worker fetches its own spec — injection can never block a wave.
     """
+    if find is None or fetch_spec is None:
+        from agents.shared.task_store import get_task_store
+
+        store = get_task_store()
+        find = find or store.find_task
+        fetch_spec = fetch_spec or store.get_spec
+
     reason = _preflight(repo)
     if reason:
         raise DispatchError(f"wave preflight failed: {reason}")

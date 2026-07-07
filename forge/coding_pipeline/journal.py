@@ -244,25 +244,6 @@ def count_attempts_for_all(
 # ---------------------------------------------------------------------------
 
 
-def _in_progress_titles(ref_prefix: str) -> list[str]:
-    """Titles of Forge tasks currently In Progress that belong to the epic (real Nous
-    read). Membership is the external_ref prefix ``pipeline:{epic}:`` — the same rule
-    as the wave planner, so reconcile sees exactly the leaves dispatch can see,
-    whatever Feature value they carry.
-    """
-    from nous_mcp.workflow import _query_tasks
-
-    from agents.task_worker.nous_client import _read_db_content
-
-    rows = _query_tasks(_read_db_content(), status="In Progress", limit=None)
-    return [
-        str(r.get("task", ""))
-        for r in rows
-        if str(r.get("task", "")).strip()
-        and str(r.get("external_ref", "") or "").startswith(ref_prefix)
-    ]
-
-
 def reconcile(
     epic_slug: str,
     *,
@@ -284,15 +265,16 @@ def reconcile(
     **Never touches the working copy** — the orchestrator owns VCS.
 
     ``in_progress`` (ref-prefix -> titles) and ``update_status`` (task, status,
-    notes=...) are injectable for tests; the defaults use the real daemon-backed
-    Nous paths.
+    notes=...) are injectable for tests; the defaults go through the configured task
+    store (Forge today, GitHub issues under the work-deployable adapter).
     """
     from agents.coding_pipeline.waves import epic_ref_prefix
+    from agents.shared.task_store import get_task_store
 
     if in_progress is None:
-        in_progress = _in_progress_titles
+        in_progress = get_task_store().in_progress_titles
     if update_status is None:
-        from agents.task_worker.nous_client import update_task_status as update_status
+        update_status = get_task_store().update_status
 
     orphaned: list[str] = []
     for title in in_progress(epic_ref_prefix(epic_slug)):

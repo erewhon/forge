@@ -62,7 +62,7 @@ from agents.coding_pipeline.models import (
 from agents.coding_pipeline.vcs_epic import ensure_epic_bookmark, update_epic_bookmark
 from agents.coding_pipeline.verify import verify_wave, wave_start_rev
 from agents.coding_pipeline.waves import fetch_epic_rows, fetch_feature_rows, plan_wave
-from agents.task_worker.nous_client import update_task_status
+from agents.shared.task_store import TaskStore, get_task_store
 from agents.task_worker.vcs import VCSError, get_changed_files
 
 ExitStatus = Literal[
@@ -87,6 +87,7 @@ def _apply_actions(
     project: str,
     epic_slug: str,
     run_dir: Path,
+    store: TaskStore,
     log: Callable[[str], None],
 ) -> bool:
     """Apply replan actions through the idempotent/append-only paths. Returns True on halt.
@@ -112,7 +113,7 @@ def _apply_actions(
             )
             log(f"replan {action.kind}: {action.leaf.title} -> {outcome.action}")
         elif isinstance(action, RespecAction):
-            update_task_status(
+            store.update_status(
                 action.leaf_title,
                 "Ready",
                 notes=(
@@ -123,7 +124,7 @@ def _apply_actions(
             append_replan_action(run_dir, "respec", leaf=action.leaf_title)
             log(f"replan respec: {action.leaf_title}")
         elif isinstance(action, EscalateAction):
-            update_task_status(
+            store.update_status(
                 action.leaf_title,
                 "Spec Needed",
                 notes=(
@@ -137,7 +138,7 @@ def _apply_actions(
         elif isinstance(action, SplitSubtreeAction):
             for row in fetch_feature_rows(project, action.feature):
                 if row.status.strip().lower() == "ready":
-                    update_task_status(
+                    store.update_status(
                         row.task,
                         "Spec Needed",
                         notes=(
@@ -178,6 +179,7 @@ def run_epic(
     limit = max_waves if max_waves is not None else settings.max_waves
     run_dir = settings.runs_dir / epic_slug
     run_dir.mkdir(parents=True, exist_ok=True)
+    store = get_task_store()
 
     framing = require_approved_framing(run_dir)
     tree = _load_tree(run_dir) or []
@@ -295,7 +297,7 @@ def run_epic(
             result.notes.append(f"replan degraded to deterministic escalations: {e}")
             log(result.notes[-1])
         halted = _apply_actions(
-            actions, project=project, epic_slug=epic_slug, run_dir=run_dir, log=log
+            actions, project=project, epic_slug=epic_slug, run_dir=run_dir, store=store, log=log
         )
 
         persist_wave(

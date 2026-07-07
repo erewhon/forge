@@ -49,6 +49,17 @@ def _done(title: str) -> LeafOutcome:
     return LeafOutcome(leaf=title, status="done", commit_id="abc")
 
 
+class _FakeStore:
+    """A recording stand-in for the task store — the wave loop's only Forge write path
+    in these tests. ``writes`` captures every status update as (task, status, notes, mode)."""
+
+    def __init__(self) -> None:
+        self.writes: list[tuple[str, str, str, str | None]] = []
+
+    def update_status(self, task, status, notes="", execution_mode=None):
+        self.writes.append((task, status, notes, execution_mode))
+
+
 @pytest.fixture
 def wired(monkeypatch, tmp_path):
     """Happy single-wave world; tests override individual boundaries."""
@@ -66,7 +77,7 @@ def wired(monkeypatch, tmp_path):
     monkeypatch.setattr(orc, "run_wave", lambda plan, repo, **k: [_done(t) for t in plan.dispatch])
     monkeypatch.setattr(orc, "verify_wave", lambda repo, *, wave, from_change, **k: _report(wave))
     monkeypatch.setattr(orc, "replan", lambda f, t, r, a: [])
-    monkeypatch.setattr(orc, "update_task_status", lambda *a, **k: None)
+    monkeypatch.setattr(orc, "get_task_store", lambda: _FakeStore())
     monkeypatch.setattr(orc, "emit_fixup", lambda *a, **k: None)
     monkeypatch.setattr(orc, "ensure_epic_bookmark", lambda repo, slug, log: "pipeline/toy-epic")
     monkeypatch.setattr(orc, "update_epic_bookmark", lambda repo, slug, log: "pipeline/toy-epic")
@@ -238,16 +249,13 @@ def test_replan_failure_degrades_to_deterministic_escalations(wired, monkeypatch
         )
 
     monkeypatch.setattr(orc, "replan", boom)
-    status_writes = []
-    monkeypatch.setattr(
-        orc,
-        "update_task_status",
-        lambda t, s, notes="", execution_mode=None: status_writes.append((t, s)),
-    )
+    store = _FakeStore()
+    monkeypatch.setattr(orc, "get_task_store", lambda: store)
 
     result = _run()
 
-    assert ("leaf-a", "Spec Needed") in status_writes  # escalation survived the degrade
+    # escalation survived the degrade
+    assert ("leaf-a", "Spec Needed") in [(w[0], w[1]) for w in store.writes]
     assert (wired / "toy-epic" / "wave-0001.json").exists()  # record persisted
     journal = (wired / "toy-epic" / "journal.jsonl").read_text()
     assert "replan-degraded" in journal
@@ -275,12 +283,8 @@ def test_replan_failure_under_cap_degrades_to_no_actions(wired, monkeypatch):
 
 
 def test_escalation_action_flips_task_to_spec_needed_and_manual(wired, monkeypatch):
-    status_writes = []
-    monkeypatch.setattr(
-        orc,
-        "update_task_status",
-        lambda t, s, notes="", execution_mode=None: status_writes.append((t, s, execution_mode)),
-    )
+    store = _FakeStore()
+    monkeypatch.setattr(orc, "get_task_store", lambda: store)
     monkeypatch.setattr(
         orc,
         "replan",
@@ -289,7 +293,7 @@ def test_escalation_action_flips_task_to_spec_needed_and_manual(wired, monkeypat
     _run()
     # Spec Needed removes worker eligibility; Manual keeps a human re-arm from
     # silently re-entering the auto pool (design doc: "Spec Needed + Manual").
-    assert ("leaf-a", "Spec Needed", "Manual") in status_writes
+    assert ("leaf-a", "Spec Needed", "Manual") in [(w[0], w[1], w[3]) for w in store.writes]
 
 
 def test_fixup_action_emits_idempotently(wired, monkeypatch):
@@ -315,10 +319,8 @@ def test_fixup_action_emits_idempotently(wired, monkeypatch):
 
 
 def test_respec_action_reopens_with_revised_spec(wired, monkeypatch):
-    writes = []
-    monkeypatch.setattr(
-        orc, "update_task_status", lambda t, s, notes="": writes.append((t, s, notes))
-    )
+    store = _FakeStore()
+    monkeypatch.setattr(orc, "get_task_store", lambda: store)
     monkeypatch.setattr(
         orc,
         "replan",
@@ -327,7 +329,7 @@ def test_respec_action_reopens_with_revised_spec(wired, monkeypatch):
         ],
     )
     _run()
-    task, status, notes = writes[0]
+    task, status, notes, _mode = store.writes[0]
     assert (task, status) == ("leaf-a", "Ready")
     assert "shrink" in notes and "spec" in notes.lower()
 

@@ -18,6 +18,7 @@ from pathlib import Path
 from agents.coding_pipeline.models import LeafSpec, TaskTree
 from agents.shared import forge_emit
 from agents.shared.automerge import log_decision, slugify
+from agents.shared.task_store import get_task_store
 
 
 def stable_ref(
@@ -165,7 +166,7 @@ def emit_tree(
     ordered = _topo_sort(tree.leaves)
     specs = [_build_spec(leaf, epic_slug) for leaf in ordered]
 
-    summary = forge_emit.emit_tasks(
+    summary = get_task_store().emit(
         specs,
         project=project,
         dry_run=dry_run,
@@ -227,7 +228,7 @@ def emit_fixup(
     autonomy).
     """
     spec = _build_spec(leaf, epic_slug, fixup=True, finding_slug=finding_slug)
-    summary = forge_emit.emit_tasks([spec], project=project, dry_run=dry_run, log=log)
+    summary = get_task_store().emit([spec], project=project, dry_run=dry_run, log=log)
     for bucket in (summary.created, summary.skipped, summary.planned):
         if bucket:
             return bucket[0]

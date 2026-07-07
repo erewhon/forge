@@ -29,16 +29,11 @@ import argparse
 import re
 import time
 
+from agents.shared.task_store import get_task_store
 from agents.task_worker.config import settings
 from agents.task_worker.executor import execute_task_with_opencode
 from agents.task_worker.linter import run_lint
 from agents.task_worker.models import RunOutcome, TaskInfo
-from agents.task_worker.nous_client import (
-    check_worker_gate,
-    find_next_task,
-    get_task_spec,
-    update_task_status,
-)
 from agents.task_worker.sandbox import make_sandbox
 from agents.task_worker.tester import run_tests
 from agents.task_worker.vcs import (
@@ -88,7 +83,7 @@ def _safe_status(task_name: str, status: str, notes: str = "") -> bool:
         print(f"[DRY RUN] Would set '{task_name}' -> {status}")
         return False
     try:
-        update_task_status(task_name, status, notes=notes)
+        get_task_store().update_status(task_name, status, notes=notes)
         return True
     except Exception as e:  # noqa: BLE001
         print(f"Failed to update task status to {status}: {e}")
@@ -125,7 +120,7 @@ def run_one(task: TaskInfo, *, spec: str | None = None) -> RunOutcome:
 
     # 0. Gate re-check against a fresh read — fail closed on any error
     try:
-        gate = check_worker_gate(task.task)
+        gate = get_task_store().worker_gate(task.task)
     except Exception as e:  # noqa: BLE001
         gate = f"gate check failed: {e}"
     if gate:
@@ -135,7 +130,7 @@ def run_one(task: TaskInfo, *, spec: str | None = None) -> RunOutcome:
     # 1. Get full spec (unless the caller already has it)
     if spec is None:
         try:
-            spec = get_task_spec(task.task)
+            spec = get_task_store().get_spec(task.task)
         except Exception as e:  # noqa: BLE001
             print(f"Failed to fetch task spec: {e}")
             return _outcome("skipped", f"spec fetch failed: {e}")
@@ -402,7 +397,7 @@ def run(*, project_filter: str | None = None) -> None:
         allowed = [project_filter]
 
     try:
-        task = find_next_task(allowed)
+        task = get_task_store().next_ready(allowed)
     except Exception as e:  # noqa: BLE001
         print(f"Failed to query Nous for tasks: {e}")
         return
