@@ -173,8 +173,8 @@ frozen gold-set grading that catches prompt regressions from distillation or mod
 ## Concurrent dispatch
 
 When `dispatch_concurrency` (env: `CODING_PIPELINE_DISPATCH_CONCURRENCY`, flag: `--concurrency`)
-is **1** — the default path reproduced in the pre-concurrency runs — leaves dispatch **serially**
-against the main working copy, one at a time. This is the byte-for-byte old behaviour.
+is **1**, leaves dispatch **serially** against the main working copy, one at a time — the
+byte-for-byte pre-concurrency behaviour, kept as the escape hatch.
 
 Above **1** the dispatcher runs a bounded-fan-out pattern:
 
@@ -215,18 +215,20 @@ Above **1** the dispatcher runs a bounded-fan-out pattern:
 - **`file_scope` only optimises.** The scheduler (scheduling.py) reads architect-predicted
   file-scopes from the tree and greedily batches leaves with disjoint scopes, deferring
   overlapping ones to the next wave. A wrong pick costs wasted parallel work (a colliding
-  leaf burns a worker run before detection reverts it), never corruption. Leaves with an
-  empty scope (replan fix-ups carry none) dispatch alone. Unknown scope = fall back to full
-  optimistic fan-out. This epic shipped the file-scope hint emission through the tree
-  (LeafSpec) and the conflict-free batch picker; it is a pure optimisation layered on top
-  of the barrier.
+  leaf burns a worker run before detection reverts it), never corruption. The picker only
+  engages when the tree carries scope data at all: with scopes present, a scope-less leaf
+  (replan fix-ups carry none) is unknown territory and dispatches alone; with NO scope data
+  anywhere (legacy tree, no tree) the wave stays fully optimistic — prediction must never
+  become a gate. This epic shipped the file-scope hint emission through the tree (LeafSpec)
+  and the conflict-free batch picker; it is a pure optimisation layered on top of the
+  barrier.
 
 ### `dispatch_concurrency` and `--concurrency`
 
 | Setting | Behaviour |
 |---|---|
-| `dispatch_concurrency = 1` (default) | Serial path — every leaf runs one at a time on the main working copy. Reproduces today's behaviour exactly. |
-| `dispatch_concurrency = K > 1` | Bounded fan-out: at most K leaves run concurrently, each in its own jj workspace under an ephemeral `gaol run-once` sandbox. Integrates through the serial reconcile barrier. |
+| `dispatch_concurrency = 1` | Serial path — every leaf runs one at a time on the main working copy. The pre-concurrency behaviour exactly. |
+| `dispatch_concurrency = K > 1` (default: 3) | Bounded fan-out: at most K leaves run concurrently, each in its own jj workspace under an ephemeral `gaol run-once` sandbox. Integrates through the serial reconcile barrier. |
 
 The `--concurrency N` flag on `meta build run` overrides the config default for that invocation.
 The default is **3** (raised from 1 after the deliberate-conflict smoke passed on 2026-07-07:
@@ -235,8 +237,7 @@ and retried onto the updated head by the reconcile barrier).
 
 ### Conflict demotion semantics
 
-When the smoke passes (the concurrent epic completed with a deliberate-conflict end-to-end
-smoke test), the following invariants hold:
+These invariants were proven live by the deliberate-conflict end-to-end smoke (2026-07-07):
 
 - **Done-then-Ready flips carry notes.** A leaf that lands Done in its workspace but conflicts
   during the reconcile barrier is demoted back to `Ready` with a note explaining the conflict
