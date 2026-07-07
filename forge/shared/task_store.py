@@ -203,7 +203,8 @@ def get_task_store() -> TaskStore:
     backend = settings.backend.strip().lower()
     if backend == "forge":
         return ForgeTaskStore()
-    raise ValueError(
-        f"unknown TASK_STORE_BACKEND {settings.backend!r} "
-        "(known: 'forge'; 'github' is planned but not yet implemented)"
-    )
+    if backend == "github":
+        from agents.shared.github_task_store import GitHubTaskStore
+
+        return GitHubTaskStore()
+    raise ValueError(f"unknown TASK_STORE_BACKEND {settings.backend!r} (known: 'forge', 'github')")
