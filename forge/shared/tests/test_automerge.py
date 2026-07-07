@@ -84,6 +84,28 @@ def test_classify_empty_is_blocked():
     assert "no changes" in v.reason
 
 
+def test_jj_push_branch_argv_has_no_allow_new(monkeypatch):
+    """jj 0.42 dropped --allow-new (new bookmarks push by default). Caught live by the
+    dependabot smoke: the first real advisory push failed on this exact argv."""
+    import agents.shared.automerge as am
+
+    captured: list[list[str]] = []
+
+    def fake_run(cmd, cwd, timeout=30):
+        captured.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(am, "_run", fake_run)
+    monkeypatch.setattr(am, "detect_vcs", lambda p: "jj")
+    monkeypatch.setattr(am, "commit", lambda p, m: "changeid1")
+
+    result = am.push_branch(Path("/tmp"), "deps/foo", "msg")
+    assert result.pushed
+    push_cmd = captured[-1]
+    assert "--bookmark" in push_cmd
+    assert "--allow-new" not in push_cmd
+
+
 def test_manifest_only_pure_bump_ok():
     v = classify_manifest_only(Path("/nope"), changed=["pyproject.toml", "uv.lock"])
     assert v.ok

@@ -195,8 +195,9 @@ class PushResult:
 def push_branch(repo_path: Path, branch: str, message: str, *, push: bool = True) -> PushResult:
     """Commit the working copy onto *branch* and push it to origin (the 'auto-PR' step).
 
-    jj: the working-copy change is described, a bookmark is set at it, and pushed with
-    ``--allow-new``. git: a branch is created at a fresh commit and pushed with ``-u``. Pass
+    jj: the working-copy change is described, a bookmark is set at it, and pushed (jj 0.42+
+    pushes new bookmarks by default — ``--allow-new`` no longer exists). git: a branch is
+    created at a fresh commit and pushed with ``-u``. Pass
     ``push=False`` to stop at the local branch (used by tests without a remote). Returns the new
     change/commit id, which ``advance_main`` can later fast-forward ``main`` to.
     """
@@ -233,7 +234,7 @@ def _jj_push_branch(repo_path: Path, branch: str, message: str, *, push: bool) -
         raise VCSError(f"jj bookmark set {branch} failed: {set_bm.stderr.strip()}")
     detail, pushed = "", False
     if push:
-        res = _run(["jj", "git", "push", "--allow-new", "--bookmark", branch], repo_path)
+        res = _run(["jj", "git", "push", "--bookmark", branch], repo_path)
         if res.returncode != 0:
             raise VCSError(f"jj git push {branch} failed: {res.stderr.strip()}")
         pushed = True
