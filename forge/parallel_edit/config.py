@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ParallelEditSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="PARALLEL_EDIT_")
+    model_config = SettingsConfigDict(env_prefix="PARALLEL_EDIT_", env_file=".env", extra="ignore")
 
     # Default candidates if --models is omitted (comma-separated env override OK). Each entry is
     # "[kind:]model": a bare value or "claude:<id>" runs `claude -p`; "opencode:<ref>" runs
@@ -84,7 +84,7 @@ class ParallelEditSettings(BaseSettings):
     judge_anthropic_max_tokens: int = 8192
 
     # OpenAI-compatible judge (e.g. local LiteLLM router)
-    judge_openai_base_url: str = "http://localhost:4010/v1"
+    judge_openai_base_url: str = "http://localhost:4000/v1"
     judge_openai_api_key: str = ""
     judge_openai_model: str = "coder"
     judge_openai_max_tokens: int = 8192

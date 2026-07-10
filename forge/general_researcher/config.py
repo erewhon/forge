@@ -9,12 +9,14 @@ from forge.shared.llm import LLMConfig
 
 
 class GeneralResearcherSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="GENERAL_RESEARCHER_")
+    model_config = SettingsConfigDict(
+        env_prefix="GENERAL_RESEARCHER_", env_file=".env", extra="ignore"
+    )
 
-    project_dir: Path = Path.home() / "Projects" / "erewhon" / "meta" / "research"
+    project_dir: Path = Path.home() / "projects" / "research"
 
     llm_backend: Literal["openai", "anthropic"] = "openai"
-    openai_base_url: str = "http://localhost:4010/v1"
+    openai_base_url: str = "http://localhost:4000/v1"
     openai_api_key: str = ""
     research_model: str = "research"
     synthesis_model: str = "coder"

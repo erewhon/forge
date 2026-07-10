@@ -9,16 +9,18 @@ from forge.shared.llm import LLMConfig
 
 
 class BookResearcherSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="BOOK_RESEARCHER_")
+    model_config = SettingsConfigDict(
+        env_prefix="BOOK_RESEARCHER_", env_file=".env", extra="ignore"
+    )
 
     # Project paths
-    project_dir: Path = Path.home() / "Projects" / "erewhon" / "meta" / "book-research"
+    project_dir: Path = Path.home() / "projects" / "book-research"
 
     # AI backend: "anthropic" or "openai" (for local/router endpoints)
     llm_backend: Literal["openai", "anthropic"] = "openai"
 
     # OpenAI-compatible models (used when llm_backend == "openai")
-    openai_base_url: str = "http://localhost:4010/v1"
+    openai_base_url: str = "http://localhost:4000/v1"
     openai_api_key: str = ""
     research_model: str = "research"  # 27B model, VPN-routed for privacy
     synthesis_model: str = "coder"  # planning, verification, synthesis

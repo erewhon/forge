@@ -57,7 +57,7 @@ off — there is no separate "init" step.
 ## Output layout
 
 Under `BOOK_RESEARCHER_PROJECT_DIR` (default
-`~/Projects/erewhon/meta/book-research`):
+`~/projects/book-research`):
 
 ```
 sprints/
@@ -116,13 +116,14 @@ forge/book_researcher/run.sh path/to/your-book.yaml --summary
 
 ## Configuration
 
-Environment variables (all prefixed `BOOK_RESEARCHER_`):
+Environment variables (all prefixed `BOOK_RESEARCHER_`; a gitignored `.env` at the
+repo root is also read when running from the repo):
 
 | Var | Purpose | Default |
 |---|---|---|
-| `PROJECT_DIR` | Where contracts and findings live | `~/Projects/erewhon/meta/book-research` |
+| `PROJECT_DIR` | Where contracts and findings live | `~/projects/book-research` |
 | `LLM_BACKEND` | `openai` (router/local) or `anthropic` | `openai` |
-| `OPENAI_BASE_URL` | OpenAI-compatible endpoint | `http://localhost:4010/v1` |
+| `OPENAI_BASE_URL` | OpenAI-compatible endpoint | `http://localhost:4000/v1` |
 | `OPENAI_API_KEY` | Router key | `<your-router-key>` |
 | `RESEARCH_MODEL` | Model alias for the researcher | `research` |
 | `SYNTHESIS_MODEL` | Model alias for planner + verifier | `coder` |
@@ -131,7 +132,7 @@ Environment variables (all prefixed `BOOK_RESEARCHER_`):
 | `SCORE_THRESHOLD` | Min overall score (1-10) to accept a sprint | `7` |
 | `MAX_FINDINGS_TOKENS` | Truncation budget for findings context | `4000` |
 
-Defaults route through the local LLM router on Euclid, so the harness is
+Defaults route through the local LLM router, so the harness is
 unaffected by Anthropic outages. Flip `BOOK_RESEARCHER_LLM_BACKEND=anthropic`
 to use Claude instead.
 

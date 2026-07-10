@@ -9,10 +9,12 @@ from forge.shared.llm import LLMConfig
 
 
 class CodingPipelineSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="CODING_PIPELINE_")
+    model_config = SettingsConfigDict(
+        env_prefix="CODING_PIPELINE_", env_file=".env", extra="ignore"
+    )
 
     # Per-epic run dirs (framing, tree, wave records, journal) live here.
-    runs_dir: Path = Path.home() / "Projects" / "erewhon" / "meta" / "pipeline-runs"
+    runs_dir: Path = Path.home() / "projects" / "pipeline-runs"
 
     # Loop bounds. max_waves is per *run* (re-run to continue, like the research harness's
     # --max-sprints); max_leaf_attempts is per leaf across the whole epic — at the cap the leaf
@@ -39,7 +41,7 @@ class CodingPipelineSettings(BaseSettings):
     # Architect LLM (strong tier) — the headless path only. The interactive Fable session IS the
     # architect during the free window and never touches these.
     llm_backend: Literal["openai", "anthropic"] = "openai"
-    openai_base_url: str = "http://localhost:4010/v1"
+    openai_base_url: str = "http://localhost:4000/v1"
     openai_api_key: str = ""
     architect_model: str = "coder"
     anthropic_model: str = "claude-sonnet-4-6"

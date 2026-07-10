@@ -5,3 +5,5 @@ __pycache__/
 dist/
 .pytest_cache/
 .ruff_cache/
+# Machine-local values (router endpoint, API keys, personal paths) — never committed.
+.env

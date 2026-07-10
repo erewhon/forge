@@ -21,13 +21,14 @@ from forge.evals.models import (
 
 
 def test_settings_defaults():
-    s = EvalsSettings()
+    # _env_file=None: defaults must not be masked by a developer's local .env.
+    s = EvalsSettings(_env_file=None)
     assert s.model == "coder"
     assert s.repeats == 3
     assert s.temperature == 0.0
     assert s.timeout == 240.0
     assert s.max_tokens == 16_000
-    assert s.openai_base_url == "http://localhost:4010/v1"
+    assert s.openai_base_url == "http://localhost:4000/v1"
     # Package-relative defaults: goldsets ship inside the package, runs land at repo root.
     package_dir = Path(__file__).resolve().parents[1]
     assert s.goldsets_dir == package_dir / "goldsets"

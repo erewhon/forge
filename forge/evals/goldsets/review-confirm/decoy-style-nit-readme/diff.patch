@@ -258,7 +258,7 @@ index 0000000000..197816ddef
 +|---|---|---|
 +| ``EVALS_GOLDETS_DIR`` | ``/agents/evals/goldsets`` | Root directory for gold-set fixtures |
 +| ``EVALS_RUNS_DIR`` | ``/eval-runs`` | Where scorecard JSON/Markdown outputs are written |
-+| ``EVALS_OPENAI_BASE_URL`` | ``http://localhost:4010/v1`` | LLM router endpoint |
++| ``EVALS_OPENAI_BASE_URL`` | ``http://llm-router.internal:4010/v1`` | LLM router endpoint |
 +| ``EVALS_OPENAI_API_KEY`` | ``sk-litemaster`` | Router API key |
 +| ``EVALS_MODEL`` | ``coder`` | Default model identifier |
 +| ``EVALS_REPEATS`` | ``3`` | Number of repeats per case |

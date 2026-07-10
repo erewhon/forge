@@ -87,9 +87,10 @@ forge/task_worker/run.sh --project example
 
 ## Configuration
 
-Environment variables (all prefixed `TASK_WORKER_`):
+Environment variables (all prefixed `TASK_WORKER_`; a gitignored `.env` at the repo
+root is also read when running from the repo):
 
-- `PROJECTS_DIR` — default `~/Projects/erewhon`
+- `PROJECTS_DIR` — default `~/projects`
 - `NOTEBOOK_NAME` — default `Forge`
 - `DATABASE_NAME` — default `Project Tasks`
 - `DAEMON_URL` — default `http://127.0.0.1:7667`

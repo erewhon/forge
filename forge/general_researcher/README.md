@@ -66,7 +66,7 @@ regenerated against the full accumulated record.
 ## Output layout
 
 Under `GENERAL_RESEARCHER_PROJECT_DIR` (default
-`~/Projects/erewhon/meta/research`):
+`~/projects/research`):
 
 ```
 <topic-slug>/
@@ -120,13 +120,14 @@ forge/general_researcher/run.sh path/to/topic.yaml
 
 ## Configuration
 
-Environment variables (all prefixed `GENERAL_RESEARCHER_`):
+Environment variables (all prefixed `GENERAL_RESEARCHER_`; a gitignored `.env` at the
+repo root is also read when running from the repo):
 
 | Var | Purpose | Default |
 |---|---|---|
-| `PROJECT_DIR` | Where topic dirs live | `~/Projects/erewhon/meta/research` |
+| `PROJECT_DIR` | Where topic dirs live | `~/projects/research` |
 | `LLM_BACKEND` | `openai` (router/local) or `anthropic` | `openai` |
-| `OPENAI_BASE_URL` | OpenAI-compatible endpoint | `http://localhost:4010/v1` |
+| `OPENAI_BASE_URL` | OpenAI-compatible endpoint | `http://localhost:4000/v1` |
 | `OPENAI_API_KEY` | Router key | `<your-router-key>` |
 | `RESEARCH_MODEL` | Alias for the researcher (must be a `tool_proxy: true` model for search) | `research` |
 | `SYNTHESIS_MODEL` | Alias for planner + verifier + synthesizer | `coder` |

@@ -113,14 +113,15 @@ def test_typosquat_distant_name_is_clean():
 
 
 def test_maintainer_same_identity_is_false():
-    # Real shape (idna capture 2026-07-06): name embedded in author_email, no maintainer.
-    info = {"author": None, "author_email": "Kim Davies <kim+pypi@gumleaf.org>"}
+    # Real shape (idna capture 2026-07-06, identity anonymized): name embedded in
+    # author_email, no maintainer.
+    info = {"author": None, "author_email": "Ada Maintainer <ada+pypi@example.org>"}
     assert maintainer_change(info, dict(info)) is False
 
 
 def test_maintainer_email_change_is_true():
-    cur = {"author_email": "Kim Davies <kim+pypi@gumleaf.org>"}
-    tgt = {"author_email": "Kim Davies <totally-new-owner@evil.example>"}
+    cur = {"author_email": "Ada Maintainer <ada+pypi@example.org>"}
+    tgt = {"author_email": "Ada Maintainer <totally-new-owner@evil.example>"}
     assert maintainer_change(cur, tgt) is True
 
 

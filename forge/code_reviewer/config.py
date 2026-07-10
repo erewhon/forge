@@ -6,26 +6,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class CodeReviewerSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="CODE_REVIEWER_")
+    model_config = SettingsConfigDict(env_prefix="CODE_REVIEWER_", env_file=".env", extra="ignore")
 
-    # Project paths
-    projects_dir: Path = Path.home() / "Projects" / "erewhon"
-    repos: list[str] = [
-        "agent-monitor",
-        "astra",
-        "finn-financial",
-        "gaol",
-        "hoardfs",
-        "graphlib",
-        "llm-router",
-        "meta",
-        "nous",
-        "protectinator",
-        "raft",
-        "scrutinator",
-        "steve.net",
-        "tubinator",
-    ]
+    # Project paths. `repos` is the list of checkout names under projects_dir to review;
+    # set it via CODE_REVIEWER_REPOS as a JSON list (e.g. '["repo-a","repo-b"]').
+    projects_dir: Path = Path.home() / "projects"
+    repos: list[str] = []
 
     # Collection
     lookback_hours: int = 24
@@ -38,7 +24,7 @@ class CodeReviewerSettings(BaseSettings):
     anthropic_model: str = "claude-haiku-4-5-20251001"
 
     # OpenAI-compatible models (used when llm_backend == "openai")
-    openai_base_url: str = "http://localhost:4010/v1"
+    openai_base_url: str = "http://localhost:4000/v1"
     openai_api_key: str = ""
     openai_model: str = "coder"
 
@@ -48,7 +34,9 @@ class CodeReviewerSettings(BaseSettings):
     nous_sink: bool = False
     daemon_url: str = "http://127.0.0.1:7667"
     nous_data_dir: Path = Path.home() / ".local" / "share" / "nous"
-    notebook_id: str = "b67b98ae-d5d2-4947-b40d-6fc6410500b6"
+    # UUID of the notebook receiving daily-note reviews; required when nous_sink is on
+    # (set CODE_REVIEWER_NOTEBOOK_ID).
+    notebook_id: str = ""
 
     # Idempotency
     review_marker: str = "<!-- nightly-code-review -->"

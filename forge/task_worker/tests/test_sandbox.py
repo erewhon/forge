@@ -91,14 +91,15 @@ def test_gaol_dx_run_tests_delegates_to_tester(tmp_path, monkeypatch):
 
 @pytest.fixture
 def bare_home(monkeypatch, tmp_path):
-    """A fake $HOME with no opencode setup and no extra mounts, so the host's real
-    config/dirs never leak into argv assertions."""
+    """A fake $HOME with no opencode setup, no extra mounts, and no extra hosts, so the
+    host's real config/dirs (or a local .env) never leak into argv assertions."""
     from forge.task_worker.config import settings as tw_settings
 
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setattr(sb.Path, "home", staticmethod(lambda: home))
     monkeypatch.setattr(tw_settings, "runonce_extra_mounts", [])
+    monkeypatch.setattr(tw_settings, "runonce_extra_hosts", [])
     return home
 
 
@@ -119,8 +120,11 @@ def test_run_once_argv_shape(tmp_path, monkeypatch, bare_home):
     root from PWD), caps and the in-container timeout are set, host-resolved LAN names
     are injected, the network readiness gate is on, and the command follows the ``--``
     separator verbatim."""
+    from forge.task_worker.config import settings as tw_settings
+
     seen = _capture_run(monkeypatch)
-    monkeypatch.setattr(sb.socket, "gethostbyname", lambda name: "100.72.235.6")
+    monkeypatch.setattr(tw_settings, "runonce_extra_hosts", ["llm-router.internal"])
+    monkeypatch.setattr(sb.socket, "gethostbyname", lambda name: "192.0.2.7")
     repo = tmp_path / "cw-leaf"
     repo.mkdir()
     box = GaolRunOnceSandbox(repo)
@@ -139,7 +143,7 @@ def test_run_once_argv_shape(tmp_path, monkeypatch, bare_home):
     assert args[args.index("--memory") + 1] == "4GiB"
     assert args[args.index("--cpus") + 1] == "2"
     # LAN/mesh names the NAT'd sandbox DNS can't resolve, injected host-resolved
-    assert args[args.index("--add-host") + 1] == "localhost:100.72.235.6"
+    assert args[args.index("--add-host") + 1] == "llm-router.internal:192.0.2.7"
     # DHCP readiness gate — a network command must not start before the NIC is up
     assert args[args.index("--wait-network") + 1] == "30"
     assert args[args.index("--timeout") + 1] == "600"
@@ -176,10 +180,13 @@ def test_run_once_no_extra_mounts_by_config(tmp_path, monkeypatch, bare_home):
 
 
 def test_run_once_unresolvable_extra_host_is_skipped(tmp_path, monkeypatch, bare_home):
+    from forge.task_worker.config import settings as tw_settings
+
     def boom(name):
         raise OSError("no such host")
 
     seen = _capture_run(monkeypatch)
+    monkeypatch.setattr(tw_settings, "runonce_extra_hosts", ["llm-router.internal"])
     monkeypatch.setattr(sb.socket, "gethostbyname", boom)
     GaolRunOnceSandbox(tmp_path).run(["true"], timeout=5)
     assert "--add-host" not in seen["args"]  # skipped, never a crash

@@ -135,7 +135,7 @@ def build_reviewer_slots() -> list[ReviewerSlot]:
     return [_anthropic_slot(), _local_slot(), _opencode_zen_slot()]
 
 
-# Capability-ordered rotation; "local" (LiteLLM on Euclid) is the structural break-glass and
+# Capability-ordered rotation; "local" (the local LLM router) is the structural break-glass and
 # always sits last. A `preferred` provider is promoted to the front when it is active.
 ROTATION_ORDER = ("anthropic", "opencode_zen", "local")
 

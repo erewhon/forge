@@ -11,11 +11,11 @@ _REPO_ROOT = _PACKAGE_DIR.parents[1]
 
 
 class EvalsSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="EVALS_")
+    model_config = SettingsConfigDict(env_prefix="EVALS_", env_file=".env", extra="ignore")
 
     goldsets_dir: Path = _PACKAGE_DIR / "goldsets"
     runs_dir: Path = _REPO_ROOT / "eval-runs"
-    openai_base_url: str = "http://localhost:4010/v1"
+    openai_base_url: str = "http://localhost:4000/v1"
     openai_api_key: str = ""
     model: str = "coder"
     repeats: int = 3

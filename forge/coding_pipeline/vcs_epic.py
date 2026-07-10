@@ -7,7 +7,7 @@ action is a rendered "ready for human merge" summary, never a merge.
 
 Bookmark lifecycle: ``ensure_epic_bookmark`` creates the bookmark at the current tip when absent
 (and never moves an existing one); ``update_epic_bookmark`` advances it to the tip after a wave
-checkpoint. Pushes ride git.example.com's push-to-create; a push failure is a warning, not a wave
+checkpoint. Pushes assume a push-to-create remote; a push failure is a warning, not a wave
 killer — the bookmark is local-first and re-pushed at the next checkpoint.
 """
 
@@ -102,7 +102,7 @@ def _set_branch_to_tip(repo: Path, vcs: str, branch: str) -> None:
 
 
 def _push_branch(repo: Path, vcs: str, branch: str, log: Callable[[str], None]) -> bool:
-    """Best-effort push (git.example.com is push-to-create). Returns True when pushed."""
+    """Best-effort push (assumes a push-to-create remote). Returns True when pushed."""
     if vcs == "jj":
         res = _run(["jj", "git", "push", "--bookmark", branch], repo)
     else:

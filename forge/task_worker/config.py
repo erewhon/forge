@@ -7,10 +7,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class TaskWorkerSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="TASK_WORKER_")
+    model_config = SettingsConfigDict(env_prefix="TASK_WORKER_", env_file=".env", extra="ignore")
 
     # Paths
-    projects_dir: Path = Path.home() / "Projects" / "erewhon"
+    projects_dir: Path = Path.home() / "projects"
 
     # Nous targets
     notebook_name: str = "Forge"
@@ -35,19 +35,20 @@ class TaskWorkerSettings(BaseSettings):
     # (live smoke finding: opencode hung a full 30-minute timeout failing to reach the
     # router by name). Each name here is resolved ON THE HOST at run() time and injected
     # into the sandbox's /etc/hosts via run-once --add-host; unresolvable names are
-    # skipped. "localhost" carries the LLM router.
-    runonce_extra_hosts: list[str] = ["localhost"]
+    # skipped. List the host carrying your LLM router here (TASK_WORKER_RUNONCE_EXTRA_HOSTS,
+    # JSON list) so sandboxed commands can reach it by name.
+    runonce_extra_hosts: list[str] = []
     # DHCP in a fresh container takes ~5-10s; without the readiness gate a
     # network-dependent command starts too early and hangs to its kill timeout.
     runonce_wait_network_secs: int = 30
     # Host paths bind-mounted same-path into every run-once sandbox, beyond the repo
-    # itself. Two standing needs: out-of-repo path deps (meta's pyproject points at
-    # ../nous/nous-py — invisible from a workspace mount, so uv can't resolve it), and
-    # the shared uv cache (fresh workspaces build their venv inside the sandbox; without
-    # the cache every suite run re-downloads the world). Non-existent paths are skipped
-    # with a log line — safe on hosts without them.
+    # itself. Two standing needs: out-of-repo path deps (a pyproject pointing at a
+    # sibling checkout — invisible from a workspace mount, so uv can't resolve it; add
+    # such siblings via TASK_WORKER_RUNONCE_EXTRA_MOUNTS, JSON list), and the shared uv
+    # cache (fresh workspaces build their venv inside the sandbox; without the cache
+    # every suite run re-downloads the world). Non-existent paths are skipped with a
+    # log line — safe on hosts without them.
     runonce_extra_mounts: list[Path] = [
-        Path.home() / "Projects" / "erewhon" / "nous",
         Path.home() / ".cache" / "uv",
     ]
 

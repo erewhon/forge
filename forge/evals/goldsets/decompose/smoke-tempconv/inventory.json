@@ -1,6 +1,6 @@
 {
   "project": "Pipeline-Smoke",
-  "repo": "/home/user/Projects/erewhon/pipeline-smoke",
+  "repo": "/home/user/projects/pipeline-smoke",
   "tree": "specs/\n  dev-pipeline-smoke.yaml\nsrc/\n  unitconv/\n    __init__.py\n    cli.py\n    length.py\n    mass.py\ntests/\n  test_cli.py\n  test_length.py\n  test_mass.py\npyproject.toml\nREADME.md\nuv.lock",
   "key_files": [
     {

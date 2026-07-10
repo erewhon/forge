@@ -25,7 +25,7 @@ Backend = Literal["openai", "anthropic"]
 @dataclass(frozen=True)
 class LLMConfig:
     backend: Backend
-    openai_base_url: str = "http://localhost:4010/v1"
+    openai_base_url: str = "http://localhost:4000/v1"
     openai_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-6"
 

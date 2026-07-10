@@ -6,20 +6,22 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class PRReviewEnsembleSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="PR_REVIEW_ENSEMBLE_")
+    model_config = SettingsConfigDict(
+        env_prefix="PR_REVIEW_ENSEMBLE_", env_file=".env", extra="ignore"
+    )
 
     # Anthropic provider — routed through the local LiteLLM router by default (real Claude,
     # proxied), so no per-shell ANTHROPIC_API_KEY is needed and creds live once, server-side.
     # Set anthropic_base_url="" to use the native SDK instead (which reads ANTHROPIC_API_KEY).
     anthropic_enabled: bool = True
     anthropic_model: str = "claude-sonnet-5"
-    anthropic_base_url: str = "http://localhost:4010/v1"
+    anthropic_base_url: str = "http://localhost:4000/v1"
     anthropic_api_key: str = ""
     anthropic_max_tokens: int = 4096
 
-    # Local LLM router (LiteLLM on Euclid)
+    # Local LLM router (OpenAI-compatible, e.g. a LiteLLM proxy)
     local_enabled: bool = True
-    local_base_url: str = "http://localhost:4010/v1"
+    local_base_url: str = "http://localhost:4000/v1"
     local_api_key: str = ""
     local_model: str = "coder"
     local_max_tokens: int = 4096

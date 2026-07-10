@@ -4,9 +4,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class CodeAuditSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="CODE_AUDIT_")
+    model_config = SettingsConfigDict(env_prefix="CODE_AUDIT_", env_file=".env", extra="ignore")
 
-    openai_base_url: str = "http://localhost:4010/v1"
+    openai_base_url: str = "http://localhost:4000/v1"
     openai_api_key: str = ""
 
     # Failover pools (strongest-first): finders + the dedup consolidator run through the router.

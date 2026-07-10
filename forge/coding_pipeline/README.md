@@ -135,9 +135,11 @@ There is deliberately no auto-merge code path.
 
 ## Configuration (`CODING_PIPELINE_*` env vars)
 
+A gitignored `.env` at the repo root is also read when running from the repo.
+
 | Var | Default | Meaning |
 |---|---|---|
-| `RUNS_DIR` | `~/Projects/erewhon/meta/pipeline-runs` | Per-epic run dirs |
+| `RUNS_DIR` | `~/projects/pipeline-runs` | Per-epic run dirs |
 | `MAX_WAVES` | `3` | Waves per *run* (re-run to continue) |
 | `WAVE_SIZE` | `4` | Max leaves dispatched per wave |
 | `MAX_LEAF_ATTEMPTS` | `2` | Journal-counted attempts before escalation |
@@ -146,7 +148,7 @@ There is deliberately no auto-merge code path.
 | `INVENTORY_MAX_CHARS` | `40000` | A0 budget (tree-first trim, drops counted) |
 | `INVENTORY_TREE_DEPTH` | `3` | A0 tree depth |
 | `LLM_BACKEND` | `openai` | Headless architect backend (`openai`\|`anthropic`) |
-| `OPENAI_BASE_URL` | `http://localhost:4010/v1` | Router endpoint |
+| `OPENAI_BASE_URL` | `http://localhost:4000/v1` | Router endpoint |
 | `OPENAI_API_KEY` | `<your-router-key>` | Router key |
 | `ARCHITECT_MODEL` | `coder` | Headless architect alias |
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Anthropic-backend model |
