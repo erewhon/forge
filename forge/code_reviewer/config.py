@@ -42,7 +42,10 @@ class CodeReviewerSettings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "coder"
 
-    # Nous
+    # Nous daily-note sink — off by default so a plain install never touches Nous. Enabling it
+    # (CODE_REVIEWER_NOUS_SINK=1) needs a reachable Nous daemon; the daemon settings below only
+    # matter then.
+    nous_sink: bool = False
     daemon_url: str = "http://127.0.0.1:7667"
     nous_data_dir: Path = Path.home() / ".local" / "share" / "nous"
     notebook_id: str = "b67b98ae-d5d2-4947-b40d-6fc6410500b6"

@@ -11,7 +11,6 @@ from forge.code_reviewer.collectors.changes import collect_all
 from forge.code_reviewer.config import settings
 from forge.code_reviewer.models import NightlyReport
 from forge.code_reviewer.renderer import render_markdown
-from forge.code_reviewer.writer import append_to_daily_note
 
 
 def run(ref_date: date | None = None, *, dry_run: bool = False) -> None:
@@ -57,17 +56,30 @@ def run(ref_date: date | None = None, *, dry_run: bool = False) -> None:
     log_file.write_text(render_markdown(report))
     print(f"\nMarkdown log written to {log_file}")
 
-    # 6. Write to Nous daily note (unless dry run)
+    # 6. Deliver the report
+    _deliver(report, dry_run=dry_run)
+
+
+def _deliver(report: NightlyReport, *, dry_run: bool = False) -> None:
+    """Emit the report: stdout by default; the Nous daily note only when the sink is enabled.
+
+    The writer import stays inside the Nous branch so a default (markdown-only) run never
+    imports the Nous plumbing.
+    """
     if dry_run:
         print("\n--- DRY RUN: Report not written to Nous ---")
         print(render_markdown(report))
-    else:
+    elif settings.nous_sink:
         print("\nAppending to Nous daily note...")
+        from forge.code_reviewer.writer import append_to_daily_note
+
         result = append_to_daily_note(report)
         if result:
             print(f"  Done: {result.get('blocksAdded', '?')} blocks appended")
         else:
             print("  Not appended (note missing or review already present)")
+    else:
+        print(render_markdown(report))
 
 
 def main(argv: list[str] | None = None) -> int:

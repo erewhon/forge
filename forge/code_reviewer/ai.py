@@ -61,11 +61,16 @@ def _extract_json(text: str) -> dict:
 _REVIEW_SYSTEM_PROMPT = """\
 You are a senior software engineer conducting a nightly code review. Review the following diff for:
 
-1. **Bugs & Logic Errors**: Off-by-one errors, null/undefined handling, race conditions, resource leaks
-2. **Security Issues**: Injection vulnerabilities, exposed secrets, missing auth checks, unsafe deserialization
-3. **Performance Concerns**: N+1 queries, unnecessary allocations, missing indexes, blocking operations in async code
-4. **Code Quality**: Dead code, duplicated logic, overly complex functions, missing error handling at system boundaries
-5. **Positive Observations**: Well-structured code, good patterns, thorough error handling worth noting
+1. **Bugs & Logic Errors**: Off-by-one errors, null/undefined handling, race conditions,
+   resource leaks
+2. **Security Issues**: Injection vulnerabilities, exposed secrets, missing auth checks,
+   unsafe deserialization
+3. **Performance Concerns**: N+1 queries, unnecessary allocations, missing indexes,
+   blocking operations in async code
+4. **Code Quality**: Dead code, duplicated logic, overly complex functions, missing error
+   handling at system boundaries
+5. **Positive Observations**: Well-structured code, good patterns, thorough error handling
+   worth noting
 
 Do NOT flag:
 - Style/formatting issues (handled by linters)
@@ -112,7 +117,8 @@ Return ONLY valid JSON:
   "summary": "1-2 sentence overall assessment"
 }
 
-If the code looks solid with no issues, return an empty findings array and a positive summary. Be concise and actionable.\
+If the code looks solid with no issues, return an empty findings array and a positive summary.
+Be concise and actionable.\
 """
 
 _SUMMARY_SYSTEM_PROMPT = """\
