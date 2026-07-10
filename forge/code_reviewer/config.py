@@ -39,7 +39,7 @@ class CodeReviewerSettings(BaseSettings):
 
     # OpenAI-compatible models (used when llm_backend == "openai")
     openai_base_url: str = "http://localhost:4010/v1"
-    openai_api_key: str = "sk-local-router"
+    openai_api_key: str = ""
     openai_model: str = "coder"
 
     # Nous

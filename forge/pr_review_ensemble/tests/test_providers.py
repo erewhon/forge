@@ -13,7 +13,7 @@ from agents.pr_review_ensemble.config import settings
 def test_anthropic_slot_routes_through_router_by_default(monkeypatch):
     monkeypatch.setattr(settings, "anthropic_enabled", True)
     monkeypatch.setattr(settings, "anthropic_base_url", "http://localhost:4010/v1")
-    monkeypatch.setattr(settings, "anthropic_api_key", "sk-local-router")
+    monkeypatch.setattr(settings, "anthropic_api_key", "test-router-key")
     monkeypatch.setattr(settings, "anthropic_model", "claude-sonnet-5")
 
     slot = providers._anthropic_slot()
@@ -23,7 +23,7 @@ def test_anthropic_slot_routes_through_router_by_default(monkeypatch):
     executor = slot.pool.executors[0]
     assert executor.kind == "openai"  # OpenAI-compat path, not the native SDK
     assert executor.base_url == "http://localhost:4010/v1"
-    assert executor.api_key == "sk-local-router"
+    assert executor.api_key == "test-router-key"
     assert executor.model == "claude-sonnet-5"
 
 

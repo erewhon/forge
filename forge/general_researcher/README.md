@@ -127,7 +127,7 @@ Environment variables (all prefixed `GENERAL_RESEARCHER_`):
 | `PROJECT_DIR` | Where topic dirs live | `~/Projects/erewhon/meta/research` |
 | `LLM_BACKEND` | `openai` (router/local) or `anthropic` | `openai` |
 | `OPENAI_BASE_URL` | OpenAI-compatible endpoint | `http://localhost:4010/v1` |
-| `OPENAI_API_KEY` | Router key | `sk-local-router` |
+| `OPENAI_API_KEY` | Router key | `<your-router-key>` |
 | `RESEARCH_MODEL` | Alias for the researcher (must be a `tool_proxy: true` model for search) | `research` |
 | `SYNTHESIS_MODEL` | Alias for planner + verifier + synthesizer | `coder` |
 | `ANTHROPIC_MODEL` | Used when `LLM_BACKEND=anthropic` | `claude-sonnet-4-6` |

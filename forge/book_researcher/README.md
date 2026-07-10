@@ -123,7 +123,7 @@ Environment variables (all prefixed `BOOK_RESEARCHER_`):
 | `PROJECT_DIR` | Where contracts and findings live | `~/Projects/erewhon/meta/book-research` |
 | `LLM_BACKEND` | `openai` (router/local) or `anthropic` | `openai` |
 | `OPENAI_BASE_URL` | OpenAI-compatible endpoint | `http://localhost:4010/v1` |
-| `OPENAI_API_KEY` | Router key | `sk-local-router` |
+| `OPENAI_API_KEY` | Router key | `<your-router-key>` |
 | `RESEARCH_MODEL` | Model alias for the researcher | `research` |
 | `SYNTHESIS_MODEL` | Model alias for planner + verifier | `coder` |
 | `ANTHROPIC_MODEL` | Used when `LLM_BACKEND=anthropic` | `claude-sonnet-4-6` |

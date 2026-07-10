@@ -147,7 +147,7 @@ There is deliberately no auto-merge code path.
 | `INVENTORY_TREE_DEPTH` | `3` | A0 tree depth |
 | `LLM_BACKEND` | `openai` | Headless architect backend (`openai`\|`anthropic`) |
 | `OPENAI_BASE_URL` | `http://localhost:4010/v1` | Router endpoint |
-| `OPENAI_API_KEY` | `sk-local-router` | Router key |
+| `OPENAI_API_KEY` | `<your-router-key>` | Router key |
 | `ARCHITECT_MODEL` | `coder` | Headless architect alias |
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Anthropic-backend model |
 | `ARCHITECT_MAX_TOKENS` | `8192` | Framing budget |

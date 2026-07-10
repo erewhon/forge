@@ -40,7 +40,7 @@ class CodingPipelineSettings(BaseSettings):
     # architect during the free window and never touches these.
     llm_backend: Literal["openai", "anthropic"] = "openai"
     openai_base_url: str = "http://localhost:4010/v1"
-    openai_api_key: str = "sk-local-router"
+    openai_api_key: str = ""
     architect_model: str = "coder"
     anthropic_model: str = "claude-sonnet-4-6"
     architect_max_tokens: int = 8192

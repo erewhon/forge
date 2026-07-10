@@ -15,7 +15,7 @@ class GeneralResearcherSettings(BaseSettings):
 
     llm_backend: Literal["openai", "anthropic"] = "openai"
     openai_base_url: str = "http://localhost:4010/v1"
-    openai_api_key: str = "sk-local-router"
+    openai_api_key: str = ""
     research_model: str = "research"
     synthesis_model: str = "coder"
     anthropic_model: str = "claude-sonnet-4-6"

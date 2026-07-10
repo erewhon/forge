@@ -180,7 +180,7 @@ Prefixed with ``EVALS_`` (loaded via ``pydantic-settings``):
 | ``EVALS_GOLDSETS_DIR`` | ``agents/evals/goldsets`` (in-package) | Root directory for gold-set fixtures |
 | ``EVALS_RUNS_DIR`` | ``eval-runs/`` (repo root) | Where scorecard JSON/Markdown outputs are written |
 | ``EVALS_OPENAI_BASE_URL`` | ``http://localhost:4010/v1`` | LLM router endpoint |
-| ``EVALS_OPENAI_API_KEY`` | ``sk-local-router`` | Router API key |
+| ``EVALS_OPENAI_API_KEY`` | ``<your-router-key>`` | Router API key |
 | ``EVALS_MODEL`` | ``coder`` | Default model identifier |
 | ``EVALS_REPEATS`` | ``3`` | Number of repeats per case |
 | ``EVALS_TEMPERATURE`` | ``0.0`` | Temperature for determinism |

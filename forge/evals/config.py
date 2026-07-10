@@ -16,7 +16,7 @@ class EvalsSettings(BaseSettings):
     goldsets_dir: Path = _PACKAGE_DIR / "goldsets"
     runs_dir: Path = _REPO_ROOT / "eval-runs"
     openai_base_url: str = "http://localhost:4010/v1"
-    openai_api_key: str = "sk-local-router"
+    openai_api_key: str = ""
     model: str = "coder"
     repeats: int = 3
     temperature: float = 0.0

@@ -7,7 +7,7 @@ class CodeAuditSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="CODE_AUDIT_")
 
     openai_base_url: str = "http://localhost:4010/v1"
-    openai_api_key: str = "sk-local-router"
+    openai_api_key: str = ""
 
     # Failover pools (strongest-first): finders + the dedup consolidator run through the router.
     finder_models: list[str] = ["coder", "qwen3.6-plus", "glm-5.1"]

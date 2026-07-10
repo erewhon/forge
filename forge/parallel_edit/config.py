@@ -85,7 +85,7 @@ class ParallelEditSettings(BaseSettings):
 
     # OpenAI-compatible judge (e.g. local LiteLLM router)
     judge_openai_base_url: str = "http://localhost:4010/v1"
-    judge_openai_api_key: str = "sk-local-router"
+    judge_openai_api_key: str = ""
     judge_openai_model: str = "coder"
     judge_openai_max_tokens: int = 8192
 

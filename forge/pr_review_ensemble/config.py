@@ -14,13 +14,13 @@ class PRReviewEnsembleSettings(BaseSettings):
     anthropic_enabled: bool = True
     anthropic_model: str = "claude-sonnet-5"
     anthropic_base_url: str = "http://localhost:4010/v1"
-    anthropic_api_key: str = "sk-local-router"
+    anthropic_api_key: str = ""
     anthropic_max_tokens: int = 4096
 
     # Local LLM router (LiteLLM on Euclid)
     local_enabled: bool = True
     local_base_url: str = "http://localhost:4010/v1"
-    local_api_key: str = "sk-local-router"
+    local_api_key: str = ""
     local_model: str = "coder"
     local_max_tokens: int = 4096
 
