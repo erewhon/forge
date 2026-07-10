@@ -5,12 +5,13 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from forge.shared.envfile import ENV_FILES
 from forge.shared.llm import LLMConfig
 
 
 class CodingPipelineSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="CODING_PIPELINE_", env_file=".env", extra="ignore"
+        env_prefix="CODING_PIPELINE_", env_file=ENV_FILES, extra="ignore"
     )
 
     # Per-epic run dirs (framing, tree, wave records, journal) live here.

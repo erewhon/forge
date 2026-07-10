@@ -5,12 +5,13 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from forge.shared.envfile import ENV_FILES
 from forge.shared.llm import LLMConfig
 
 
 class BookResearcherSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="BOOK_RESEARCHER_", env_file=".env", extra="ignore"
+        env_prefix="BOOK_RESEARCHER_", env_file=ENV_FILES, extra="ignore"
     )
 
     # Project paths

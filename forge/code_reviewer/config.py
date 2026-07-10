@@ -4,9 +4,13 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from forge.shared.envfile import ENV_FILES
+
 
 class CodeReviewerSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="CODE_REVIEWER_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="CODE_REVIEWER_", env_file=ENV_FILES, extra="ignore"
+    )
 
     # Project paths. `repos` is the list of checkout names under projects_dir to review;
     # set it via CODE_REVIEWER_REPOS as a JSON list (e.g. '["repo-a","repo-b"]').

@@ -4,10 +4,12 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from forge.shared.envfile import ENV_FILES
+
 
 class PRReviewEnsembleSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="PR_REVIEW_ENSEMBLE_", env_file=".env", extra="ignore"
+        env_prefix="PR_REVIEW_ENSEMBLE_", env_file=ENV_FILES, extra="ignore"
     )
 
     # Anthropic provider — routed through the local LiteLLM router by default (real Claude,

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from forge.shared.envfile import ENV_FILES
+
 
 class RefactorEnsembleSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="REFACTOR_ENSEMBLE_", env_file=".env", extra="ignore"
+        env_prefix="REFACTOR_ENSEMBLE_", env_file=ENV_FILES, extra="ignore"
     )
 
     openai_base_url: str = "http://localhost:4000/v1"

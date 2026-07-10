@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from forge.shared.envfile import ENV_FILES
+
 
 class CodeAuditSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="CODE_AUDIT_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="CODE_AUDIT_", env_file=ENV_FILES, extra="ignore")
 
     openai_base_url: str = "http://localhost:4000/v1"
     openai_api_key: str = ""

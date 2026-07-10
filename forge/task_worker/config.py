@@ -5,9 +5,11 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from forge.shared.envfile import ENV_FILES
+
 
 class TaskWorkerSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="TASK_WORKER_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="TASK_WORKER_", env_file=ENV_FILES, extra="ignore")
 
     # Paths
     projects_dir: Path = Path.home() / "projects"

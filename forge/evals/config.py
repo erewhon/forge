@@ -4,6 +4,8 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from forge.shared.envfile import ENV_FILES
+
 # Gold sets are checked-in fixtures living inside this package; scorecard runs land
 # next to pipeline-runs/ at the repo root (both gitignored).
 _PACKAGE_DIR = Path(__file__).resolve().parent
@@ -11,7 +13,7 @@ _REPO_ROOT = _PACKAGE_DIR.parents[1]
 
 
 class EvalsSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="EVALS_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="EVALS_", env_file=ENV_FILES, extra="ignore")
 
     goldsets_dir: Path = _PACKAGE_DIR / "goldsets"
     runs_dir: Path = _REPO_ROOT / "eval-runs"

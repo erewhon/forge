@@ -4,9 +4,13 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from forge.shared.envfile import ENV_FILES
+
 
 class ParallelEditSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="PARALLEL_EDIT_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="PARALLEL_EDIT_", env_file=ENV_FILES, extra="ignore"
+    )
 
     # Default candidates if --models is omitted (comma-separated env override OK). Each entry is
     # "[kind:]model": a bare value or "claude:<id>" runs `claude -p`; "opencode:<ref>" runs
