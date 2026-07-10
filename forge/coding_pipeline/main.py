@@ -35,7 +35,7 @@ from forge.coding_pipeline.orchestrator import OrchestratorResult, run_epic
 def _cmd_plan(argv: list[str]) -> int:
     """A0+A1 (and optionally A2+A3 with --approve)."""
     parser = argparse.ArgumentParser(
-        prog="meta build plan",
+        prog="forge build plan",
         description="Run the architect: inventory, framing proposal, and optional decomposition.",
     )
     parser.add_argument(
@@ -178,7 +178,7 @@ def _cmd_plan(argv: list[str]) -> int:
 def _cmd_run(argv: list[str]) -> int:
     """Orchestrator wave loop."""
     parser = argparse.ArgumentParser(
-        prog="meta build run",
+        prog="forge build run",
         description="Run the orchestrator wave loop for an epic.",
     )
     parser.add_argument(
@@ -255,7 +255,7 @@ def _cmd_run(argv: list[str]) -> int:
 def _cmd_gate(argv: list[str]) -> int:
     """The final epic gate: full-quorum sign-off on the whole epic diff. Never merges."""
     parser = argparse.ArgumentParser(
-        prog="meta build gate",
+        prog="forge build gate",
         description="Run the full-quorum epic sign-off; approval means ready for HUMAN merge.",
     )
     parser.add_argument("epic_slug", help="Epic slug.")
@@ -287,7 +287,7 @@ def _cmd_gate(argv: list[str]) -> int:
 def _cmd_status(argv: list[str]) -> int:
     """Tree summary from Forge + journal summary."""
     parser = argparse.ArgumentParser(
-        prog="meta build status",
+        prog="forge build status",
         description="Show pipeline status: tree summary, journal, and wave results.",
     )
     parser.add_argument(
@@ -448,7 +448,7 @@ def main(argv: list[str] | None = None) -> int:
         return _COMMANDS[args[0]](args[1:])
 
     parser = argparse.ArgumentParser(
-        prog="meta build",
+        prog="forge build",
         description="Coding pipeline: plan, run, and inspect epic builds.",
     )
     sub = parser.add_subparsers(dest="command")

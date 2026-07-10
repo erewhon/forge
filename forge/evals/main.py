@@ -276,7 +276,7 @@ def main(argv: list[str] | None = None) -> int:
         return _COMMANDS[args[0]](args[1:])
 
     parser = argparse.ArgumentParser(
-        prog="meta evals",
+        prog="forge evals",
         description="Judgment eval harness: score models against frozen gold sets.",
     )
     sub = parser.add_subparsers(dest="command")

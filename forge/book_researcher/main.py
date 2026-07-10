@@ -201,7 +201,7 @@ def print_summary(config_path: str) -> None:
 def _init(argv: list[str]) -> int:
     """`meta book init [path]` — write a skeleton book config to edit."""
     parser = argparse.ArgumentParser(
-        prog="meta book init",
+        prog="forge book init",
         description="Write a skeleton book config YAML to fill in",
     )
     parser.add_argument(
