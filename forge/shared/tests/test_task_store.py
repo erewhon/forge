@@ -16,6 +16,9 @@ from forge.shared.task_store import ForgeTaskStore, TaskStore, get_task_store
 
 def test_factory_defaults_to_forge(monkeypatch):
     monkeypatch.setattr(task_store.settings, "backend", "forge")
+    # Selection is gated on the optional nous extra; neutralize the gate so this stays a
+    # pure backend-selection test (the gate itself is pinned in test_nous_gating.py).
+    monkeypatch.setattr("forge.task_worker.nous_client.require_nous", lambda: None)
     store = get_task_store()
     assert isinstance(store, ForgeTaskStore)
     assert isinstance(store, TaskStore)  # runtime_checkable Protocol conformance
@@ -29,6 +32,7 @@ def test_factory_rejects_unknown_backend(monkeypatch):
 
 def test_factory_backend_is_case_and_space_insensitive(monkeypatch):
     monkeypatch.setattr(task_store.settings, "backend", "  Forge  ")
+    monkeypatch.setattr("forge.task_worker.nous_client.require_nous", lambda: None)
     assert isinstance(get_task_store(), ForgeTaskStore)
 
 
@@ -97,6 +101,7 @@ def test_emit_forwards_batch_and_gating(monkeypatch):
 
 
 def test_list_rows_queries_project_and_normalizes(monkeypatch):
+    pytest.importorskip("nous_mcp")  # patches inside nous_mcp — genuinely needs the extra
     seen = {}
 
     monkeypatch.setattr(
@@ -123,6 +128,7 @@ def test_list_rows_queries_project_and_normalizes(monkeypatch):
 
 
 def test_in_progress_titles_filters_by_ref_prefix(monkeypatch):
+    pytest.importorskip("nous_mcp")  # patches inside nous_mcp — genuinely needs the extra
     monkeypatch.setattr(
         "forge.task_worker.nous_client._read_db_content", lambda: {"db": "content"}
     )

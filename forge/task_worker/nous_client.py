@@ -6,6 +6,10 @@ Uses:
   page appends). The daemon exposes the same endpoints we'd otherwise have
   to re-implement, so we delegate to it.
 - nous_mcp.workflow._query_tasks / _find_task_row for the shared filter logic.
+
+``nous_mcp`` ships in the optional ``nous`` extra, so the module stays importable without
+it: the imports are guarded and every nous-touching entry point calls ``require_nous()``,
+which raises the actionable install hint on first *use* rather than on import.
 """
 
 from __future__ import annotations
@@ -13,27 +17,51 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from nous_mcp.daemon_client import NousDaemonClient
-from nous_mcp.markdown import export_page_to_markdown
-from nous_mcp.storage import NousStorage
-from nous_mcp.workflow import (
-    ALL_STATUS_TAGS,
-    STATUS_TAG_MAP,
-    _find_task_row,
-    _is_task_blocked,
-    _query_tasks,
-)
-
 from forge.task_worker.config import settings
 from forge.task_worker.models import TaskInfo
+
+NOUS_EXTRA_HINT = (
+    "nous_mcp is not installed. The Nous (forge) task backend requires the optional "
+    "'nous' extra: pip install 'forge[nous]' (or: uv sync --extra nous). "
+    "For a Nous-free setup, set TASK_STORE_BACKEND=github."
+)
+
+try:
+    from nous_mcp.daemon_client import NousDaemonClient
+    from nous_mcp.markdown import export_page_to_markdown
+    from nous_mcp.storage import NousStorage
+    from nous_mcp.workflow import (
+        ALL_STATUS_TAGS,
+        STATUS_TAG_MAP,
+        _find_task_row,
+        _is_task_blocked,
+        _query_tasks,
+    )
+
+    _NOUS_IMPORT_ERROR: ModuleNotFoundError | None = None
+except ModuleNotFoundError as _e:
+    _NOUS_IMPORT_ERROR = _e
+
+
+def require_nous() -> None:
+    """Raise the actionable install hint if the optional nous extra is missing.
+
+    Every nous-touching entry point funnels through this (directly or via
+    ``_get_storage``/``_get_daemon``), so a missing extra fails with the hint instead of a
+    bare ``ModuleNotFoundError`` (or a ``NameError`` on the guarded module-level names).
+    """
+    if _NOUS_IMPORT_ERROR is not None:
+        raise ModuleNotFoundError(NOUS_EXTRA_HINT) from _NOUS_IMPORT_ERROR
 
 
 def _get_storage() -> NousStorage:
     # NousStorage is daemon-backed now (the constructor takes a client, not a data dir).
+    require_nous()
     return NousStorage(_get_daemon())
 
 
 def _get_daemon() -> NousDaemonClient:
+    require_nous()
     return NousDaemonClient(base_url=settings.daemon_url)
 
 
@@ -189,6 +217,7 @@ def get_task_spec(task_name: str) -> str:
     Replicates the logic of ``nous_mcp.workflow.get_task_spec`` without having
     to call the MCP tool closure.
     """
+    require_nous()
     from nous_mcp.workflow import (
         _get_row_status,
         _parse_depends_on,
@@ -376,6 +405,7 @@ def update_task_status(
     pipeline's escalation path flips it to Manual so a human re-arming the
     task doesn't silently re-enter the auto pool.
     """
+    require_nous()
     from nous_mcp.markdown import markdown_to_blocks
 
     daemon = _get_daemon()

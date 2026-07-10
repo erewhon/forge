@@ -21,6 +21,10 @@ already use to keep heavy/cross deps off the import path — and here it also gu
 there is no import cycle with the packages that consume the port. ``TaskInfo``, ``LeafRow``,
 ``EmitSpec``, and ``EmitSummary`` appear only in type hints (resolved lazily under
 ``from __future__ import annotations``).
+
+The Nous stack itself is an optional extra (``forge[nous]``): ``get_task_store()`` fails
+fast with an install hint when the forge backend is selected without it, so a GitHub-backed
+deployment never needs ``nous_mcp`` on the import path.
 """
 
 from __future__ import annotations
@@ -172,10 +176,11 @@ class ForgeTaskStore:
     ) -> list[LeafRow]:
         # Reuses the tested ``waves`` normalizer (null-as-manual, blocked resolution) so
         # there is exactly one row-building path across the pipeline.
-        from nous_mcp.workflow import _query_tasks
-
         from forge.coding_pipeline.waves import _rows_from_raw
-        from forge.task_worker.nous_client import _read_db_content
+        from forge.task_worker.nous_client import _read_db_content, require_nous
+
+        require_nous()
+        from nous_mcp.workflow import _query_tasks
 
         db_content = _read_db_content()
         raw_rows = _query_tasks(
@@ -184,9 +189,10 @@ class ForgeTaskStore:
         return _rows_from_raw(raw_rows, db_content)
 
     def in_progress_titles(self, ref_prefix: str) -> list[str]:
-        from nous_mcp.workflow import _query_tasks
+        from forge.task_worker.nous_client import _read_db_content, require_nous
 
-        from forge.task_worker.nous_client import _read_db_content
+        require_nous()
+        from nous_mcp.workflow import _query_tasks
 
         rows = _query_tasks(_read_db_content(), status="In Progress", limit=None)
         return [
@@ -202,6 +208,12 @@ def get_task_store() -> TaskStore:
     work-deployable adapter. Unknown values fail loudly rather than silently defaulting."""
     backend = settings.backend.strip().lower()
     if backend == "forge":
+        # ForgeTaskStore is definitionally the Nous adapter, and nous_mcp ships in the
+        # optional ``forge[nous]`` extra — fail at selection time with the install hint
+        # rather than deep inside the first store call.
+        from forge.task_worker.nous_client import require_nous
+
+        require_nous()
         return ForgeTaskStore()
     if backend == "github":
         from forge.shared.github_task_store import GitHubTaskStore
