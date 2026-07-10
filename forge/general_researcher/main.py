@@ -17,23 +17,23 @@ from pathlib import Path
 
 import yaml
 
-from agents.general_researcher.config import settings
-from agents.general_researcher.models import (
+from forge.general_researcher.config import settings
+from forge.general_researcher.models import (
     SprintFindings,
     TopicConfig,
     VerificationResult,
 )
-from agents.general_researcher.planner import create_sprint
-from agents.general_researcher.renderer import (
+from forge.general_researcher.planner import create_sprint
+from forge.general_researcher.renderer import (
     render_findings_context,
     render_findings_summary,
     render_sprint_findings,
     render_synthesis,
     render_verification,
 )
-from agents.general_researcher.researcher import execute_sprint
-from agents.general_researcher.synthesizer import synthesize
-from agents.general_researcher.verifier import verify_sprint
+from forge.general_researcher.researcher import execute_sprint
+from forge.general_researcher.synthesizer import synthesize
+from forge.general_researcher.verifier import verify_sprint
 
 
 def _slugify(text: str, max_len: int = 60) -> str:

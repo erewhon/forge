@@ -16,8 +16,8 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from agents.evals.models import GoldCase
-from agents.evals.steps import (
+from forge.evals.models import GoldCase
+from forge.evals.steps import (
     ADAPTERS,
     ConfirmVerdict,
     GapsEnvelope,
@@ -67,7 +67,7 @@ def test_unknown_step_raises_keyerror():
 
 
 def test_adapter_registry_has_all_steps():
-    from agents.evals.models import StepName
+    from forge.evals.models import StepName
 
     known_steps: set[StepName] = {
         "replan",
@@ -155,7 +155,7 @@ def _make_replan_fixtures(tmp_path: Path) -> GoldCase:
 
 
 def test_replan_system_is_identity_to_constant():
-    from agents.coding_pipeline.architect import REPLAN_SYSTEM
+    from forge.coding_pipeline.architect import REPLAN_SYSTEM
 
     case = _make_replan_fixtures(Path(tempfile.mkdtemp()))
     adapter = ADAPTERS["replan"]
@@ -169,11 +169,11 @@ def test_replan_user_matches_production():
     spec = adapter.build(case)
 
     # Call the production builder directly and compare
-    from agents.coding_pipeline.architect import (
+    from forge.coding_pipeline.architect import (
         _replan_user,
         deterministic_escalations,
     )
-    from agents.coding_pipeline.models import FramingProposal, LeafSpec, WaveReport
+    from forge.coding_pipeline.models import FramingProposal, LeafSpec, WaveReport
 
     framing = FramingProposal.model_validate(
         json.loads((case.case_dir / "framing.json").read_text())
@@ -191,7 +191,7 @@ def test_replan_user_matches_production():
 
 
 def test_replan_schema_is_replan_envelope():
-    from agents.coding_pipeline.architect import ReplanEnvelope
+    from forge.coding_pipeline.architect import ReplanEnvelope
 
     case = _make_replan_fixtures(Path(tempfile.mkdtemp()))
     adapter = ADAPTERS["replan"]
@@ -227,10 +227,10 @@ def _make_decompose_fixtures(tmp_path: Path) -> GoldCase:
         {
             "project": "meta",
             "repo": "/path/to/meta",
-            "tree": "- agents/\n  - evals/",
+            "tree": "- forge/\n  - evals/",
             "key_files": [],
             "modules": ["agents"],
-            "test_layout": ["agents/evals/tests"],
+            "test_layout": ["forge/evals/tests"],
             "toolchain": ["uv"],
             "existing_tasks": [],
             "overlaps": [],
@@ -250,7 +250,7 @@ def _make_decompose_fixtures(tmp_path: Path) -> GoldCase:
 
 
 def test_decompose_system_is_identity_to_constant():
-    from agents.coding_pipeline.architect import DECOMPOSE_SYSTEM
+    from forge.coding_pipeline.architect import DECOMPOSE_SYSTEM
 
     case = _make_decompose_fixtures(Path(tempfile.mkdtemp()))
     adapter = ADAPTERS["decompose"]
@@ -259,8 +259,8 @@ def test_decompose_system_is_identity_to_constant():
 
 
 def test_decompose_user_matches_production():
-    from agents.coding_pipeline.architect import _decompose_user
-    from agents.coding_pipeline.models import FramingProposal, Inventory
+    from forge.coding_pipeline.architect import _decompose_user
+    from forge.coding_pipeline.models import FramingProposal, Inventory
 
     case = _make_decompose_fixtures(Path(tempfile.mkdtemp()))
     adapter = ADAPTERS["decompose"]
@@ -276,7 +276,7 @@ def test_decompose_user_matches_production():
 
 
 def test_decompose_schema_is_task_tree():
-    from agents.coding_pipeline.models import TaskTree
+    from forge.coding_pipeline.models import TaskTree
 
     case = _make_decompose_fixtures(Path(tempfile.mkdtemp()))
     adapter = ADAPTERS["decompose"]
@@ -322,7 +322,7 @@ def _make_boundedness_fixtures(tmp_path: Path) -> GoldCase:
 
 
 def test_boundedness_system_is_identity_to_constant():
-    from agents.coding_pipeline.architect import BOUNDEDNESS_SYSTEM
+    from forge.coding_pipeline.architect import BOUNDEDNESS_SYSTEM
 
     case = _make_boundedness_fixtures(Path(tempfile.mkdtemp()))
     adapter = ADAPTERS["boundedness"]
@@ -331,8 +331,8 @@ def test_boundedness_system_is_identity_to_constant():
 
 
 def test_boundedness_user_matches_production():
-    from agents.coding_pipeline.architect import _leaf_summary
-    from agents.coding_pipeline.models import LeafSpec
+    from forge.coding_pipeline.architect import _leaf_summary
+    from forge.coding_pipeline.models import LeafSpec
 
     case = _make_boundedness_fixtures(Path(tempfile.mkdtemp()))
     adapter = ADAPTERS["boundedness"]
@@ -344,7 +344,7 @@ def test_boundedness_user_matches_production():
 
 
 def test_boundedness_schema_is_leaf_boundedness():
-    from agents.coding_pipeline.architect import LeafBoundedness
+    from forge.coding_pipeline.architect import LeafBoundedness
 
     case = _make_boundedness_fixtures(Path(tempfile.mkdtemp()))
     adapter = ADAPTERS["boundedness"]
@@ -371,7 +371,7 @@ def _make_review_findings_fixtures(tmp_path: Path) -> GoldCase:
 
 
 def test_review_findings_system_is_identity_to_constant():
-    from agents.coding_pipeline.verify import FINDINGS_SYSTEM
+    from forge.coding_pipeline.verify import FINDINGS_SYSTEM
 
     case = _make_review_findings_fixtures(Path(tempfile.mkdtemp()))
     adapter = ADAPTERS["review-findings"]
@@ -391,7 +391,7 @@ def test_review_findings_user_shape():
 
 
 def test_review_findings_schema_is_findings_envelope():
-    from agents.coding_pipeline.verify import FindingsEnvelope
+    from forge.coding_pipeline.verify import FindingsEnvelope
 
     case = _make_review_findings_fixtures(Path(tempfile.mkdtemp()))
     adapter = ADAPTERS["review-findings"]
@@ -428,7 +428,7 @@ def _make_review_confirm_fixtures(tmp_path: Path) -> GoldCase:
 
 
 def test_review_confirm_system_is_identity_to_constant():
-    from agents.coding_pipeline.verify import CONFIRM_SYSTEM
+    from forge.coding_pipeline.verify import CONFIRM_SYSTEM
 
     case = _make_review_confirm_fixtures(Path(tempfile.mkdtemp()))
     adapter = ADAPTERS["review-confirm"]
@@ -478,7 +478,7 @@ def _make_testgap_find_fixtures(tmp_path: Path) -> GoldCase:
 
 
 def test_testgap_find_system_matches_finder_system():
-    from agents.testing_ensemble.prompts import FINDER_ANGLES, finder_system
+    from forge.testing_ensemble.prompts import FINDER_ANGLES, finder_system
 
     case = _make_testgap_find_fixtures(Path(tempfile.mkdtemp()))
     adapter = ADAPTERS["testgap-find"]
@@ -535,7 +535,7 @@ def _make_testgap_skeptic_fixtures(tmp_path: Path) -> GoldCase:
 
 
 def test_testgap_skeptic_system_is_identity_to_skeptic_base():
-    from agents.testing_ensemble.prompts import SKEPTIC_BASE
+    from forge.testing_ensemble.prompts import SKEPTIC_BASE
 
     case = _make_testgap_skeptic_fixtures(Path(tempfile.mkdtemp()))
     adapter = ADAPTERS["testgap-skeptic"]
@@ -544,8 +544,8 @@ def test_testgap_skeptic_system_is_identity_to_skeptic_base():
 
 
 def test_testgap_skeptic_user_shape():
-    from agents.testing_ensemble.models import TestGap
-    from agents.testing_ensemble.prompts import verify_user
+    from forge.testing_ensemble.models import TestGap
+    from forge.testing_ensemble.prompts import verify_user
 
     case = _make_testgap_skeptic_fixtures(Path(tempfile.mkdtemp()))
     adapter = ADAPTERS["testgap-skeptic"]

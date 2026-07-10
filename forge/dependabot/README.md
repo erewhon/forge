@@ -28,7 +28,7 @@ task, never a merge (fail-closed).
 
 ## Decision log
 
-Decisions are appended as JSONL records to `agents/dependabot/logs/auto.jsonl` in the agent's
+Decisions are appended as JSONL records to `forge/dependabot/logs/auto.jsonl` in the agent's
 package directory.
 
 ## Honest scope — what the evidence does and does NOT cover

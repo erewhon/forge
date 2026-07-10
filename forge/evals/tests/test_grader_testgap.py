@@ -25,8 +25,8 @@ from pathlib import Path
 
 import pytest
 
-from agents.evals.graders.testgap import grade_find, grade_skeptic
-from agents.evals.models import GoldCase, GradeCheck, GradeResult
+from forge.evals.graders.testgap import grade_find, grade_skeptic
+from forge.evals.models import GoldCase, GradeCheck, GradeResult
 
 # ---------------------------------------------------------------------------
 # Helpers

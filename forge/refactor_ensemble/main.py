@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from agents.refactor_ensemble.plan import render, run_refactor
+from forge.refactor_ensemble.plan import render, run_refactor
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -66,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if args.emit_tasks:
-        from agents.refactor_ensemble.emit import emit_plan
+        from forge.refactor_ensemble.emit import emit_plan
 
         try:
             summary = emit_plan(

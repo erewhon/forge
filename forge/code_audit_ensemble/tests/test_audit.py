@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from agents.code_audit_ensemble import audit as audit_mod
-from agents.code_audit_ensemble.audit import _vote, collect_code, render, run_audit
-from agents.code_audit_ensemble.models import CanonicalFinding, Verdict
-from agents.shared.panel import ItemVerdict, PanelResult
-from agents.shared.recipe import RecipeResult
+from forge.code_audit_ensemble import audit as audit_mod
+from forge.code_audit_ensemble.audit import _vote, collect_code, render, run_audit
+from forge.code_audit_ensemble.models import CanonicalFinding, Verdict
+from forge.shared.panel import ItemVerdict, PanelResult
+from forge.shared.recipe import RecipeResult
 
 
 class _Panel:

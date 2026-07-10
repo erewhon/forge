@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from agents.shared.automerge import (
+from forge.shared.automerge import (
     advance_main,
     classify_manifest_only,
     classify_tests_only,
@@ -23,7 +23,7 @@ from agents.shared.automerge import (
     slugify,
     working_diff,
 )
-from agents.task_worker.vcs import VCSError
+from forge.task_worker.vcs import VCSError
 
 # --- pure classifiers -------------------------------------------------------
 
@@ -87,7 +87,7 @@ def test_classify_empty_is_blocked():
 def test_jj_push_branch_argv_has_no_allow_new(monkeypatch):
     """jj 0.42 dropped --allow-new (new bookmarks push by default). Caught live by the
     dependabot smoke: the first real advisory push failed on this exact argv."""
-    import agents.shared.automerge as am
+    import forge.shared.automerge as am
 
     captured: list[list[str]] = []
 
@@ -112,7 +112,7 @@ def test_jj_push_branch_argv_has_no_allow_new(monkeypatch):
 
 
 def test_working_copy_base_and_repark_jj(monkeypatch):
-    import agents.shared.automerge as am
+    import forge.shared.automerge as am
 
     captured: list[list[str]] = []
 
@@ -129,7 +129,7 @@ def test_working_copy_base_and_repark_jj(monkeypatch):
 
 
 def test_repark_git_checks_out_base_branch(monkeypatch):
-    import agents.shared.automerge as am
+    import forge.shared.automerge as am
 
     captured: list[list[str]] = []
 
@@ -153,10 +153,10 @@ def test_manifest_only_pure_bump_ok():
 
 def test_manifest_only_blocks_source_file_alongside_bump():
     # The classic classifier-inversion guard: a bump that also touches source must NOT pass.
-    v = classify_manifest_only(Path("/nope"), changed=["uv.lock", "agents/shared/llm.py"])
+    v = classify_manifest_only(Path("/nope"), changed=["uv.lock", "forge/shared/llm.py"])
     assert not v.ok
-    assert v.non_manifest == ["agents/shared/llm.py"]
-    assert "agents/shared/llm.py" in v.reason
+    assert v.non_manifest == ["forge/shared/llm.py"]
+    assert "forge/shared/llm.py" in v.reason
 
 
 def test_manifest_only_blocks_source_only_change():

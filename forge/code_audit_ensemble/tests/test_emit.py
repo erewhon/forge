@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from agents.code_audit_ensemble import main as main_mod
-from agents.code_audit_ensemble.emit import external_ref, report_to_specs
-from agents.code_audit_ensemble.models import (
+from forge.code_audit_ensemble import main as main_mod
+from forge.code_audit_ensemble.emit import external_ref, report_to_specs
+from forge.code_audit_ensemble.models import (
     AuditReport,
     CanonicalFinding,
     ScoredFinding,
@@ -90,11 +90,11 @@ def test_main_emits_confirmed_report(monkeypatch):
 
     def fake_emit_report(r, *, project, min_severity, dry_run, log):
         captured.update(project=project, min_severity=min_severity, dry_run=dry_run, report=r)
-        from agents.shared.forge_emit import EmitSummary
+        from forge.shared.forge_emit import EmitSummary
 
         return EmitSummary(project=project)
 
-    monkeypatch.setattr("agents.code_audit_ensemble.emit.emit_report", fake_emit_report)
+    monkeypatch.setattr("forge.code_audit_ensemble.emit.emit_report", fake_emit_report)
     rc = main_mod.main(
         ["some.py", "--emit-tasks", "--project", "Meta", "--min-severity", "high", "--dry-run-emit"]
     )

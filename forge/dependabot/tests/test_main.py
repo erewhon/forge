@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from agents.dependabot.main import main
-from agents.dependabot.models import BumpCandidate, BumpResult
+from forge.dependabot.main import main
+from forge.dependabot.models import BumpCandidate, BumpResult
 
 
 def _result(status: str = "planned", **over) -> BumpResult:
@@ -21,7 +21,7 @@ def _result(status: str = "planned", **over) -> BumpResult:
 def auto_bump_mock(monkeypatch):
     """Return a configurable MagicMock patched into auto_bump."""
     mock = MagicMock(return_value=_result())
-    monkeypatch.setattr("agents.dependabot.main.auto_bump", mock)
+    monkeypatch.setattr("forge.dependabot.main.auto_bump", mock)
     return mock
 
 
@@ -83,7 +83,7 @@ def test_custom_project(auto_bump_mock):
 
 
 def test_no_repo_prints_error(capsys, monkeypatch):
-    monkeypatch.setattr("agents.dependabot.main.find_repo_root", lambda _: None)
+    monkeypatch.setattr("forge.dependabot.main.find_repo_root", lambda _: None)
     result = main([])
     assert result == 1
     err = capsys.readouterr().err

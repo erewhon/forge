@@ -18,8 +18,8 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
-from agents.shared.ensemble import Pool
-from agents.shared.panel import (
+from forge.shared.ensemble import Pool
+from forge.shared.panel import (
     Finder,
     ItemVerdict,
     PanelMember,

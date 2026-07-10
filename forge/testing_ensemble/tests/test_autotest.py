@@ -11,13 +11,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from agents.shared.automerge import PushResult
-from agents.shared.automerge import TestsOnlyVerdict as _TestsOnlyVerdict
-from agents.testing_ensemble import autotest as at
-from agents.testing_ensemble.autotest import SignoffResult
-from agents.testing_ensemble.generate import GeneratedTest, GeneratedTestsEnvelope
-from agents.testing_ensemble.models import CanonicalGap, ScoredGap, Verdict
-from agents.testing_ensemble.models import TestReport as _TestReport
+from forge.shared.automerge import PushResult
+from forge.shared.automerge import TestsOnlyVerdict as _TestsOnlyVerdict
+from forge.testing_ensemble import autotest as at
+from forge.testing_ensemble.autotest import SignoffResult
+from forge.testing_ensemble.generate import GeneratedTest, GeneratedTestsEnvelope
+from forge.testing_ensemble.models import CanonicalGap, ScoredGap, Verdict
+from forge.testing_ensemble.models import TestReport as _TestReport
 
 
 def _report(*, sev: str = "high", n: int = 1) -> _TestReport:

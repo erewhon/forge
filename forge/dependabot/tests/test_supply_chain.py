@@ -8,8 +8,8 @@ import tarfile
 from datetime import UTC, datetime
 from pathlib import Path
 
-from agents.dependabot.models import AuditFinding, BumpCandidate
-from agents.dependabot.supply_chain import (
+from forge.dependabot.models import AuditFinding, BumpCandidate
+from forge.dependabot.supply_chain import (
     changelog_url,
     collect_evidence,
     install_script_change,

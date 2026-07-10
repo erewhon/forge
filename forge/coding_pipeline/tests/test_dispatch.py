@@ -9,10 +9,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from agents.coding_pipeline import dispatch as dp
-from agents.coding_pipeline.dispatch import DispatchError, repo_lock, run_wave
-from agents.coding_pipeline.models import WavePlan
-from agents.task_worker.models import RunOutcome, TaskInfo
+from forge.coding_pipeline import dispatch as dp
+from forge.coding_pipeline.dispatch import DispatchError, repo_lock, run_wave
+from forge.coding_pipeline.models import WavePlan
+from forge.task_worker.models import RunOutcome, TaskInfo
 
 
 def _plan(*titles: str) -> WavePlan:
@@ -296,9 +296,9 @@ def _done_at(title: str) -> RunOutcome:
 def cw(monkeypatch, tmp_path):
     """Fake every seam the concurrent path uses: workspace lifecycle, reconcile, task
     store. Records what happened so tests assert behavior, not wiring trivia."""
-    import agents.coding_pipeline.reconcile as rcmod
-    import agents.shared.task_store as tsmod
-    import agents.shared.workspaces as wsmod
+    import forge.coding_pipeline.reconcile as rcmod
+    import forge.shared.task_store as tsmod
+    import forge.shared.workspaces as wsmod
 
     state = SimpleNamespace(
         created=[],  # (dest, base_rev)
@@ -496,7 +496,7 @@ def test_concurrent_missing_task_gets_no_workspace(cw, tmp_path):
 
 
 def test_concurrent_workspace_setup_failure_aborts_with_cleanup(cw, tmp_path, monkeypatch):
-    import agents.shared.workspaces as wsmod
+    import forge.shared.workspaces as wsmod
 
     calls = {"n": 0}
 
@@ -522,7 +522,7 @@ def test_concurrent_workspace_setup_failure_aborts_with_cleanup(cw, tmp_path, mo
 
 
 def test_concurrent_reconcile_error_is_a_loud_dispatch_error(cw, tmp_path, monkeypatch):
-    import agents.coding_pipeline.reconcile as rcmod
+    import forge.coding_pipeline.reconcile as rcmod
 
     def exploding_reconcile(repo, base, landed, *, on_demote, log):
         raise rcmod.ReconcileError("could not reposition")
@@ -549,9 +549,9 @@ def test_serial_path_never_touches_workspace_or_reconcile_code(wired, monkeypatc
     def bomb(*a, **kw):
         raise AssertionError("workspace/reconcile code reached from the serial path")
 
-    import agents.coding_pipeline.reconcile as rcmod
-    import agents.coding_pipeline.scheduling as schedmod
-    import agents.shared.workspaces as wsmod
+    import forge.coding_pipeline.reconcile as rcmod
+    import forge.coding_pipeline.scheduling as schedmod
+    import forge.shared.workspaces as wsmod
 
     monkeypatch.setattr(wsmod, "create_workspace", bomb)
     monkeypatch.setattr(wsmod, "resolve_base_rev", bomb)
@@ -575,21 +575,21 @@ def test_concurrent_scheduler_defers_overlapping_scopes(cw, tmp_path):
     Ready for the next wave, and the deferral is journaled — no silent capping."""
     import json as _json
 
-    from agents.coding_pipeline.architect import persist_tree
-    from agents.coding_pipeline.models import LeafSpec
+    from forge.coding_pipeline.architect import persist_tree
+    from forge.coding_pipeline.models import LeafSpec
 
     journal_dir = tmp_path / "runs"
     journal_dir.mkdir()
     persist_tree(
         [
             LeafSpec(
-                title="a", content="x", feature="F", file_scope=["agents/x.py"], priority=1
+                title="a", content="x", feature="F", file_scope=["forge/x.py"], priority=1
             ),
             LeafSpec(
-                title="b", content="x", feature="F", file_scope=["agents/x.py"], priority=2
+                title="b", content="x", feature="F", file_scope=["forge/x.py"], priority=2
             ),
             LeafSpec(
-                title="c", content="x", feature="F", file_scope=["agents/y.py"], priority=3
+                title="c", content="x", feature="F", file_scope=["forge/y.py"], priority=3
             ),
         ],
         journal_dir,
@@ -640,13 +640,13 @@ def test_concurrent_without_any_scope_data_stays_fully_optimistic(cw, tmp_path):
 def test_concurrent_scopeless_fixup_serializes_when_tree_has_scopes(cw, tmp_path):
     """Once ANY leaf carries a scope, an unscoped leaf (a replan fix-up) is unknown
     territory: it dispatches alone, never concurrently with a sibling."""
-    from agents.coding_pipeline.architect import persist_tree
-    from agents.coding_pipeline.models import LeafSpec
+    from forge.coding_pipeline.architect import persist_tree
+    from forge.coding_pipeline.models import LeafSpec
 
     journal_dir = tmp_path / "runs"
     journal_dir.mkdir()
     persist_tree(
-        [LeafSpec(title="a", content="x", feature="F", file_scope=["agents/x.py"], priority=1)],
+        [LeafSpec(title="a", content="x", feature="F", file_scope=["forge/x.py"], priority=1)],
         journal_dir,
     )
     ran: list[str] = []

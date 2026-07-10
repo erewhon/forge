@@ -24,8 +24,8 @@ from nous_mcp.workflow import (
     _query_tasks,
 )
 
-from agents.task_worker.config import settings
-from agents.task_worker.models import TaskInfo
+from forge.task_worker.config import settings
+from forge.task_worker.models import TaskInfo
 
 
 def _get_storage() -> NousStorage:

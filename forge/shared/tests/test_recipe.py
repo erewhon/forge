@@ -6,10 +6,10 @@ import json
 
 from pydantic import BaseModel
 
-from agents.shared.ensemble import ExecResult, ExecStatus, FailureClass, Pool
-from agents.shared.ensemble.models import Prompt
-from agents.shared.panel import Finder, PanelMember
-from agents.shared.recipe import discover_dedup_verify
+from forge.shared.ensemble import ExecResult, ExecStatus, FailureClass, Pool
+from forge.shared.ensemble.models import Prompt
+from forge.shared.panel import Finder, PanelMember
+from forge.shared.recipe import discover_dedup_verify
 
 
 class FakeExec:

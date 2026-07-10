@@ -4,8 +4,8 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from agents.pr_review_ensemble.config import settings
-from agents.pr_review_ensemble.models import DigestResult, EnsembleResult, SupplyChainResult
+from forge.pr_review_ensemble.config import settings
+from forge.pr_review_ensemble.models import DigestResult, EnsembleResult, SupplyChainResult
 
 
 def log_run(result: EnsembleResult, *, log_path: Path | None = None) -> Path:

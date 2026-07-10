@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from agents.coding_pipeline.models import LeafRow
-from agents.coding_pipeline.waves import _row_from_raw, epic_ref_prefix, is_epic_row, plan_wave
+from forge.coding_pipeline.models import LeafRow
+from forge.coding_pipeline.waves import _row_from_raw, epic_ref_prefix, is_epic_row, plan_wave
 
 
 def _row(task: str, **overrides) -> LeafRow:

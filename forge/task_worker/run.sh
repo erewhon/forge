@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd /home/user/Projects/erewhon/meta
-exec uv run python -u -m agents.task_worker.main "$@"
+cd "$(dirname "$0")/../.."
+exec uv run python -u -m forge.task_worker.main "$@"

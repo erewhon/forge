@@ -14,14 +14,14 @@ from __future__ import annotations
 import math
 import statistics
 
-from agents.book_researcher.config import settings
-from agents.book_researcher.models import (
+from forge.book_researcher.config import settings
+from forge.book_researcher.models import (
     SprintContract,
     SprintFindings,
     VerificationResult,
     VerificationScores,
 )
-from agents.shared.panel import build_lens_members, run_member_panel
+from forge.shared.panel import build_lens_members, run_member_panel
 
 _MAX_CHALLENGES = 12
 

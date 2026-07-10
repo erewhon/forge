@@ -16,11 +16,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from agents.shared.automerge import is_test_path
-from agents.shared.ensemble import ApiExecutor, Pool
-from agents.shared.panel import structured
-from agents.testing_ensemble.config import settings
-from agents.testing_ensemble.models import ScoredGap
+from forge.shared.automerge import is_test_path
+from forge.shared.ensemble import ApiExecutor, Pool
+from forge.shared.panel import structured
+from forge.testing_ensemble.config import settings
+from forge.testing_ensemble.models import ScoredGap
 
 GEN_SYSTEM = """You write focused, correct automated tests for an existing codebase.
 

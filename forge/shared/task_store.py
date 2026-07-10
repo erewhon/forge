@@ -12,7 +12,7 @@ makes:
     write:  emit, update_status
     read:   find_task, next_ready, get_spec, worker_gate, list_rows, in_progress_titles
 
-Layering note: this module lives in ``agents.shared`` because both the pipeline and the
+Layering note: this module lives in ``forge.shared`` because both the pipeline and the
 worker depend on it, but ``ForgeTaskStore`` is *definitionally* the Nous adapter, so it
 does function-local imports of the concrete Forge implementation
 (``task_worker.nous_client``, ``shared.forge_emit``, ``nous_mcp``, and the tested
@@ -31,9 +31,9 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 if TYPE_CHECKING:
-    from agents.coding_pipeline.models import LeafRow
-    from agents.shared.forge_emit import EmitSpec, EmitSummary
-    from agents.task_worker.models import TaskInfo
+    from forge.coding_pipeline.models import LeafRow
+    from forge.shared.forge_emit import EmitSpec, EmitSummary
+    from forge.task_worker.models import TaskInfo
 
 
 class TaskStoreSettings(BaseSettings):
@@ -126,7 +126,7 @@ class ForgeTaskStore:
         max_per_run: int | None = None,
         log: Callable[[str], None] | None = None,
     ) -> EmitSummary:
-        from agents.shared.forge_emit import emit_tasks
+        from forge.shared.forge_emit import emit_tasks
 
         return emit_tasks(
             specs,
@@ -143,27 +143,27 @@ class ForgeTaskStore:
     def update_status(
         self, task: str, status: str, notes: str = "", execution_mode: str | None = None
     ) -> None:
-        from agents.task_worker.nous_client import update_task_status
+        from forge.task_worker.nous_client import update_task_status
 
         update_task_status(task, status, notes=notes, execution_mode=execution_mode)
 
     def find_task(self, name: str) -> TaskInfo | None:
-        from agents.task_worker.nous_client import find_task
+        from forge.task_worker.nous_client import find_task
 
         return find_task(name)
 
     def next_ready(self, projects: list[str]) -> TaskInfo | None:
-        from agents.task_worker.nous_client import find_next_task
+        from forge.task_worker.nous_client import find_next_task
 
         return find_next_task(projects)
 
     def get_spec(self, name: str) -> str:
-        from agents.task_worker.nous_client import get_task_spec
+        from forge.task_worker.nous_client import get_task_spec
 
         return get_task_spec(name)
 
     def worker_gate(self, name: str) -> str:
-        from agents.task_worker.nous_client import check_worker_gate
+        from forge.task_worker.nous_client import check_worker_gate
 
         return check_worker_gate(name)
 
@@ -174,8 +174,8 @@ class ForgeTaskStore:
         # there is exactly one row-building path across the pipeline.
         from nous_mcp.workflow import _query_tasks
 
-        from agents.coding_pipeline.waves import _rows_from_raw
-        from agents.task_worker.nous_client import _read_db_content
+        from forge.coding_pipeline.waves import _rows_from_raw
+        from forge.task_worker.nous_client import _read_db_content
 
         db_content = _read_db_content()
         raw_rows = _query_tasks(
@@ -186,7 +186,7 @@ class ForgeTaskStore:
     def in_progress_titles(self, ref_prefix: str) -> list[str]:
         from nous_mcp.workflow import _query_tasks
 
-        from agents.task_worker.nous_client import _read_db_content
+        from forge.task_worker.nous_client import _read_db_content
 
         rows = _query_tasks(_read_db_content(), status="In Progress", limit=None)
         return [
@@ -204,7 +204,7 @@ def get_task_store() -> TaskStore:
     if backend == "forge":
         return ForgeTaskStore()
     if backend == "github":
-        from agents.shared.github_task_store import GitHubTaskStore
+        from forge.shared.github_task_store import GitHubTaskStore
 
         return GitHubTaskStore()
     raise ValueError(f"unknown TASK_STORE_BACKEND {settings.backend!r} (known: 'forge', 'github')")

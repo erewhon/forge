@@ -13,9 +13,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from agents.coding_pipeline.config import settings
-from agents.coding_pipeline.models import ExistingTask, FileHead, GoalSpec, Inventory
-from agents.shared.automerge import is_test_path, slugify
+from forge.coding_pipeline.config import settings
+from forge.coding_pipeline.models import ExistingTask, FileHead, GoalSpec, Inventory
+from forge.shared.automerge import is_test_path, slugify
 
 # Never descend into these (plus simple dir entries from the repo's top-level .gitignore).
 DEFAULT_IGNORES = frozenset(
@@ -213,7 +213,7 @@ def fetch_project_tasks(project: str) -> list[ExistingTask]:
     """
     from nous_mcp.workflow import _query_tasks
 
-    from agents.task_worker.nous_client import _read_db_content
+    from forge.task_worker.nous_client import _read_db_content
 
     rows = _query_tasks(_read_db_content(), project=project, include_done=True, limit=None)
     return [

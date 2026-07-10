@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from agents.dependabot.emit import _title, emit_advisory, external_ref
-from agents.dependabot.models import BumpCandidate, EvidenceBundle
+from forge.dependabot.emit import _title, emit_advisory, external_ref
+from forge.dependabot.models import BumpCandidate, EvidenceBundle
 
 
 def _candidate() -> BumpCandidate:
@@ -21,7 +21,7 @@ def test_title_is_comma_free():
 
 
 def test_project_none_is_a_noop():
-    with patch("agents.dependabot.emit.get_task_store") as mock_store:
+    with patch("forge.dependabot.emit.get_task_store") as mock_store:
         assert emit_advisory(_candidate(), None, "reason", project=None, branch=None) is None
         mock_store.return_value.emit.assert_not_called()
 
@@ -30,7 +30,7 @@ def test_spec_carries_reason_branch_and_evidence():
     evidence = EvidenceBundle(
         candidate=_candidate(), lockfile_changes=["idna 3.11->3.15"], complete=True
     )
-    with patch("agents.dependabot.emit.get_task_store") as mock_store:
+    with patch("forge.dependabot.emit.get_task_store") as mock_store:
         emit_advisory(
             _candidate(),
             evidence,

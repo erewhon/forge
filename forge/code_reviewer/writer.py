@@ -6,11 +6,10 @@ import time
 
 import httpx
 
-from agents.code_reviewer.config import settings
-from agents.code_reviewer.models import NightlyReport
-from agents.code_reviewer.renderer import render_blocks
-from agents.shared.models.nous import EditorJsBlock
-from agents.shared.nous_http import nous_headers
+from forge.code_reviewer.config import settings
+from forge.code_reviewer.models import NightlyReport
+from forge.code_reviewer.renderer import render_blocks
+from forge.shared.nous_http import nous_headers
 
 
 def _base_url() -> str:

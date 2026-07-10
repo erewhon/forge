@@ -10,13 +10,13 @@ from __future__ import annotations
 import asyncio
 import json
 
-from agents.pr_review_ensemble.aggregator import build_aggregator
-from agents.pr_review_ensemble.config import settings
-from agents.pr_review_ensemble.logger import log_run
-from agents.pr_review_ensemble.providers import ReviewerSlot, SkipExecutor
-from agents.pr_review_ensemble.renderer import render_markdown
-from agents.pr_review_ensemble.runner import run_ensemble
-from agents.shared.ensemble import (
+from forge.pr_review_ensemble.aggregator import build_aggregator
+from forge.pr_review_ensemble.config import settings
+from forge.pr_review_ensemble.logger import log_run
+from forge.pr_review_ensemble.providers import ReviewerSlot, SkipExecutor
+from forge.pr_review_ensemble.renderer import render_markdown
+from forge.pr_review_ensemble.runner import run_ensemble
+from forge.shared.ensemble import (
     CombineResult,
     ExecResult,
     ExecStatus,

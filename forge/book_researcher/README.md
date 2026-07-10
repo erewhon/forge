@@ -102,16 +102,16 @@ Then:
 
 ```bash
 # Run the default number of sprints (3)
-agents/book_researcher/run.sh path/to/your-book.yaml
+forge/book_researcher/run.sh path/to/your-book.yaml
 
 # Bump it for a longer session
-agents/book_researcher/run.sh path/to/your-book.yaml --max-sprints 10
+forge/book_researcher/run.sh path/to/your-book.yaml --max-sprints 10
 
 # Plan sprints without spending tokens on research/verification
-agents/book_researcher/run.sh path/to/your-book.yaml --dry-run
+forge/book_researcher/run.sh path/to/your-book.yaml --dry-run
 
 # Show what's already been collected
-agents/book_researcher/run.sh path/to/your-book.yaml --summary
+forge/book_researcher/run.sh path/to/your-book.yaml --summary
 ```
 
 ## Configuration

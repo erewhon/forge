@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from agents.dependabot.config import settings
-from agents.dependabot.scan import ScanError, classify_delta, scan_outdated
+from forge.dependabot.config import settings
+from forge.dependabot.scan import ScanError, classify_delta, scan_outdated
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "uv_tree_outdated.txt"
 
@@ -65,7 +65,7 @@ class TestScanOutdated:
     def test_fixture_parsed_into_candidates(self):
         """Parser turns the fixture into the expected BumpCandidate list."""
         fixture_text = FIXTURE_PATH.read_text()
-        mock = patch("agents.dependabot.scan.subprocess.run")
+        mock = patch("forge.dependabot.scan.subprocess.run")
         m = mock.start()
         m.return_value = _make_process(0, fixture_text, "")
 
@@ -91,7 +91,7 @@ class TestScanOutdated:
     def test_assert_first_entries(self):
         """Assert exact first entries — patch first, then alphabetical."""
         fixture_text = FIXTURE_PATH.read_text()
-        mock = patch("agents.dependabot.scan.subprocess.run")
+        mock = patch("forge.dependabot.scan.subprocess.run")
         m = mock.start()
         m.return_value = _make_process(0, fixture_text, "")
 
@@ -106,7 +106,7 @@ class TestScanOutdated:
     def test_candidate_fields_correct(self):
         """Each BumpCandidate has correct name, current, latest, delta."""
         fixture_text = FIXTURE_PATH.read_text()
-        mock = patch("agents.dependabot.scan.subprocess.run")
+        mock = patch("forge.dependabot.scan.subprocess.run")
         m = mock.start()
         m.return_value = _make_process(0, fixture_text, "")
 
@@ -122,7 +122,7 @@ class TestScanOutdated:
 
     def test_non_zero_exit_raises_scan_error(self):
         """Non-zero uv exit raises ScanError with stderr message."""
-        mock = patch("agents.dependabot.scan.subprocess.run")
+        mock = patch("forge.dependabot.scan.subprocess.run")
         m = mock.start()
         m.return_value = _make_process(1, "", "error: could not find pyproject.toml")
 
@@ -134,7 +134,7 @@ class TestScanOutdated:
 
     def test_empty_stdout_returns_empty_list(self):
         """Empty uv output returns an empty list (not an error)."""
-        mock = patch("agents.dependabot.scan.subprocess.run")
+        mock = patch("forge.dependabot.scan.subprocess.run")
         m = mock.start()
         m.return_value = _make_process(0, "", "")
 
@@ -146,7 +146,7 @@ class TestScanOutdated:
     def test_max_candidates_capped(self):
         """Results are capped at settings.max_candidates."""
         fixture_text = FIXTURE_PATH.read_text()
-        mock = patch("agents.dependabot.scan.subprocess.run")
+        mock = patch("forge.dependabot.scan.subprocess.run")
         m = mock.start()
         m.return_value = _make_process(0, fixture_text, "")
 
@@ -165,7 +165,7 @@ class TestScanOutdated:
     def test_sorting_patch_before_minor(self):
         """Verify patch delta entries come before minor ones."""
         fixture_text = FIXTURE_PATH.read_text()
-        mock = patch("agents.dependabot.scan.subprocess.run")
+        mock = patch("forge.dependabot.scan.subprocess.run")
         m = mock.start()
         m.return_value = _make_process(0, fixture_text, "")
 
@@ -186,7 +186,7 @@ class TestScanOutdated:
     def test_sorting_alphabetical_within_class(self):
         """Entries with the same delta are sorted alphabetically."""
         fixture_text = FIXTURE_PATH.read_text()
-        mock = patch("agents.dependabot.scan.subprocess.run")
+        mock = patch("forge.dependabot.scan.subprocess.run")
         m = mock.start()
         m.return_value = _make_process(0, fixture_text, "")
 
@@ -202,7 +202,7 @@ class TestScanOutdated:
 
     def test_calls_uv_with_correct_args(self):
         """Verify the correct uv command arguments are used."""
-        mock = patch("agents.dependabot.scan.subprocess.run")
+        mock = patch("forge.dependabot.scan.subprocess.run")
         m = mock.start()
         m.return_value = _make_process(0, "", "")
 
@@ -219,7 +219,7 @@ class TestScanOutdated:
 
     def test_custom_timeout_passed_through(self):
         """Custom timeout overrides settings.scan_timeout."""
-        mock = patch("agents.dependabot.scan.subprocess.run")
+        mock = patch("forge.dependabot.scan.subprocess.run")
         m = mock.start()
         m.return_value = _make_process(0, "", "")
 

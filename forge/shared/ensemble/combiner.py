@@ -12,8 +12,8 @@ from typing import Protocol
 
 from pydantic import BaseModel
 
-from agents.shared.ensemble.models import ExecResult, Prompt
-from agents.shared.ensemble.pool import Pool
+from forge.shared.ensemble.models import ExecResult, Prompt
+from forge.shared.ensemble.pool import Pool
 
 
 class CombineResult(BaseModel):

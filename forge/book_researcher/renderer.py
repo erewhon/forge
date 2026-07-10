@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agents.book_researcher.models import (
+from forge.book_researcher.models import (
     BookConfig,
     SprintFindings,
     VerificationResult,

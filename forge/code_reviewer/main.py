@@ -6,12 +6,12 @@ import argparse
 from datetime import date
 from pathlib import Path
 
-from agents.code_reviewer.ai import generate_overall_summary, review_repo
-from agents.code_reviewer.collectors.changes import collect_all
-from agents.code_reviewer.config import settings
-from agents.code_reviewer.models import NightlyReport
-from agents.code_reviewer.renderer import render_markdown
-from agents.code_reviewer.writer import append_to_daily_note
+from forge.code_reviewer.ai import generate_overall_summary, review_repo
+from forge.code_reviewer.collectors.changes import collect_all
+from forge.code_reviewer.config import settings
+from forge.code_reviewer.models import NightlyReport
+from forge.code_reviewer.renderer import render_markdown
+from forge.code_reviewer.writer import append_to_daily_note
 
 
 def run(ref_date: date | None = None, *, dry_run: bool = False) -> None:

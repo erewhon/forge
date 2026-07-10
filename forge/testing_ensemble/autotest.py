@@ -9,7 +9,7 @@ is "no auto-merge, tasks filed for a human" rather than a bad merge:
                               │ any gate fails → revert working copy → emit Forge tasks → stop
 
 The tests-only classifier, the branch/merge VCS actions, and the decision log live in
-``agents.shared.automerge``; the full-quorum sign-off gate lives in ``agents.shared.signoff``
+``forge.shared.automerge``; the full-quorum sign-off gate lives in ``forge.shared.signoff``
 (Dependabot and the coding pipeline's epic gate reuse both). The sign-off panel is seated from
 pr_review's cross-family provider roster. Only the test *generation* is testing-specific.
 """
@@ -22,8 +22,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from agents.pr_review_ensemble.providers import build_reviewer_slots
-from agents.shared.automerge import (
+from forge.pr_review_ensemble.providers import build_reviewer_slots
+from forge.shared.automerge import (
     advance_main,
     classify_tests_only,
     log_decision,
@@ -31,15 +31,15 @@ from agents.shared.automerge import (
     slugify,
     working_diff,
 )
-from agents.shared.forge_emit import EmitSummary
-from agents.shared.signoff import SignoffResult, SignoffSeat, full_quorum_signoff
-from agents.task_worker.tester import run_tests
-from agents.task_worker.vcs import VCSError, detect_vcs, revert_changes
-from agents.testing_ensemble.config import settings
-from agents.testing_ensemble.emit import emit_report
-from agents.testing_ensemble.generate import apply_generated, generate_tests
-from agents.testing_ensemble.models import SEVERITY_RANK, ScoredGap, TestReport
-from agents.testing_ensemble.review import collect_context, run_review
+from forge.shared.forge_emit import EmitSummary
+from forge.shared.signoff import SignoffResult, SignoffSeat, full_quorum_signoff
+from forge.task_worker.tester import run_tests
+from forge.task_worker.vcs import VCSError, detect_vcs, revert_changes
+from forge.testing_ensemble.config import settings
+from forge.testing_ensemble.emit import emit_report
+from forge.testing_ensemble.generate import apply_generated, generate_tests
+from forge.testing_ensemble.models import SEVERITY_RANK, ScoredGap, TestReport
+from forge.testing_ensemble.review import collect_context, run_review
 
 _SIGNOFF_SYSTEM = """You are a merge gatekeeper for an automated, TESTS-ONLY change.
 

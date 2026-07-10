@@ -5,7 +5,7 @@ the ``GoldCase`` inputs (already resolved text from fixture files) and produces 
 containing the exact system prompt, user message, and Pydantic schema the production code uses.
 
 Importing private helpers from agent modules is the POINT — it guarantees the eval renders
-what production renders.  Agent modules must not import ``agents.evals``.
+what production renders.  Agent modules must not import ``forge.evals``.
 """
 
 from __future__ import annotations
@@ -17,8 +17,8 @@ from dataclasses import dataclass, field
 import yaml
 from pydantic import BaseModel
 
-from agents.evals.fixtures import read_input
-from agents.evals.models import GoldCase, StepName
+from forge.evals.fixtures import read_input
+from forge.evals.models import GoldCase, StepName
 
 # ---------------------------------------------------------------------------
 # Wire models for steps that need them
@@ -96,12 +96,12 @@ def _read_yaml(case: GoldCase, name: str) -> dict:
 
 
 def _build_replan(case: GoldCase) -> PromptSpec:
-    from agents.coding_pipeline.architect import (
+    from forge.coding_pipeline.architect import (
         REPLAN_SYSTEM,
         ReplanEnvelope,
         _replan_user,
     )
-    from agents.coding_pipeline.models import (
+    from forge.coding_pipeline.models import (
         FramingProposal,
         LeafSpec,
         WaveReport,
@@ -112,7 +112,7 @@ def _build_replan(case: GoldCase) -> PromptSpec:
     report = WaveReport.model_validate(_read_json(case, "report.json"))
     attempts = _read_json(case, "attempts.json")
 
-    from agents.coding_pipeline.architect import deterministic_escalations
+    from forge.coding_pipeline.architect import deterministic_escalations
 
     escalated = deterministic_escalations(report, attempts)
     user = _replan_user(framing, tree, report, attempts, escalated)
@@ -126,11 +126,11 @@ def _build_replan(case: GoldCase) -> PromptSpec:
 
 
 def _build_decompose(case: GoldCase) -> PromptSpec:
-    from agents.coding_pipeline.architect import (
+    from forge.coding_pipeline.architect import (
         DECOMPOSE_SYSTEM,
         _decompose_user,
     )
-    from agents.coding_pipeline.models import FramingProposal, Inventory, TaskTree
+    from forge.coding_pipeline.models import FramingProposal, Inventory, TaskTree
 
     framing = FramingProposal.model_validate(_read_json(case, "framing.json"))
     inventory = Inventory.model_validate(_read_json(case, "inventory.json"))
@@ -145,12 +145,12 @@ def _build_decompose(case: GoldCase) -> PromptSpec:
 
 
 def _build_boundedness(case: GoldCase) -> PromptSpec:
-    from agents.coding_pipeline.architect import (
+    from forge.coding_pipeline.architect import (
         BOUNDEDNESS_SYSTEM,
         LeafBoundedness,
         _leaf_summary,
     )
-    from agents.coding_pipeline.models import LeafSpec
+    from forge.coding_pipeline.models import LeafSpec
 
     leaf = LeafSpec.model_validate(_read_json(case, "leaf.json"))
     user = _leaf_summary(leaf)
@@ -164,7 +164,7 @@ def _build_boundedness(case: GoldCase) -> PromptSpec:
 
 
 def _build_review_findings(case: GoldCase) -> PromptSpec:
-    from agents.coding_pipeline.verify import (
+    from forge.coding_pipeline.verify import (
         FINDINGS_SYSTEM,
         FindingsEnvelope,
     )
@@ -192,7 +192,7 @@ def build_confirm_user(diff: str, summary: str, file: str | None, severity: str)
 
 
 def _build_review_confirm(case: GoldCase) -> PromptSpec:
-    from agents.coding_pipeline.verify import (
+    from forge.coding_pipeline.verify import (
         CONFIRM_SYSTEM,
     )
 
@@ -215,7 +215,7 @@ def _build_review_confirm(case: GoldCase) -> PromptSpec:
 
 
 def _build_testgap_find(case: GoldCase) -> PromptSpec:
-    from agents.testing_ensemble.prompts import FINDER_ANGLES, finder_system
+    from forge.testing_ensemble.prompts import FINDER_ANGLES, finder_system
 
     context = read_input(case, "context.md")
     # The angle rides in the expected block (case config the loader already
@@ -246,13 +246,13 @@ def _build_testgap_find(case: GoldCase) -> PromptSpec:
 
 
 def _build_testgap_skeptic(case: GoldCase) -> PromptSpec:
-    from agents.testing_ensemble.prompts import SKEPTIC_BASE, verify_user
+    from forge.testing_ensemble.prompts import SKEPTIC_BASE, verify_user
 
     context = read_input(case, "context.md")
     gap = _read_json(case, "gap.json")
 
     # Convert dict to model for verify_user which expects a model
-    from agents.testing_ensemble.models import TestGap
+    from forge.testing_ensemble.models import TestGap
 
     gap_model = TestGap.model_validate(gap)
     user = verify_user(context, gap_model.model_dump_json())

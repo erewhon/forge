@@ -7,7 +7,7 @@ consumers so ``full_quorum_signoff`` parses it unchanged.
 
 from __future__ import annotations
 
-from agents.dependabot.models import EvidenceBundle
+from forge.dependabot.models import EvidenceBundle
 
 SUPPLY_CHAIN_SIGNOFF = """You are a merge gatekeeper for an automated DEPENDENCY BUMP.
 

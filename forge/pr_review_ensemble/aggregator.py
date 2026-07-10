@@ -8,10 +8,10 @@ local model as break-glass) plus deterministic concatenation when every synthesi
 
 from __future__ import annotations
 
-from agents.pr_review_ensemble.config import settings
-from agents.pr_review_ensemble.prompts import AGGREGATOR_SYSTEM_PROMPT
-from agents.pr_review_ensemble.providers import ReviewerSlot, rotation_pool
-from agents.shared.ensemble import AggregateCombiner
+from forge.pr_review_ensemble.config import settings
+from forge.pr_review_ensemble.prompts import AGGREGATOR_SYSTEM_PROMPT
+from forge.pr_review_ensemble.providers import ReviewerSlot, rotation_pool
+from forge.shared.ensemble import AggregateCombiner
 
 
 def build_aggregator(

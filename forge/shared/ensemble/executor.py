@@ -12,8 +12,8 @@ import asyncio
 import time
 from typing import Protocol, runtime_checkable
 
-from agents.shared.ensemble.classify import classify
-from agents.shared.ensemble.models import ExecResult, ExecStatus, FailureClass, Prompt
+from forge.shared.ensemble.classify import classify
+from forge.shared.ensemble.models import ExecResult, ExecStatus, FailureClass, Prompt
 
 
 @runtime_checkable

@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from agents.coding_pipeline import architect as arch
-from agents.coding_pipeline.architect import (
+from forge.coding_pipeline import architect as arch
+from forge.coding_pipeline.architect import (
     ArchitectError,
     FramingExistsError,
     FramingNotApprovedError,
@@ -18,7 +18,7 @@ from agents.coding_pipeline.architect import (
     render_framing,
     require_approved_framing,
 )
-from agents.coding_pipeline.models import (
+from forge.coding_pipeline.models import (
     EscalateAction,
     FramingProposal,
     GoalSpec,
@@ -409,7 +409,7 @@ def test_llm_actions_on_escalated_leaves_are_dropped(monkeypatch):
 
 
 def test_replan_over_emission_cap_halts(monkeypatch):
-    from agents.shared.forge_emit import settings as emit_settings
+    from forge.shared.forge_emit import settings as emit_settings
 
     monkeypatch.setattr(emit_settings, "max_per_run", 1)
     _envelope(
@@ -440,7 +440,7 @@ def test_replan_prompt_enumerates_strict_leafspec_enums():
     # validated enum (task_type is the one that bit) — and must not label it a bare str.
     import typing
 
-    from agents.coding_pipeline.models import LeafSpec
+    from forge.coding_pipeline.models import LeafSpec
 
     for value in typing.get_args(LeafSpec.model_fields["task_type"].annotation):
         assert f'"{value}"' in arch.REPLAN_SYSTEM, f"task_type {value!r} missing from REPLAN_SYSTEM"

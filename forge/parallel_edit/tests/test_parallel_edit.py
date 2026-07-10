@@ -13,17 +13,17 @@ from pathlib import Path
 
 import pytest
 
-from agents.parallel_edit.config import settings
-from agents.parallel_edit.judge import (
+from forge.parallel_edit.config import settings
+from forge.parallel_edit.judge import (
     _extract_json,
     _legacy_verdict_to_best,
     _parse_verdict,
 )
-from agents.parallel_edit.main import _MAX_CANDIDATES, _parse_candidates, _parse_one_candidate
-from agents.parallel_edit.models import CandidateSpec
-from agents.parallel_edit.prompts import build_judge_system_prompt
-from agents.parallel_edit.runner import _opencode_host_state, _should_sandbox
-from agents.parallel_edit.workspaces import _diff_exclude_fileset
+from forge.parallel_edit.main import _MAX_CANDIDATES, _parse_candidates, _parse_one_candidate
+from forge.parallel_edit.models import CandidateSpec
+from forge.parallel_edit.prompts import build_judge_system_prompt
+from forge.parallel_edit.runner import _opencode_host_state, _should_sandbox
+from forge.parallel_edit.workspaces import _diff_exclude_fileset
 
 # --------------------------------------------------------------------------- candidate parsing
 

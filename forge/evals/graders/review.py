@@ -18,8 +18,8 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from agents.evals.models import GoldCase, GradeCheck, GradeResult
-from agents.shared.llm import extract_json
+from forge.evals.models import GoldCase, GradeCheck, GradeResult
+from forge.shared.llm import extract_json
 
 # ---------------------------------------------------------------------------
 # Wire model for review-confirm

@@ -5,12 +5,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agents.dependabot.bump import (
+from forge.dependabot.bump import (
     BumpError,
     apply_bump,
     lockfile_delta,
 )
-from agents.dependabot.models import BumpCandidate
+from forge.dependabot.models import BumpCandidate
 
 
 @pytest.fixture
@@ -29,7 +29,7 @@ class TestApplyBump:
         repo = Path("/fake/repo")
         with (
             patch("subprocess.run") as mock_run,
-            patch("agents.dependabot.bump.get_changed_files") as mock_changed,
+            patch("forge.dependabot.bump.get_changed_files") as mock_changed,
         ):
             mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
             mock_changed.return_value = ["uv.lock"]
@@ -50,7 +50,7 @@ class TestApplyBump:
         repo = Path("/fake/repo")
         with (
             patch("subprocess.run") as mock_run,
-            patch("agents.dependabot.bump.revert_changes") as mock_revert,
+            patch("forge.dependabot.bump.revert_changes") as mock_revert,
         ):
             mock_run.return_value = MagicMock(
                 returncode=1,
@@ -68,8 +68,8 @@ class TestApplyBump:
         repo = Path("/fake/repo")
         with (
             patch("subprocess.run") as mock_run,
-            patch("agents.dependabot.bump.get_changed_files") as mock_changed,
-            patch("agents.dependabot.bump.revert_changes") as mock_revert,
+            patch("forge.dependabot.bump.get_changed_files") as mock_changed,
+            patch("forge.dependabot.bump.revert_changes") as mock_revert,
         ):
             mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
             mock_changed.return_value = []
@@ -94,7 +94,7 @@ class TestLockfileDelta:
         """lockfile_delta extracts ``foo 1.0.0->1.0.1`` from a crafted uv.lock diff."""
         body = '-name = "foo"\n+name = "foo"\n-version = "1.0.0"\n+version = "1.0.1"\n'
         diff_text = self._make_diff(body)
-        with patch("agents.dependabot.bump.working_diff", return_value=diff_text):
+        with patch("forge.dependabot.bump.working_diff", return_value=diff_text):
             result = lockfile_delta(Path("/fake/repo"))
         assert result == ["foo 1.0.0->1.0.1"]
 
@@ -111,7 +111,7 @@ class TestLockfileDelta:
             '+version = "2.1.0"\n'
         )
         diff_text = self._make_diff(body)
-        with patch("agents.dependabot.bump.working_diff", return_value=diff_text):
+        with patch("forge.dependabot.bump.working_diff", return_value=diff_text):
             result = lockfile_delta(Path("/fake/repo"))
         assert result == ["foo 1.0.0->1.0.1", "bar 2.0.0->2.1.0"]
 
@@ -119,7 +119,7 @@ class TestLockfileDelta:
         """Only name lines, no version diff -> empty."""
         body = 'name = "foo"\n'
         diff_text = self._make_diff(body)
-        with patch("agents.dependabot.bump.working_diff", return_value=diff_text):
+        with patch("forge.dependabot.bump.working_diff", return_value=diff_text):
             result = lockfile_delta(Path("/fake/repo"))
         assert result == []
 
@@ -132,22 +132,22 @@ class TestLockfileDelta:
             "--- a/pyproject.toml\n+++ b/pyproject.toml\n@@ -1,0 +0,0 @@\n"
             ' name = "my-project"\n-version = "0.1.0"\n+version = "0.2.0"\n'
         )
-        with patch("agents.dependabot.bump.working_diff", return_value=diff_text):
+        with patch("forge.dependabot.bump.working_diff", return_value=diff_text):
             result = lockfile_delta(Path("/fake/repo"))
         assert result == ["foo 1.0.0->1.0.1"]  # pyproject's version change ignored
 
     def test_context_name_line_groups_versions(self):
         """Real bump diffs keep ``name = ...`` as an unchanged context line."""
         body = ' name = "foo"\n-version = "1.0.0"\n+version = "1.0.1"\n'
-        with patch("agents.dependabot.bump.working_diff", return_value=self._make_diff(body)):
+        with patch("forge.dependabot.bump.working_diff", return_value=self._make_diff(body)):
             result = lockfile_delta(Path("/fake/repo"))
         assert result == ["foo 1.0.0->1.0.1"]
 
     def test_vcsonerror_returns_empty(self):
         """VCS error -> best-effort empty list."""
-        from agents.task_worker.vcs import VCSError
+        from forge.task_worker.vcs import VCSError
 
-        with patch("agents.dependabot.bump.working_diff") as mock_diff:
+        with patch("forge.dependabot.bump.working_diff") as mock_diff:
             mock_diff.side_effect = VCSError("vcs error")
             result = lockfile_delta(Path("/fake/repo"))
         assert result == []

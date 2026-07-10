@@ -13,10 +13,10 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from agents.task_worker.models import TaskInfo
+from forge.task_worker.models import TaskInfo
 
 if TYPE_CHECKING:
-    from agents.task_worker.sandbox import Sandbox
+    from forge.task_worker.sandbox import Sandbox
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 # The refusal protocol is "print a line starting with BLOCKED: and STOP" — so a genuine refusal
@@ -117,7 +117,7 @@ def execute_task_with_opencode(
     way out (success or failure).
     """
     if sandbox is None:
-        from agents.task_worker.sandbox import make_sandbox
+        from forge.task_worker.sandbox import make_sandbox
 
         sandbox = make_sandbox(project_dir)
     spec_path = _write_spec(project_dir, task, spec)

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from agents.general_researcher.config import settings
-from agents.general_researcher.models import SprintContract, TopicConfig
-from agents.shared.llm import complete, extract_json
+from forge.general_researcher.config import settings
+from forge.general_researcher.models import SprintContract, TopicConfig
+from forge.shared.llm import complete, extract_json
 
 _SYSTEM_PROMPT = """\
 You are a research planner investigating a focused topic. Each sprint has \

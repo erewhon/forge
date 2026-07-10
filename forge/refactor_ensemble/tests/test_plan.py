@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from agents.refactor_ensemble import plan as plan_mod
-from agents.refactor_ensemble.models import CanonicalSmell, Verdict
-from agents.refactor_ensemble.plan import _vote, collect_code, render, run_refactor
-from agents.shared.panel import ItemVerdict, PanelResult
-from agents.shared.recipe import RecipeResult
+from forge.refactor_ensemble import plan as plan_mod
+from forge.refactor_ensemble.models import CanonicalSmell, Verdict
+from forge.refactor_ensemble.plan import _vote, collect_code, render, run_refactor
+from forge.shared.panel import ItemVerdict, PanelResult
+from forge.shared.recipe import RecipeResult
 
 
 class _Panel:

@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from agents.evals.models import Scorecard
+from forge.evals.models import Scorecard
 
 
 def render_scorecard(sc: Scorecard) -> str:

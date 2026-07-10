@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 import yaml
 
-from agents.book_researcher import main as main_mod
-from agents.book_researcher.models import BookConfig
-from agents.book_researcher.scaffold import (
+from forge.book_researcher import main as main_mod
+from forge.book_researcher.models import BookConfig
+from forge.book_researcher.scaffold import (
     BOOK_SKELETON,
     DEFAULT_FILENAME,
     resolve_target,

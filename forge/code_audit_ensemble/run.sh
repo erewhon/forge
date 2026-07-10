@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd /home/user/Projects/erewhon/meta
-exec uv run python -u -m agents.code_audit_ensemble.main "$@"
+cd "$(dirname "$0")/../.."
+exec uv run python -u -m forge.code_audit_ensemble.main "$@"

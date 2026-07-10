@@ -11,10 +11,10 @@ from __future__ import annotations
 
 import pytest
 
-from agents.shared import github_task_store as gh_store
-from agents.shared import task_store
-from agents.shared.forge_emit import EmitSpec
-from agents.shared.github_task_store import (
+from forge.shared import github_task_store as gh_store
+from forge.shared import task_store
+from forge.shared.forge_emit import EmitSpec
+from forge.shared.github_task_store import (
     _STATUS_TO_LABEL,
     GitHubTaskStore,
     _Issue,

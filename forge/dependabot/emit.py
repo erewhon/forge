@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from agents.dependabot.models import BumpCandidate, EvidenceBundle
-from agents.dependabot.prompts import render_evidence
-from agents.shared.forge_emit import EmitSpec, EmitSummary
-from agents.shared.task_store import get_task_store
+from forge.dependabot.models import BumpCandidate, EvidenceBundle
+from forge.dependabot.prompts import render_evidence
+from forge.shared.forge_emit import EmitSpec, EmitSummary
+from forge.shared.task_store import get_task_store
 
 
 def external_ref(candidate: BumpCandidate) -> str:

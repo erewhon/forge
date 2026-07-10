@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import re
 
-from agents.pr_review_ensemble.diffsplit import file_segments
-from agents.pr_review_ensemble.models import SupplyChainScan, SupplyChainSignal
+from forge.pr_review_ensemble.diffsplit import file_segments
+from forge.pr_review_ensemble.models import SupplyChainScan, SupplyChainSignal
 
 # Dependency manifests (a human-declared dependency edit) vs lockfiles (machine-resolved).
 _DEP_BASENAMES = {

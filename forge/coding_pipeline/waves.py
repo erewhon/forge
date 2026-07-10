@@ -19,7 +19,7 @@ the epic on purpose).
 
 from __future__ import annotations
 
-from agents.coding_pipeline.models import BlockedLeaf, LeafRow, WavePlan
+from forge.coding_pipeline.models import BlockedLeaf, LeafRow, WavePlan
 
 _AUTO_MODES = {"auto-ok", "auto-preferred"}
 
@@ -66,7 +66,7 @@ def fetch_feature_rows(project: str, feature: str) -> list[LeafRow]:
 
     Feature-scoped on purpose: SplitSubtreeAction parks a *feature's* subtree.
     The wave loop itself scopes by epic ref — see :func:`fetch_epic_rows`."""
-    from agents.shared.task_store import get_task_store
+    from forge.shared.task_store import get_task_store
 
     return get_task_store().list_rows(project, feature=feature)
 
@@ -77,7 +77,7 @@ def fetch_epic_rows(project: str, epic_slug: str, *, feature: str | None = None)
 
     Membership is the epic's ref prefix, applied on the store's normalized rows — the
     same rule as :func:`is_epic_row`, expressed against ``LeafRow.external_ref``."""
-    from agents.shared.task_store import get_task_store
+    from forge.shared.task_store import get_task_store
 
     prefix = epic_ref_prefix(epic_slug)
     return [

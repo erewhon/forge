@@ -14,11 +14,11 @@ import json
 
 import pytest
 
-from agents.evals.config import settings
-from agents.evals.fixtures import load_goldsets, read_input
-from agents.evals.graders.replan import grade
-from agents.evals.models import GoldCase
-from agents.evals.steps import ADAPTERS
+from forge.evals.config import settings
+from forge.evals.fixtures import load_goldsets, read_input
+from forge.evals.graders.replan import grade
+from forge.evals.models import GoldCase
+from forge.evals.steps import ADAPTERS
 
 # The sketch's decision families + the enum-stress regression set.
 EXPECTED_FAMILIES = (

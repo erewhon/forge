@@ -15,10 +15,10 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from agents.coding_pipeline.models import LeafSpec, TaskTree
-from agents.shared import forge_emit
-from agents.shared.automerge import log_decision, slugify
-from agents.shared.task_store import get_task_store
+from forge.coding_pipeline.models import LeafSpec, TaskTree
+from forge.shared import forge_emit
+from forge.shared.automerge import log_decision, slugify
+from forge.shared.task_store import get_task_store
 
 
 def stable_ref(

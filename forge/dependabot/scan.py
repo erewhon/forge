@@ -11,8 +11,8 @@ import re
 import subprocess
 from pathlib import Path
 
-from agents.dependabot.config import settings
-from agents.dependabot.models import BumpCandidate, DeltaClass
+from forge.dependabot.config import settings
+from forge.dependabot.models import BumpCandidate, DeltaClass
 
 
 class ScanError(RuntimeError):

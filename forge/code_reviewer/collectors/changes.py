@@ -3,8 +3,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from agents.code_reviewer.config import settings
-from agents.code_reviewer.models import RepoChanges
+from forge.code_reviewer.config import settings
+from forge.code_reviewer.models import RepoChanges
 
 
 def _run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:

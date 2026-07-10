@@ -21,8 +21,8 @@ import subprocess
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from agents.task_worker.config import settings
-from agents.task_worker.dx import check_dx_ready, dx_run
+from forge.task_worker.config import settings
+from forge.task_worker.dx import check_dx_ready, dx_run
 
 
 @runtime_checkable
@@ -73,7 +73,7 @@ class GaolDxSandbox:
         return dx_run(self.repo, guarded, timeout=timeout + self._HOST_GRACE_S)
 
     def run_tests(self) -> tuple[bool, str]:
-        from agents.task_worker import tester  # local import: tester uses make_sandbox
+        from forge.task_worker import tester  # local import: tester uses make_sandbox
 
         return tester.run_tests(self.repo, sandbox=self)
 
@@ -210,7 +210,7 @@ class GaolRunOnceSandbox:
         )
 
     def run_tests(self) -> tuple[bool, str]:
-        from agents.task_worker import tester  # local import: tester uses make_sandbox
+        from forge.task_worker import tester  # local import: tester uses make_sandbox
 
         return tester.run_tests(self.repo, sandbox=self)
 

@@ -9,10 +9,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from agents.coding_pipeline import vcs_epic as ve
-from agents.coding_pipeline.models import FramingProposal
-from agents.shared.ensemble import ExecResult, ExecStatus, FailureClass, Prompt
-from agents.shared.signoff import SeatVerdict, SignoffResult, SignoffSeat
+from forge.coding_pipeline import vcs_epic as ve
+from forge.coding_pipeline.models import FramingProposal
+from forge.shared.ensemble import ExecResult, ExecStatus, FailureClass, Prompt
+from forge.shared.signoff import SeatVerdict, SignoffResult, SignoffSeat
 
 
 def _git(repo: Path, *args: str) -> str:

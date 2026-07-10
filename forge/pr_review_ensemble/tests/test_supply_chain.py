@@ -5,12 +5,12 @@ from __future__ import annotations
 import asyncio
 import json
 
-from agents.pr_review_ensemble.logger import log_supply_chain
-from agents.pr_review_ensemble.prompts import SUPPLY_CHAIN_SYSTEM_PROMPT
-from agents.pr_review_ensemble.providers import ReviewerSlot
-from agents.pr_review_ensemble.renderer import render_supply_chain
-from agents.pr_review_ensemble.supply_chain import run_supply_chain_audit
-from agents.shared.ensemble import CombineResult, ExecResult, ExecStatus, Pool, Prompt
+from forge.pr_review_ensemble.logger import log_supply_chain
+from forge.pr_review_ensemble.prompts import SUPPLY_CHAIN_SYSTEM_PROMPT
+from forge.pr_review_ensemble.providers import ReviewerSlot
+from forge.pr_review_ensemble.renderer import render_supply_chain
+from forge.pr_review_ensemble.supply_chain import run_supply_chain_audit
+from forge.shared.ensemble import CombineResult, ExecResult, ExecStatus, Pool, Prompt
 
 
 def _file(path: str, added: list[str]) -> str:

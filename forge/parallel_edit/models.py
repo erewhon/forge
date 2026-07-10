@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from agents.shared.workspaces import DiffStat
+from forge.shared.workspaces import DiffStat
 
 EditStatus = Literal["ok", "no_changes", "timeout", "error"]
 CandidateKind = Literal["claude", "opencode"]

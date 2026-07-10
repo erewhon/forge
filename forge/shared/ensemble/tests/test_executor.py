@@ -10,8 +10,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from agents.shared.ensemble.executor import ApiExecutor
-from agents.shared.ensemble.models import Prompt
+from forge.shared.ensemble.executor import ApiExecutor
+from forge.shared.ensemble.models import Prompt
 
 
 class _Recorder:

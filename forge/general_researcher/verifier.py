@@ -14,15 +14,15 @@ from __future__ import annotations
 import math
 import statistics
 
-from agents.general_researcher.config import settings
-from agents.general_researcher.models import (
+from forge.general_researcher.config import settings
+from forge.general_researcher.models import (
     SprintContract,
     SprintFindings,
     TopicConfig,
     VerificationResult,
     VerificationScores,
 )
-from agents.shared.panel import build_lens_members, run_member_panel
+from forge.shared.panel import build_lens_members, run_member_panel
 
 _DIMENSIONS = (
     "source_diversity",

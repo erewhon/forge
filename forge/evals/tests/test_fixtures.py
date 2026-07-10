@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from agents.evals.fixtures import EvalFixtureError, load_goldsets, read_input
+from forge.evals.fixtures import EvalFixtureError, load_goldsets, read_input
 
 # -- helpers --
 

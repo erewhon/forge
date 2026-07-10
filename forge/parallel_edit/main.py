@@ -9,13 +9,13 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from agents.parallel_edit.config import settings
-from agents.parallel_edit.judge import judge_runs
-from agents.parallel_edit.logger import log_run
-from agents.parallel_edit.models import CandidateSpec, ParallelEditResult
-from agents.parallel_edit.renderer import render_markdown
-from agents.parallel_edit.runner import cleanup_runs_selective, run_all
-from agents.parallel_edit.workspaces import resolve_base_rev
+from forge.parallel_edit.config import settings
+from forge.parallel_edit.judge import judge_runs
+from forge.parallel_edit.logger import log_run
+from forge.parallel_edit.models import CandidateSpec, ParallelEditResult
+from forge.parallel_edit.renderer import render_markdown
+from forge.parallel_edit.runner import cleanup_runs_selective, run_all
+from forge.parallel_edit.workspaces import resolve_base_rev
 
 
 def _read_prompt(args: argparse.Namespace) -> str:

@@ -24,22 +24,22 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from agents.evals.config import settings
-from agents.evals.fixtures import load_goldsets, read_input
-from agents.evals.graders.decomposition import grade_boundedness, grade_decompose
-from agents.evals.graders.replan import grade as grade_replan
-from agents.evals.graders.review import grade_confirm, grade_findings
-from agents.evals.graders.testgap import grade_find, grade_skeptic
-from agents.evals.models import (
+from forge.evals.config import settings
+from forge.evals.fixtures import load_goldsets, read_input
+from forge.evals.graders.decomposition import grade_boundedness, grade_decompose
+from forge.evals.graders.replan import grade as grade_replan
+from forge.evals.graders.review import grade_confirm, grade_findings
+from forge.evals.graders.testgap import grade_find, grade_skeptic
+from forge.evals.models import (
     CaseScore,
     GoldCase,
     GradeResult,
     Scorecard,
     StepScore,
 )
-from agents.evals.steps import ADAPTERS, PromptSpec, build_confirm_user
-from agents.shared.ensemble import ApiExecutor, ExecResult, Executor, Pool, Prompt
-from agents.shared.llm import extract_json
+from forge.evals.steps import ADAPTERS, PromptSpec, build_confirm_user
+from forge.shared.ensemble import ApiExecutor, ExecResult, Executor, Pool, Prompt
+from forge.shared.llm import extract_json
 
 # ---------------------------------------------------------------------------
 # Grader registry: 7 step keys → grading functions
@@ -92,7 +92,7 @@ def _run_review_pipeline(
     ``confirm_findings`` (one vote per candidate; an unparseable or errored
     vote fails closed to not-real, like zero responders).
     """
-    from agents.coding_pipeline.verify import CONFIRM_SYSTEM, FindingsEnvelope, stable_slug
+    from forge.coding_pipeline.verify import CONFIRM_SYSTEM, FindingsEnvelope, stable_slug
 
     spec = ADAPTERS["review-findings"].build(case)
     finder_res = _call(pool, spec.system, spec.user, temp, timeout)

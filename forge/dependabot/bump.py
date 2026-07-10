@@ -15,9 +15,9 @@ import re
 import subprocess
 from pathlib import Path
 
-from agents.dependabot.models import BumpCandidate
-from agents.shared.automerge import working_diff
-from agents.task_worker.vcs import (
+from forge.dependabot.models import BumpCandidate
+from forge.shared.automerge import working_diff
+from forge.task_worker.vcs import (
     VCSError,
     get_changed_files,
     revert_changes,
@@ -37,11 +37,11 @@ def apply_bump(
     """Run ``uv lock --upgrade-package <name>`` and return the changed files.
 
     On success returns the list of files from
-    :func:`agents.task_worker.vcs.get_changed_files`.
+    :func:`forge.task_worker.vcs.get_changed_files`.
     Returns ``[]`` when the lock did not change.
 
     On non-zero exit from ``uv lock``, calls
-    :func:`agents.task_worker.vcs.revert_changes` once and raises
+    :func:`forge.task_worker.vcs.revert_changes` once and raises
     :class:`BumpError` carrying the stderr text.
     """
     result = subprocess.run(
@@ -63,7 +63,7 @@ def apply_bump(
 def lockfile_delta(repo: Path) -> list[str]:
     """Parse the working diff for ``uv.lock`` and extract version deltas.
 
-    Reads :func:`agents.shared.automerge.working_diff`, looks for ``uv.lock``
+    Reads :func:`forge.shared.automerge.working_diff`, looks for ``uv.lock``
     hunks, and extracts ``name old->new`` strings from removed and added
     ``version = "..."`` lines grouped by ``name = "..."``.
 

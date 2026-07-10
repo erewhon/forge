@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from agents.task_worker import linter
+from forge.task_worker import linter
 
 
 class FakeSandbox:

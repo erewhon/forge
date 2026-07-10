@@ -1,4 +1,4 @@
-"""Unit tests for agents.shared.workspaces — jj workspace lifecycle.
+"""Unit tests for forge.shared.workspaces — jj workspace lifecycle.
 
 Uses mocked subprocess.run for create/forget/resolve argv shapes.
 Real-tmp-repo test skipped when jj is unavailable.
@@ -12,8 +12,8 @@ from unittest.mock import patch
 
 import pytest
 
-from agents.shared import workspaces as ws_module
-from agents.shared.workspaces import (
+from forge.shared import workspaces as ws_module
+from forge.shared.workspaces import (
     DiffStat,
     JJError,
     _diff_exclude_fileset,
@@ -92,7 +92,7 @@ def test_resolve_base_rev_returns_commit_id(mock_subprocess):
 
 
 def test_resolve_base_rev_empty_raises():
-    with patch("agents.shared.workspaces.subprocess.run") as m:
+    with patch("forge.shared.workspaces.subprocess.run") as m:
         m.return_value = subprocess.CompletedProcess(["jj", "log"], returncode=0, stdout="")
         with pytest.raises(JJError, match="could not resolve"):
             resolve_base_rev(Path("/tmp/repo"))
@@ -137,7 +137,7 @@ def test_create_workspace(mock_subprocess):
 
 
 def test_create_workspace_existing_dest():
-    with patch("agents.shared.workspaces.subprocess.run"):
+    with patch("forge.shared.workspaces.subprocess.run"):
         with patch("pathlib.Path.exists", return_value=True):
             with pytest.raises(JJError, match="already exists"):
                 create_workspace(Path("/tmp/repo"), Path("/tmp/ws"), base_rev="abc")
@@ -217,7 +217,7 @@ def test_parse_diff_stat_last_nonempty_line():
 
 def test_collect_diff_calls_jj_once(mock_subprocess):
     dest = Path("/tmp/ws-A")
-    with patch("agents.shared.workspaces._run_jj") as run_jj:
+    with patch("forge.shared.workspaces._run_jj") as run_jj:
         run_jj.return_value = subprocess.CompletedProcess(
             ["jj", "diff"], returncode=0, stdout="diff content"
         )

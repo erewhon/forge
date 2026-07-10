@@ -1,4 +1,4 @@
-"""Tests for agents.evals.main — monkeypatched run_scorecard, tmp dirs."""
+"""Tests for forge.evals.main — monkeypatched run_scorecard, tmp dirs."""
 
 from __future__ import annotations
 
@@ -8,13 +8,13 @@ from unittest.mock import patch
 
 import pytest
 
-from agents.evals.config import settings
-from agents.evals.main import (
+from forge.evals.config import settings
+from forge.evals.main import (
     _cmd_baseline,
     _cmd_compare,
     _cmd_run,
 )
-from agents.evals.models import Scorecard
+from forge.evals.models import Scorecard
 
 # The module under test — we patch constants here at import time.
 _evals_main = None
@@ -24,7 +24,7 @@ _evals_main = None
 def _patch_paths(tmp_path: Path):
     """Point settings and baseline paths at tmp dirs."""
     global _evals_main
-    import agents.evals.main as _mod
+    import forge.evals.main as _mod
 
     _evals_main = _mod
     goldsets = tmp_path / "goldsets"
@@ -55,8 +55,8 @@ def test_run_writes_and_prints(mock_scorecard: Scorecard, tmp_path: Path):
     """run calls run_scorecard, writes scorecard files, prints markdown."""
     goldsets = settings.goldsets_dir
 
-    with patch("agents.evals.main.run_scorecard", return_value=mock_scorecard) as mock_run:
-        with patch("agents.evals.main.write_scorecard") as mock_write:
+    with patch("forge.evals.main.run_scorecard", return_value=mock_scorecard) as mock_run:
+        with patch("forge.evals.main.write_scorecard") as mock_write:
             mock_write.return_value = goldsets / "scorecard.json"
 
             captured = []
@@ -96,7 +96,7 @@ def test_baseline_refuses_overwrite_without_force(mock_scorecard: Scorecard, tmp
     def capture(*args, **kwargs):
         captured.append(" ".join(str(a) for a in args))
 
-    with patch("agents.evals.main.run_scorecard", return_value=mock_scorecard):
+    with patch("forge.evals.main.run_scorecard", return_value=mock_scorecard):
         with patch("builtins.print", capture):
             rc = _cmd_baseline(["--model", "test-model", "--goldsets", str(goldsets)])
 
@@ -116,7 +116,7 @@ def test_baseline_overwrites_with_force(mock_scorecard: Scorecard, tmp_path: Pat
     baseline_file.parent.mkdir(parents=True, exist_ok=True)
     baseline_file.write_text("{}", encoding="utf-8")
 
-    with patch("agents.evals.main.run_scorecard", return_value=mock_scorecard) as mock_run:
+    with patch("forge.evals.main.run_scorecard", return_value=mock_scorecard) as mock_run:
         captured = []
 
         def capture(*args, **kwargs):
@@ -143,7 +143,7 @@ def test_baseline_creates_baselines_dir(mock_scorecard: Scorecard, tmp_path: Pat
     baseline_file = _evals_main._baseline_file("test-model")
     assert not baseline_file.parent.exists()
 
-    with patch("agents.evals.main.run_scorecard", return_value=mock_scorecard):
+    with patch("forge.evals.main.run_scorecard", return_value=mock_scorecard):
         with patch("builtins.print"):
             rc = _cmd_baseline(["--model", "test-model", "--goldsets", str(goldsets)])
 
@@ -159,7 +159,7 @@ def test_baselines_are_per_model(mock_scorecard: Scorecard, tmp_path: Path):
     other.parent.mkdir(parents=True, exist_ok=True)
     other.write_text("{}", encoding="utf-8")
 
-    with patch("agents.evals.main.run_scorecard", return_value=mock_scorecard):
+    with patch("forge.evals.main.run_scorecard", return_value=mock_scorecard):
         with patch("builtins.print"):
             rc = _cmd_baseline(["--model", "test-model", "--goldsets", str(goldsets)])
 
@@ -199,7 +199,7 @@ def test_compare_renders_deltas_with_one_step(tmp_path: Path):
     """Compare renders per-step deltas with REAL StepScore objects on both
     sides — the both-present branch once crashed on attribute-vs-dict access,
     and the baseline JSON does not carry the computed rate fields at all."""
-    from agents.evals.models import CaseScore, GradeResult, StepScore
+    from forge.evals.models import CaseScore, GradeResult, StepScore
 
     def step_score(passed: bool) -> StepScore:
         return StepScore(
@@ -241,7 +241,7 @@ def test_compare_renders_deltas_with_one_step(tmp_path: Path):
     def capture(*args, **kwargs):
         captured.append(" ".join(str(a) for a in args))
 
-    with patch("agents.evals.main.run_scorecard", return_value=fresh):
+    with patch("forge.evals.main.run_scorecard", return_value=fresh):
         with patch("builtins.print", capture):
             rc = _cmd_compare(["--model", "test-model", "--goldsets", str(goldsets)])
 
@@ -255,7 +255,7 @@ def test_compare_renders_deltas_with_one_step(tmp_path: Path):
 
 def test_compare_flags_holdout_regression(tmp_path: Path):
     """A holdout drop is flagged explicitly — the load-bearing gate."""
-    from agents.evals.models import CaseScore, GradeResult, StepScore
+    from forge.evals.models import CaseScore, GradeResult, StepScore
 
     def step_score(passed: bool) -> StepScore:
         return StepScore(
@@ -299,7 +299,7 @@ def test_compare_flags_holdout_regression(tmp_path: Path):
     def capture(*args, **kwargs):
         captured.append(" ".join(str(a) for a in args))
 
-    with patch("agents.evals.main.run_scorecard", return_value=fresh):
+    with patch("forge.evals.main.run_scorecard", return_value=fresh):
         with patch("builtins.print", capture):
             rc = _cmd_compare(["--model", "test-model", "--goldsets", str(goldsets)])
 
@@ -363,19 +363,19 @@ def test_unknown_step_baseline(mock_scorecard: Scorecard, tmp_path: Path):
 
 def test_registry_resolves_evals():
     """REGISTRY contains an 'evals' entry."""
-    from agents.registry import REGISTRY
+    from forge.registry import REGISTRY
 
     names = [cmd.name for cmd in REGISTRY]
     assert "evals" in names
 
     evals_cmd = next(cmd for cmd in REGISTRY if cmd.name == "evals")
-    assert evals_cmd.module == "agents.evals.main"
+    assert evals_cmd.module == "forge.evals.main"
     assert evals_cmd.exposes_mcp is False
 
 
 def test_registry_load_main_imports(tmp_path: Path):
     """AgentCommand.load_main() for evals returns a callable."""
-    from agents.registry import REGISTRY
+    from forge.registry import REGISTRY
 
     evals_cmd = next(cmd for cmd in REGISTRY if cmd.name == "evals")
     main_func = evals_cmd.load_main()

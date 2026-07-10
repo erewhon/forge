@@ -6,10 +6,10 @@ from unittest.mock import patch
 
 import pytest
 
-from agents.dependabot import autobump as ab
-from agents.dependabot.models import AuditFinding, BumpCandidate, EvidenceBundle
-from agents.shared.automerge import ManifestOnlyVerdict, PushResult
-from agents.shared.signoff import SignoffResult
+from forge.dependabot import autobump as ab
+from forge.dependabot.models import AuditFinding, BumpCandidate, EvidenceBundle
+from forge.shared.automerge import ManifestOnlyVerdict, PushResult
+from forge.shared.signoff import SignoffResult
 
 
 def _candidate(delta: str = "minor") -> BumpCandidate:
@@ -197,11 +197,11 @@ def test_dry_run_stops_after_selection(loop, tmp_path):
 def test_dirty_working_copy_refuses_to_run(loop, tmp_path):
     """push_branch commits the WHOLE working copy — running over uncommitted work would scoop
     it into the bump branch (the incident that added this guard)."""
-    loop["get_changed_files"].return_value = ["agents/dependabot/main.py"]
+    loop["get_changed_files"].return_value = ["forge/dependabot/main.py"]
     result = ab.auto_bump(tmp_path, log=lambda m: None)
     assert result.status == "error"
     assert "not clean" in result.reason
-    assert "agents/dependabot/main.py" in result.reason
+    assert "forge/dependabot/main.py" in result.reason
     loop["apply_bump"].assert_not_called()
     loop["push_branch"].assert_not_called()
 
@@ -222,7 +222,7 @@ def test_no_vcs_is_an_error(loop, tmp_path):
 def test_advisory_push_failure_also_reparks(loop, tmp_path):
     """The advisory path's push can fail after its commit landed (live finding: sandboxed ssh)
     — the cleanup must repark so the bump commit doesn't become the mainline's parent."""
-    from agents.task_worker.vcs import VCSError
+    from forge.task_worker.vcs import VCSError
 
     loop["collect_evidence"].side_effect = lambda c, f, d: _evidence(c, complete=False)
     loop["push_branch"].side_effect = VCSError("ssh exploded")
@@ -235,7 +235,7 @@ def test_advisory_push_failure_also_reparks(loop, tmp_path):
 def test_vcs_failure_after_gates_is_fail_closed_error(loop, tmp_path):
     """The post-gate VCS action can still fail (live finding: stale sideways bookmark).
     That must be a logged error result with cleanup — never a traceback, never a half-merge."""
-    from agents.task_worker.vcs import VCSError
+    from forge.task_worker.vcs import VCSError
 
     loop["push_branch"].side_effect = VCSError("refusing to move bookmark sideways")
     result = ab.auto_bump(tmp_path, auto_merge=True, log=lambda m: None)

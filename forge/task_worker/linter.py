@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from agents.task_worker.sandbox import Sandbox
+    from forge.task_worker.sandbox import Sandbox
 
 _LINT_TIMEOUT = 120
 _OUTPUT_TAIL = 1000
@@ -95,7 +95,7 @@ def run_lint(
         return True, "no linter configured (no ruff in pyproject)", False
 
     if sandbox is None:
-        from agents.task_worker.sandbox import make_sandbox
+        from forge.task_worker.sandbox import make_sandbox
 
         sandbox = make_sandbox(repo_path)
 

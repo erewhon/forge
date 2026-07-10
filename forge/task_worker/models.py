@@ -49,7 +49,7 @@ class RunOutcome(BaseModel):
       copy, or a dry-run that executed and then reverted).
 
     The coding pipeline's dispatcher maps this into its own journal record; this package stays a
-    lower layer and never imports ``agents.coding_pipeline``.
+    lower layer and never imports ``forge.coding_pipeline``.
     """
 
     task: str

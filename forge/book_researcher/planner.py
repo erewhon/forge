@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from agents.book_researcher.config import settings
-from agents.book_researcher.models import BookConfig, SprintContract
-from agents.shared.llm import complete, extract_json
+from forge.book_researcher.config import settings
+from forge.book_researcher.models import BookConfig, SprintContract
+from forge.shared.llm import complete, extract_json
 
 _SYSTEM_PROMPT = """\
 You are a research planner for a non-fiction book. Given the book outline and \

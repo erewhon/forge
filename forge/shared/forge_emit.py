@@ -4,7 +4,7 @@ Turns an agent's confirmed findings into Project Tasks in a Forge project, reusi
 ``nous_mcp``'s own task-creation path — the same logic behind the ``create_task`` MCP
 tool: a page in the project folder plus a Project Tasks DB row with the standard
 properties. We capture that closure with a stand-in ``mcp`` rather than re-implementing
-page+row creation over raw HTTP (the prior art is ``agents/task_worker/nous_client.py``,
+page+row creation over raw HTTP (the prior art is ``forge/task_worker/nous_client.py``,
 which delegates writes to ``nous_mcp`` the same way).
 
 Idempotency is by a stable ``external_ref`` the caller supplies: re-running an agent

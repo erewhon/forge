@@ -1,4 +1,4 @@
-"""Thin shim re-exporting agents.shared.workspaces with parallel_edit settings defaults.
+"""Thin shim re-exporting forge.shared.workspaces with parallel_edit settings defaults.
 
 Existing imports from this module must continue to work unchanged.
 """
@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agents.parallel_edit.config import settings
-from agents.shared.workspaces import (
+from forge.parallel_edit.config import settings
+from forge.shared.workspaces import (
     DiffStat,
     JJError,
     _diff_exclude_fileset,
@@ -19,7 +19,7 @@ from agents.shared.workspaces import (
     forget_workspace,
     resolve_base_rev,
 )
-from agents.shared.workspaces import (
+from forge.shared.workspaces import (
     workspace_destination as _shared_workspace_destination,
 )
 

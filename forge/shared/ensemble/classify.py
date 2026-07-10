@@ -8,7 +8,7 @@ duck-typing on status codes and class names, so it works across providers.
 
 from __future__ import annotations
 
-from agents.shared.ensemble.models import FailureClass
+from forge.shared.ensemble.models import FailureClass
 
 _TERMINAL_STATUS = {400, 401, 403, 404}
 _TERMINAL_NAME_HINTS = ("authentication", "notfound", "permission", "forbidden", "badrequest")

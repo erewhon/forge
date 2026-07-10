@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agents.pr_review_ensemble.diffscan import scan_supply_chain
+from forge.pr_review_ensemble.diffscan import scan_supply_chain
 
 
 def _file(path: str, added: list[str]) -> str:

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from agents.shared.panel import ItemVerdict, PanelResult
-from agents.shared.recipe import RecipeResult
-from agents.testing_ensemble import review as review_mod
-from agents.testing_ensemble.models import CanonicalGap, Verdict
-from agents.testing_ensemble.review import _vote, collect_context, render, run_review
+from forge.shared.panel import ItemVerdict, PanelResult
+from forge.shared.recipe import RecipeResult
+from forge.testing_ensemble import review as review_mod
+from forge.testing_ensemble.models import CanonicalGap, Verdict
+from forge.testing_ensemble.review import _vote, collect_context, render, run_review
 
 
 class _Panel:

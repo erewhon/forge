@@ -1,7 +1,7 @@
 """Reviewer slots: each provider reduced to a shared-harness Pool of one ApiExecutor.
 
 The MVP hand-rolled three async provider calls plus timeout/error capture; that is exactly what
-``agents.shared.ensemble`` now provides. Each provider becomes a single-executor ``Pool`` (so a
+``forge.shared.ensemble`` now provides. Each provider becomes a single-executor ``Pool`` (so a
 slot can gain backup executors later without touching the runner), and the runner fans out across
 them. A disabled or unconfigured provider becomes a ``SkipExecutor`` slot: it counts as an
 attempted-but-never-ok member (preserving the MVP's quorum accounting) without making a doomed
@@ -12,9 +12,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from agents.pr_review_ensemble.config import settings
-from agents.pr_review_ensemble.models import ProviderName
-from agents.shared.ensemble import (
+from forge.pr_review_ensemble.config import settings
+from forge.pr_review_ensemble.models import ProviderName
+from forge.shared.ensemble import (
     ApiExecutor,
     ExecResult,
     ExecStatus,

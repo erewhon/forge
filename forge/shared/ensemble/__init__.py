@@ -7,10 +7,10 @@ Pool failover, fanout-to-quorum, and Combiner with a deterministic fallback. Con
 
 from __future__ import annotations
 
-from agents.shared.ensemble.classify import classify
-from agents.shared.ensemble.combiner import AggregateCombiner, Combiner, CombineResult
-from agents.shared.ensemble.executor import ApiExecutor, Executor
-from agents.shared.ensemble.models import (
+from forge.shared.ensemble.classify import classify
+from forge.shared.ensemble.combiner import AggregateCombiner, Combiner, CombineResult
+from forge.shared.ensemble.executor import ApiExecutor, Executor
+from forge.shared.ensemble.models import (
     ExecResult,
     ExecStatus,
     FailureClass,
@@ -18,7 +18,7 @@ from agents.shared.ensemble.models import (
     Prompt,
     QuorumState,
 )
-from agents.shared.ensemble.pool import Pool, fanout, map_items
+from forge.shared.ensemble.pool import Pool, fanout, map_items
 
 __all__ = [
     "AggregateCombiner",

@@ -21,16 +21,16 @@ from unittest.mock import MagicMock
 import pytest
 import yaml
 
-from agents.evals.models import (
+from forge.evals.models import (
     CaseScore,
     GoldCase,
     GradeResult,
     Scorecard,
     StepScore,
 )
-from agents.evals.report import render_scorecard, write_scorecard
-from agents.evals.runner import run_scorecard
-from agents.shared.ensemble import ExecResult, ExecStatus, Executor, Prompt
+from forge.evals.report import render_scorecard, write_scorecard
+from forge.evals.runner import run_scorecard
+from forge.shared.ensemble import ExecResult, ExecStatus, Executor, Prompt
 
 # ---------------------------------------------------------------------------
 # Fake executor factory

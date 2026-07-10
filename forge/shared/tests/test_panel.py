@@ -6,8 +6,8 @@ import json
 
 from pydantic import BaseModel
 
-from agents.shared.ensemble import ExecResult, ExecStatus, FailureClass, Pool, Prompt
-from agents.shared.panel import (
+from forge.shared.ensemble import ExecResult, ExecStatus, FailureClass, Pool, Prompt
+from forge.shared.panel import (
     Finder,
     PanelMember,
     build_lens_members,

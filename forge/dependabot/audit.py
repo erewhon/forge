@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from agents.dependabot.models import AuditFinding
+from forge.dependabot.models import AuditFinding
 
 
 class AuditError(Exception):

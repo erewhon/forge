@@ -3,7 +3,7 @@
 Only ``report.confirmed`` findings become tasks — never tentative or rejected ones. Each task
 carries the scenario, suggested fix, and the skeptic panel's reasoning so the human reviewer
 sees the verification before approving. The generic create + dedup + cap lives in
-``agents/shared/forge_emit.py``; this module supplies the bug-specific title, body, and the stable
+``forge/shared/forge_emit.py``; this module supplies the bug-specific title, body, and the stable
 ``external_ref``.
 
 Idempotency caveat: unlike the refactor/testing ensembles (whose finders emit a categorical
@@ -18,9 +18,9 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 
-from agents.code_audit_ensemble.models import SEVERITY_RANK, AuditReport, ScoredFinding
-from agents.shared.forge_emit import EmitSpec, EmitSummary
-from agents.shared.task_store import get_task_store
+from forge.code_audit_ensemble.models import SEVERITY_RANK, AuditReport, ScoredFinding
+from forge.shared.forge_emit import EmitSpec, EmitSummary
+from forge.shared.task_store import get_task_store
 
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
 

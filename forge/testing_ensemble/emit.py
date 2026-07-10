@@ -3,7 +3,7 @@
 Only ``report.confirmed`` gaps become tasks — never tentative or rejected ones. Each task
 carries the suggested test, why it matters, and the skeptic panel's reasoning so the human
 reviewer sees the verification before approving. The generic create + dedup + cap lives in
-``agents/shared/forge_emit.py``; this module supplies the test-specific title, body, and the
+``forge/shared/forge_emit.py``; this module supplies the test-specific title, body, and the
 stable ``external_ref``.
 """
 
@@ -12,9 +12,9 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 
-from agents.shared.forge_emit import EmitSpec, EmitSummary
-from agents.shared.task_store import get_task_store
-from agents.testing_ensemble.models import SEVERITY_RANK, ScoredGap, TestReport
+from forge.shared.forge_emit import EmitSpec, EmitSummary
+from forge.shared.task_store import get_task_store
+from forge.testing_ensemble.models import SEVERITY_RANK, ScoredGap, TestReport
 
 
 def _norm(text: str) -> str:

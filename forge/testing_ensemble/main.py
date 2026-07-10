@@ -6,13 +6,13 @@ import argparse
 import sys
 from pathlib import Path
 
-from agents.testing_ensemble.review import render, run_review
+from forge.testing_ensemble.review import render, run_review
 
 
 def _run_auto(args: argparse.Namespace) -> int:
     """`meta testing --auto ...` — the generate → gate → push/merge loop."""
-    from agents.shared.automerge import find_repo_root
-    from agents.testing_ensemble.autotest import auto_test, render_auto
+    from forge.shared.automerge import find_repo_root
+    from forge.testing_ensemble.autotest import auto_test, render_auto
 
     if args.repo:
         repo_path = Path(args.repo).expanduser().resolve()
@@ -143,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if args.emit_tasks:
-        from agents.testing_ensemble.emit import emit_report
+        from forge.testing_ensemble.emit import emit_report
 
         try:
             summary = emit_report(

@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from agents.shared import forge_emit
-from agents.shared.forge_emit import EmitSpec, emit_task, emit_tasks
+from forge.shared import forge_emit
+from forge.shared.forge_emit import EmitSpec, emit_task, emit_tasks
 
 
 @pytest.fixture

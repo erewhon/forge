@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import date
 
-from agents.dependabot import release
-from agents.dependabot.models import AuditFinding, BumpCandidate, EvidenceBundle
-from agents.dependabot.release import render_release_proposal, should_propose_release
+from forge.dependabot import release
+from forge.dependabot.models import AuditFinding, BumpCandidate, EvidenceBundle
+from forge.dependabot.release import render_release_proposal, should_propose_release
 
 
 def _evidence(current=None, target=None) -> EvidenceBundle:

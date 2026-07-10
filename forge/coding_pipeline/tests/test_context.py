@@ -14,9 +14,9 @@ import subprocess
 
 import pytest
 
-from agents.coding_pipeline import context as ctx
-from agents.coding_pipeline.models import LeafRow
-from agents.task_worker.models import TaskInfo
+from forge.coding_pipeline import context as ctx
+from forge.coding_pipeline.models import LeafRow
+from forge.task_worker.models import TaskInfo
 
 # --- fixtures ---------------------------------------------------------------------
 

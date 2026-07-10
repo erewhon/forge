@@ -12,8 +12,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agents.code_audit_ensemble.config import settings
-from agents.code_audit_ensemble.models import (
+from forge.code_audit_ensemble.config import settings
+from forge.code_audit_ensemble.models import (
     SEVERITY_RANK,
     AuditReport,
     CanonicalEnvelope,
@@ -23,7 +23,7 @@ from agents.code_audit_ensemble.models import (
     ScoredFinding,
     Verdict,
 )
-from agents.code_audit_ensemble.prompts import (
+from forge.code_audit_ensemble.prompts import (
     DEDUP_SYSTEM,
     FINDER_ANGLES,
     SKEPTIC_BASE,
@@ -32,9 +32,9 @@ from agents.code_audit_ensemble.prompts import (
     finder_system,
     verify_user,
 )
-from agents.shared.ensemble import ApiExecutor, Pool
-from agents.shared.panel import Finder, PanelResult, build_lens_members
-from agents.shared.recipe import discover_dedup_verify
+from forge.shared.ensemble import ApiExecutor, Pool
+from forge.shared.panel import Finder, PanelResult, build_lens_members
+from forge.shared.recipe import discover_dedup_verify
 
 _CODE_EXTS = {
     ".py",

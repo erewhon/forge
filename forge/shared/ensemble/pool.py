@@ -12,8 +12,8 @@ import asyncio
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 
-from agents.shared.ensemble.executor import Executor
-from agents.shared.ensemble.models import (
+from forge.shared.ensemble.executor import Executor
+from forge.shared.ensemble.models import (
     ExecResult,
     ExecStatus,
     FailureClass,

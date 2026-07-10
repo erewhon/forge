@@ -12,7 +12,7 @@ import asyncio
 
 import pytest
 
-from agents.pr_review_ensemble import main
+from forge.pr_review_ensemble import main
 
 
 def _args(**overrides) -> argparse.Namespace:

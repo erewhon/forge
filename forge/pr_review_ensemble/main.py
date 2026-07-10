@@ -8,11 +8,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from agents.pr_review_ensemble.digest import run_digest
-from agents.pr_review_ensemble.logger import log_digest, log_run, log_supply_chain
-from agents.pr_review_ensemble.renderer import render_digest, render_markdown, render_supply_chain
-from agents.pr_review_ensemble.runner import run_ensemble
-from agents.pr_review_ensemble.supply_chain import run_supply_chain_audit
+from forge.pr_review_ensemble.digest import run_digest
+from forge.pr_review_ensemble.logger import log_digest, log_run, log_supply_chain
+from forge.pr_review_ensemble.renderer import render_digest, render_markdown, render_supply_chain
+from forge.pr_review_ensemble.runner import run_ensemble
+from forge.pr_review_ensemble.supply_chain import run_supply_chain_audit
 
 
 def _gh(args: list[str]) -> str:

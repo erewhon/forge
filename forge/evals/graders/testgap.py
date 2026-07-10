@@ -21,9 +21,9 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from agents.evals.models import GoldCase, GradeCheck, GradeResult
-from agents.evals.steps import GapsEnvelope, SkepticVerdict, TestGapItem
-from agents.shared.llm import extract_json
+from forge.evals.models import GoldCase, GradeCheck, GradeResult
+from forge.evals.steps import GapsEnvelope, SkepticVerdict, TestGapItem
+from forge.shared.llm import extract_json
 
 # ---------------------------------------------------------------------------
 # Severity ordering helpers

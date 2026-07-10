@@ -18,11 +18,11 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
-from agents.coding_pipeline.config import settings
-from agents.coding_pipeline.models import FramingProposal
-from agents.shared.ensemble import Pool, Prompt, map_items
-from agents.shared.signoff import SignoffResult, SignoffSeat, full_quorum_signoff
-from agents.task_worker.vcs import VCSError, detect_vcs
+from forge.coding_pipeline.config import settings
+from forge.coding_pipeline.models import FramingProposal
+from forge.shared.ensemble import Pool, Prompt, map_items
+from forge.shared.signoff import SignoffResult, SignoffSeat, full_quorum_signoff
+from forge.task_worker.vcs import VCSError, detect_vcs
 
 _TIMEOUT = 30
 
@@ -160,7 +160,7 @@ def epic_diff(repo: Path, epic_slug: str, *, main: str = "main") -> str:
 
 
 def _default_seats() -> list[SignoffSeat]:
-    from agents.pr_review_ensemble.providers import build_reviewer_slots
+    from forge.pr_review_ensemble.providers import build_reviewer_slots
 
     return [
         SignoffSeat(provider=slot.provider, executor=slot.pool.executors[0])
@@ -195,7 +195,7 @@ def _map_reduce_gate(
     slice (failover pool over the seat executors, bounded concurrency) → full-quorum verdict
     over the slice summaries. A gate must never judge code it hasn't seen, so a failed slice
     summary or an over-cap split fails closed — no silent truncation."""
-    from agents.pr_review_ensemble.diffsplit import split_diff
+    from forge.pr_review_ensemble.diffsplit import split_diff
 
     chunks = split_diff(diff, chunk_chars=settings.epic_gate_chunk_chars)
     strategy = f"map-reduce over {len(chunks)} slice(s) (diff {len(diff)} chars)"

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agents.dependabot.audit import (
+from forge.dependabot.audit import (
     AuditError,
     _filter_auditable,
     _normalize_name,
@@ -15,7 +15,7 @@ from agents.dependabot.audit import (
     findings_for,
     run_audit,
 )
-from agents.dependabot.models import AuditFinding
+from forge.dependabot.models import AuditFinding
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 

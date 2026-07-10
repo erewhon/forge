@@ -1,6 +1,6 @@
 """Editor.js block builder helpers."""
 
-from agents.shared.models.nous import EditorJsBlock
+from forge.shared.models.nous import EditorJsBlock
 
 
 def header(text: str, level: int = 2) -> EditorJsBlock:

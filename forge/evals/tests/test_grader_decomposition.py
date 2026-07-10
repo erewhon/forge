@@ -30,12 +30,12 @@ from pathlib import Path
 
 import pytest
 
-from agents.evals.fixtures import EvalFixtureError
-from agents.evals.graders.decomposition import (
+from forge.evals.fixtures import EvalFixtureError
+from forge.evals.graders.decomposition import (
     grade_boundedness,
     grade_decompose,
 )
-from agents.evals.models import GoldCase
+from forge.evals.models import GoldCase
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -656,7 +656,7 @@ def test_boundedness_score_passed_over_total():
 
 def test_grade_result_shape_decompose():
     """GradeResult from decompose has all required fields."""
-    from agents.evals.models import GradeCheck, GradeResult
+    from forge.evals.models import GradeCheck, GradeResult
 
     case = _make_gold_case()
     result = grade_decompose(case, "garbage")
@@ -671,7 +671,7 @@ def test_grade_result_shape_decompose():
 
 def test_grade_result_shape_boundedness():
     """GradeResult from boundedness has all required fields."""
-    from agents.evals.models import GradeCheck, GradeResult
+    from forge.evals.models import GradeCheck, GradeResult
 
     case, raw = _make_boundedness_case()
     result = grade_boundedness(case, raw)

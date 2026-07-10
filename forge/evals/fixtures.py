@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from agents.evals.models import GoldCase
+from forge.evals.models import GoldCase
 
 SUPPORTED_SCHEMA_VERSION = 1
 

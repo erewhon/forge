@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agents.parallel_edit.config import settings
-from agents.parallel_edit.models import ParallelEditResult
+from forge.parallel_edit.config import settings
+from forge.parallel_edit.models import ParallelEditResult
 
 
 def log_run(result: ParallelEditResult, *, log_path: Path | None = None) -> Path:

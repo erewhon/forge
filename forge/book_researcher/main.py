@@ -7,13 +7,13 @@ from pathlib import Path
 
 import yaml
 
-from agents.book_researcher.config import settings
-from agents.book_researcher.models import BookConfig, SprintFindings
-from agents.book_researcher.planner import create_sprint
-from agents.book_researcher.renderer import render_knowledge_summary, render_verification
-from agents.book_researcher.researcher import execute_sprint
-from agents.book_researcher.scaffold import DEFAULT_FILENAME, write_skeleton
-from agents.book_researcher.verifier import verify_sprint
+from forge.book_researcher.config import settings
+from forge.book_researcher.models import BookConfig, SprintFindings
+from forge.book_researcher.planner import create_sprint
+from forge.book_researcher.renderer import render_knowledge_summary, render_verification
+from forge.book_researcher.researcher import execute_sprint
+from forge.book_researcher.scaffold import DEFAULT_FILENAME, write_skeleton
+from forge.book_researcher.verifier import verify_sprint
 
 
 def _load_book_config(config_path: str) -> BookConfig:

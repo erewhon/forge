@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from agents.code_audit_ensemble.audit import render, run_audit
+from forge.code_audit_ensemble.audit import render, run_audit
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -66,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if args.emit_tasks:
-        from agents.code_audit_ensemble.emit import emit_report
+        from forge.code_audit_ensemble.emit import emit_report
 
         try:
             summary = emit_report(

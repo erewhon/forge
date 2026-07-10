@@ -7,8 +7,8 @@
 Fail-closed is inherited from the testing loop: the loop can END at advisory (branch pushed,
 task filed, nothing merged) but a gate miss can never fall THROUGH to a merge. One bump per
 branch, one candidate per run — the v1 policy from the approved framing. The manifest-only
-classifier, VCS actions, and decision log live in ``agents.shared.automerge``; the full-quorum
-sign-off in ``agents.shared.signoff``, seated from pr_review's cross-family roster.
+classifier, VCS actions, and decision log live in ``forge.shared.automerge``; the full-quorum
+sign-off in ``forge.shared.signoff``, seated from pr_review's cross-family roster.
 """
 
 from __future__ import annotations
@@ -17,20 +17,20 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
-from agents.dependabot.audit import run_audit
-from agents.dependabot.bump import apply_bump, lockfile_delta
-from agents.dependabot.config import settings
-from agents.dependabot.emit import emit_advisory
-from agents.dependabot.models import (
+from forge.dependabot.audit import run_audit
+from forge.dependabot.bump import apply_bump, lockfile_delta
+from forge.dependabot.config import settings
+from forge.dependabot.emit import emit_advisory
+from forge.dependabot.models import (
     BumpCandidate,
     BumpResult,
     EvidenceBundle,
 )
-from agents.dependabot.policy import auto_eligible
-from agents.dependabot.prompts import SUPPLY_CHAIN_SIGNOFF, render_evidence
-from agents.dependabot.scan import scan_outdated
-from agents.dependabot.supply_chain import collect_evidence
-from agents.shared.automerge import (
+from forge.dependabot.policy import auto_eligible
+from forge.dependabot.prompts import SUPPLY_CHAIN_SIGNOFF, render_evidence
+from forge.dependabot.scan import scan_outdated
+from forge.dependabot.supply_chain import collect_evidence
+from forge.shared.automerge import (
     advance_main,
     classify_manifest_only,
     log_decision,
@@ -40,14 +40,14 @@ from agents.shared.automerge import (
     working_copy_base,
     working_diff,
 )
-from agents.shared.signoff import SignoffResult, SignoffSeat, full_quorum_signoff
-from agents.task_worker.tester import run_tests
-from agents.task_worker.vcs import VCSError, detect_vcs, get_changed_files, revert_changes
+from forge.shared.signoff import SignoffResult, SignoffSeat, full_quorum_signoff
+from forge.task_worker.tester import run_tests
+from forge.task_worker.vcs import VCSError, detect_vcs, get_changed_files, revert_changes
 
 
 def _signoff(diff_text: str, *, pr_ref: str, context: str) -> SignoffResult:
     """Seat the shared full-quorum gate from pr_review's active provider roster."""
-    from agents.pr_review_ensemble.providers import build_reviewer_slots
+    from forge.pr_review_ensemble.providers import build_reviewer_slots
 
     seats = [
         SignoffSeat(provider=s.provider, executor=s.pool.executors[0])
@@ -297,7 +297,7 @@ def _log(
 def render_bump(result: BumpResult) -> str:
     """One-screen human summary of a bumper run. A merged security fix appends the human-gated
     release proposal (rendered commands only — the bumper never cuts releases)."""
-    from agents.dependabot.release import render_release_proposal, should_propose_release
+    from forge.dependabot.release import render_release_proposal, should_propose_release
 
     lines = [f"# meta deps — {result.status}"]
     if result.reason:

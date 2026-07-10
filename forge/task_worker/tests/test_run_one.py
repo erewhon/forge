@@ -10,9 +10,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from agents.task_worker import main as tw
-from agents.task_worker.models import TaskInfo
-from agents.task_worker.nous_client import _gate_reason
+from forge.task_worker import main as tw
+from forge.task_worker.models import TaskInfo
+from forge.task_worker.nous_client import _gate_reason
 
 
 def _task(**overrides) -> TaskInfo:
@@ -78,7 +78,7 @@ def wired(monkeypatch, tmp_path):
 
     def fake_changed(p):
         changed_calls["n"] += 1
-        return [] if changed_calls["n"] == 1 else ["agents/x.py", "agents/tests/test_x.py"]
+        return [] if changed_calls["n"] == 1 else ["forge/x.py", "forge/tests/test_x.py"]
 
     monkeypatch.setattr(tw, "get_changed_files", fake_changed)
     monkeypatch.setattr(
@@ -190,7 +190,7 @@ def test_repo_override_pins_every_collaborator_to_the_same_dir(wired, monkeypatc
     def fake_changed(p):
         seen["changed"].append(p)
         changed_calls["n"] += 1
-        return [] if changed_calls["n"] == 1 else ["agents/x.py"]
+        return [] if changed_calls["n"] == 1 else ["forge/x.py"]
 
     monkeypatch.setattr(tw, "get_changed_files", fake_changed)
     monkeypatch.setattr(
@@ -267,7 +267,7 @@ def test_max_files_bail_reverts_before_reopening(wired, monkeypatch):
     out = tw.run_one(_task(max_files=1))  # post-exec diff has 2 files
     assert out.status == "failed"
     assert "max_files exceeded (2 > 1)" in out.reason
-    assert out.changed_files == ["agents/x.py", "agents/tests/test_x.py"]
+    assert out.changed_files == ["forge/x.py", "forge/tests/test_x.py"]
     assert "commit" not in wired
     # revert precedes the Ready write
     assert wired.index("revert") < wired.index(("status", "Ready"))
@@ -325,7 +325,7 @@ def test_happy_path_commits_and_marks_done(wired):
     out = tw.run_one(_task())
     assert out.status == "done"
     assert out.commit_id == "abc123"
-    assert out.changed_files == ["agents/x.py", "agents/tests/test_x.py"]
+    assert out.changed_files == ["forge/x.py", "forge/tests/test_x.py"]
     assert out.notes_written is True
     assert out.duration_s >= 0
     assert ("status", "In Progress") in wired

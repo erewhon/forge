@@ -3,7 +3,7 @@
 Only ``plan.confirmed`` smells become tasks — never tentative or rejected ones. Each task
 carries the proposed refactor, benefit, risk, and the skeptic panel's reasoning so the
 human reviewer sees the verification before approving. The generic create + dedup + cap
-lives in ``agents/shared/forge_emit.py``; this module supplies the refactor-specific
+lives in ``forge/shared/forge_emit.py``; this module supplies the refactor-specific
 title, body, and the stable ``external_ref``.
 """
 
@@ -12,9 +12,9 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 
-from agents.refactor_ensemble.models import IMPACT_RANK, RefactorPlan, ScoredSmell
-from agents.shared.forge_emit import EmitSpec, EmitSummary
-from agents.shared.task_store import get_task_store
+from forge.refactor_ensemble.models import IMPACT_RANK, RefactorPlan, ScoredSmell
+from forge.shared.forge_emit import EmitSpec, EmitSummary
+from forge.shared.task_store import get_task_store
 
 # effort -> Forge estimate; refactors are sized small/medium/large.
 _EFFORT_TO_ESTIMATE = {"small": "s", "medium": "m", "large": "l"}

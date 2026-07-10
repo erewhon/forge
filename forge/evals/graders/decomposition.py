@@ -18,16 +18,16 @@ from pydantic import ValidationError
 
 # _validate_deps from the architect module; raises ArchitectError on
 # unknown titles or cycles.
-from agents.coding_pipeline.architect import _validate_deps
+from forge.coding_pipeline.architect import _validate_deps
 
 # ---------------------------------------------------------------------------
 # Shared imports for decompose structural checks
 # ---------------------------------------------------------------------------
-from agents.coding_pipeline.models import LeafSpec, TaskTree
-from agents.evals.fixtures import EvalFixtureError
-from agents.evals.graders._governance import floor_to_shipped
-from agents.evals.models import GoldCase, GradeCheck, GradeResult
-from agents.shared.llm import extract_json
+from forge.coding_pipeline.models import LeafSpec, TaskTree
+from forge.evals.fixtures import EvalFixtureError
+from forge.evals.graders._governance import floor_to_shipped
+from forge.evals.models import GoldCase, GradeCheck, GradeResult
+from forge.shared.llm import extract_json
 
 # ---------------------------------------------------------------------------
 # Decompose grader
@@ -347,7 +347,7 @@ _RUBRIC_CHECKERS: dict[str, Any] = {
 # Boundedness grader
 # ---------------------------------------------------------------------------
 
-from agents.coding_pipeline.architect import LeafBoundedness  # noqa: E402
+from forge.coding_pipeline.architect import LeafBoundedness  # noqa: E402
 
 
 def grade_boundedness(case: GoldCase, raw: str) -> GradeResult:

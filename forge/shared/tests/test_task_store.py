@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from agents.shared import task_store
-from agents.shared.task_store import ForgeTaskStore, TaskStore, get_task_store
+from forge.shared import task_store
+from forge.shared.task_store import ForgeTaskStore, TaskStore, get_task_store
 
 
 def test_factory_defaults_to_forge(monkeypatch):
@@ -35,7 +35,7 @@ def test_factory_backend_is_case_and_space_insensitive(monkeypatch):
 def test_update_status_forwards_to_nous_client(monkeypatch):
     seen = {}
     monkeypatch.setattr(
-        "agents.task_worker.nous_client.update_task_status",
+        "forge.task_worker.nous_client.update_task_status",
         lambda task, status, notes="", execution_mode=None: seen.update(
             task=task, status=status, notes=notes, mode=execution_mode
         ),
@@ -47,7 +47,7 @@ def test_update_status_forwards_to_nous_client(monkeypatch):
 def test_find_task_forwards_and_returns(monkeypatch):
     sentinel = object()
     monkeypatch.setattr(
-        "agents.task_worker.nous_client.find_task",
+        "forge.task_worker.nous_client.find_task",
         lambda name: sentinel if name == "leaf-a" else None,
     )
     assert ForgeTaskStore().find_task("leaf-a") is sentinel
@@ -57,7 +57,7 @@ def test_find_task_forwards_and_returns(monkeypatch):
 def test_next_ready_forwards_projects(monkeypatch):
     seen = {}
     monkeypatch.setattr(
-        "agents.task_worker.nous_client.find_next_task",
+        "forge.task_worker.nous_client.find_next_task",
         lambda projects: seen.update(projects=projects) or "picked",
     )
     assert ForgeTaskStore().next_ready(["Meta", "Nous"]) == "picked"
@@ -65,9 +65,9 @@ def test_next_ready_forwards_projects(monkeypatch):
 
 
 def test_get_spec_and_worker_gate_forward(monkeypatch):
-    monkeypatch.setattr("agents.task_worker.nous_client.get_task_spec", lambda name: f"SPEC:{name}")
+    monkeypatch.setattr("forge.task_worker.nous_client.get_task_spec", lambda name: f"SPEC:{name}")
     monkeypatch.setattr(
-        "agents.task_worker.nous_client.check_worker_gate",
+        "forge.task_worker.nous_client.check_worker_gate",
         lambda name: "" if name == "ok" else "blocked",
     )
     store = ForgeTaskStore()
@@ -84,7 +84,7 @@ def test_emit_forwards_batch_and_gating(monkeypatch):
         seen.update(kwargs)
         return "SUMMARY"
 
-    monkeypatch.setattr("agents.shared.forge_emit.emit_tasks", fake_emit_tasks)
+    monkeypatch.setattr("forge.shared.forge_emit.emit_tasks", fake_emit_tasks)
     result = ForgeTaskStore().emit(
         ["s1", "s2"], project="Meta", status="Ready", dry_run=True, max_per_run=5
     )
@@ -100,7 +100,7 @@ def test_list_rows_queries_project_and_normalizes(monkeypatch):
     seen = {}
 
     monkeypatch.setattr(
-        "agents.task_worker.nous_client._read_db_content", lambda: {"db": "content"}
+        "forge.task_worker.nous_client._read_db_content", lambda: {"db": "content"}
     )
 
     def fake_query(db_content, **kwargs):
@@ -110,7 +110,7 @@ def test_list_rows_queries_project_and_normalizes(monkeypatch):
 
     monkeypatch.setattr("nous_mcp.workflow._query_tasks", fake_query)
     monkeypatch.setattr(
-        "agents.coding_pipeline.waves._rows_from_raw",
+        "forge.coding_pipeline.waves._rows_from_raw",
         lambda raw, db: [f"row:{r['task']}" for r in raw],
     )
 
@@ -124,7 +124,7 @@ def test_list_rows_queries_project_and_normalizes(monkeypatch):
 
 def test_in_progress_titles_filters_by_ref_prefix(monkeypatch):
     monkeypatch.setattr(
-        "agents.task_worker.nous_client._read_db_content", lambda: {"db": "content"}
+        "forge.task_worker.nous_client._read_db_content", lambda: {"db": "content"}
     )
     monkeypatch.setattr(
         "nous_mcp.workflow._query_tasks",

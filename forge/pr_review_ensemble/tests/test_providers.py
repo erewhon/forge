@@ -6,8 +6,8 @@ Claude-family identity for quorum/diversity accounting.
 
 from __future__ import annotations
 
-from agents.pr_review_ensemble import providers
-from agents.pr_review_ensemble.config import settings
+from forge.pr_review_ensemble import providers
+from forge.pr_review_ensemble.config import settings
 
 
 def test_anthropic_slot_routes_through_router_by_default(monkeypatch):

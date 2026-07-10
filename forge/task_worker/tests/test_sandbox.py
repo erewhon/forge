@@ -7,11 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from agents.task_worker import executor as ex
-from agents.task_worker import sandbox as sb
-from agents.task_worker import tester
-from agents.task_worker.models import TaskInfo
-from agents.task_worker.sandbox import (
+from forge.task_worker import executor as ex
+from forge.task_worker import sandbox as sb
+from forge.task_worker import tester
+from forge.task_worker.models import TaskInfo
+from forge.task_worker.sandbox import (
     GaolDxSandbox,
     GaolRunOnceSandbox,
     Sandbox,
@@ -93,7 +93,7 @@ def test_gaol_dx_run_tests_delegates_to_tester(tmp_path, monkeypatch):
 def bare_home(monkeypatch, tmp_path):
     """A fake $HOME with no opencode setup and no extra mounts, so the host's real
     config/dirs never leak into argv assertions."""
-    from agents.task_worker.config import settings as tw_settings
+    from forge.task_worker.config import settings as tw_settings
 
     home = tmp_path / "home"
     home.mkdir()
@@ -152,7 +152,7 @@ def test_run_once_argv_shape(tmp_path, monkeypatch, bare_home):
 def test_run_once_extra_mounts_same_path_and_missing_skipped(tmp_path, monkeypatch, bare_home):
     """Out-of-repo path deps and the uv cache ride along same-path; a missing entry is
     skipped (never a crash, never a mount incus would reject as absent)."""
-    from agents.task_worker.config import settings as tw_settings
+    from forge.task_worker.config import settings as tw_settings
 
     present = tmp_path / "nous"
     present.mkdir()
@@ -166,7 +166,7 @@ def test_run_once_extra_mounts_same_path_and_missing_skipped(tmp_path, monkeypat
 
 
 def test_run_once_no_extra_mounts_by_config(tmp_path, monkeypatch, bare_home):
-    from agents.task_worker.config import settings as tw_settings
+    from forge.task_worker.config import settings as tw_settings
 
     monkeypatch.setattr(tw_settings, "runonce_extra_mounts", [])
     seen = _capture_run(monkeypatch)
@@ -277,14 +277,14 @@ def test_make_sandbox_kind_overrides_env_default(tmp_path):
 
 
 def test_make_sandbox_env_can_select_run_once(tmp_path, monkeypatch):
-    from agents.task_worker.config import settings
+    from forge.task_worker.config import settings
 
     monkeypatch.setattr(settings, "sandbox", "gaol-run-once")
     assert isinstance(make_sandbox(tmp_path), GaolRunOnceSandbox)
 
 
 def test_make_sandbox_unknown_kind_raises(tmp_path, monkeypatch):
-    from agents.task_worker.config import settings
+    from forge.task_worker.config import settings
 
     monkeypatch.setattr(settings, "sandbox", "warp-drive")
     with pytest.raises(ValueError, match="warp-drive"):

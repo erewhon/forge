@@ -5,8 +5,8 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/home/user/Projects/erewhon/meta/agents/dependabot/run.sh
-WorkingDirectory=/home/user/Projects/erewhon/meta
+ExecStart=/home/user/Projects/erewhon/forge/forge/dependabot/run.sh
+WorkingDirectory=/home/user/Projects/erewhon/forge
 
 Environment=HOME=/home/user
 Environment=PATH=/home/linuxbrew/.linuxbrew/bin:/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin
@@ -16,7 +16,7 @@ TimeoutStartSec=2400
 
 # Exit codes: 0 = merged/branched/no-candidates; 1 = advisory or error. An advisory run
 # therefore shows this unit as "failed" — that is deliberate visibility: the details are in
-# the Forge task it filed and in agents/dependabot/logs/auto.jsonl.
+# the Forge task it filed and in forge/dependabot/logs/auto.jsonl.
 
 # NO sandboxing, deliberately (first supervised run finding, 2026-07-06): in USER units,
 # systemd implements ProtectSystem/PrivateTmp/NoNewPrivileges via unprivileged user

@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 import re
 
-from agents.code_reviewer.config import settings
-from agents.code_reviewer.models import RepoChanges, RepoReview, RepoScores, ReviewFinding
+from forge.code_reviewer.config import settings
+from forge.code_reviewer.models import RepoChanges, RepoReview, RepoScores, ReviewFinding
 
 
 def _complete(system: str, user_message: str, max_tokens: int = 4096) -> str:

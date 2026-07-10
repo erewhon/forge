@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import asyncio
 
-from agents.shared.ensemble.classify import classify
-from agents.shared.ensemble.combiner import AggregateCombiner
-from agents.shared.ensemble.models import (
+from forge.shared.ensemble.classify import classify
+from forge.shared.ensemble.combiner import AggregateCombiner
+from forge.shared.ensemble.models import (
     ExecResult,
     ExecStatus,
     FailureClass,
     Prompt,
     QuorumState,
 )
-from agents.shared.ensemble.pool import Pool, fanout, map_items
+from forge.shared.ensemble.pool import Pool, fanout, map_items
 
 
 class FakeExecutor:

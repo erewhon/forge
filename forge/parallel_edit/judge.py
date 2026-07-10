@@ -11,15 +11,15 @@ from __future__ import annotations
 import json
 import re
 
-from agents.parallel_edit.config import settings
-from agents.parallel_edit.models import (
+from forge.parallel_edit.config import settings
+from forge.parallel_edit.models import (
     DimensionScores,
     EditRun,
     FileComparison,
     JudgeVerdict,
 )
-from agents.parallel_edit.prompts import build_judge_system_prompt
-from agents.shared.ensemble import ApiExecutor, Pool, Prompt
+from forge.parallel_edit.prompts import build_judge_system_prompt
+from forge.shared.ensemble import ApiExecutor, Pool, Prompt
 
 
 def _build_judge_pool() -> Pool:

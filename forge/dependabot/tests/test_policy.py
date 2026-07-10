@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from agents.dependabot.models import AuditFinding, BumpCandidate, EvidenceBundle
-from agents.dependabot.policy import auto_eligible
-from agents.dependabot.prompts import SUPPLY_CHAIN_SIGNOFF, render_evidence
+from forge.dependabot.models import AuditFinding, BumpCandidate, EvidenceBundle
+from forge.dependabot.policy import auto_eligible
+from forge.dependabot.prompts import SUPPLY_CHAIN_SIGNOFF, render_evidence
 
 
 def _evidence(**over) -> EvidenceBundle:

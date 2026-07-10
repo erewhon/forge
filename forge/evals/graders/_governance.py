@@ -16,8 +16,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agents.coding_pipeline.architect import _apply_conservative_tags
-from agents.coding_pipeline.models import FramingProposal, LeafSpec
+from forge.coding_pipeline.architect import _apply_conservative_tags
+from forge.coding_pipeline.models import FramingProposal, LeafSpec
 
 # _apply_conservative_tags only reads framing.epic_slug (the default-feature
 # fallback); when a case has no framing.json the governance floors still apply.

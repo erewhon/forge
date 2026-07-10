@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from agents.book_researcher.config import settings
-from agents.book_researcher.models import ResearchFinding, SprintContract, SprintFindings
-from agents.book_researcher.renderer import render_sprint_findings
-from agents.shared.llm import complete, extract_json
+from forge.book_researcher.config import settings
+from forge.book_researcher.models import ResearchFinding, SprintContract, SprintFindings
+from forge.book_researcher.renderer import render_sprint_findings
+from forge.shared.llm import complete, extract_json
 
 _SYSTEM_PROMPT = """\
 You are a research assistant investigating topics for a non-fiction book.

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agents.pr_review_ensemble.models import (
+from forge.pr_review_ensemble.models import (
     DigestResult,
     EnsembleResult,
     ProviderReview,

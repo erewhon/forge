@@ -15,9 +15,9 @@ from pathlib import Path
 
 import pytest
 
-from agents.coding_pipeline import reconcile as rc
-from agents.coding_pipeline.models import LeafOutcome
-from agents.shared.workspaces import JJError
+from forge.coding_pipeline import reconcile as rc
+from forge.coding_pipeline.models import LeafOutcome
+from forge.shared.workspaces import JJError
 
 
 def _outcome(leaf: str) -> LeafOutcome:
@@ -50,7 +50,7 @@ class ScriptedJJ:
                 raise JJError(f"rebase of {args[2]} exploded")
             return _Proc()
         if args[0] == "resolve":
-            return _Proc(stdout="agents/x.py    2-sided conflict")
+            return _Proc(stdout="forge/x.py    2-sided conflict")
         return _Proc()
 
 
@@ -95,7 +95,7 @@ def test_conflicted_leaf_is_abandoned_and_demoted(jj, tmp_path):
     assert results[1].commit_id is None  # the commit is gone; never report a stale id
     assert "integration conflict" in results[1].reason
     assert demotes and demotes[0][0] == "B"
-    assert "agents/x.py" in demotes[0][1]  # the resolve --list detail made it into the note
+    assert "forge/x.py" in demotes[0][1]  # the resolve --list detail made it into the note
     # the conflicted-file read happens BEFORE the abandon destroys the evidence
     resolve_i = jj.calls.index(["resolve", "--list", "-r", "chg-b"])
     abandon_i = jj.calls.index(["abandon", "chg-b"])
@@ -282,7 +282,7 @@ def test_bisect_jj_failure_fails_open(jj, tmp_path):
 
 
 def _report(*outcomes: LeafOutcome, green: bool):
-    from agents.coding_pipeline.models import SuiteResult, WaveReport
+    from forge.coding_pipeline.models import SuiteResult, WaveReport
 
     return WaveReport(
         wave=1, outcomes=list(outcomes), suite=SuiteResult(passed=green, output_tail="t")

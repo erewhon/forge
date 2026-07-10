@@ -1,7 +1,7 @@
 """CLI front door for the eval harness: ``meta evals run | baseline | compare``.
 
 Each subcommand is a thin wrapper around :func:`run_scorecard` and
-:mod:`agents.evals.report`.  ``main`` uses argparse subparsers so the CLI
+:mod:`forge.evals.report`.  ``main`` uses argparse subparsers so the CLI
 can be composed without Typer.
 """
 
@@ -13,10 +13,10 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from agents.evals.config import settings
-from agents.evals.models import Scorecard
-from agents.evals.report import render_scorecard, write_scorecard
-from agents.evals.runner import run_scorecard
+from forge.evals.config import settings
+from forge.evals.models import Scorecard
+from forge.evals.report import render_scorecard, write_scorecard
+from forge.evals.runner import run_scorecard
 
 VALID_STEPS: list[str] = [
     "replan",

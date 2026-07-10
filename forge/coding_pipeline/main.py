@@ -13,7 +13,7 @@ import re
 import sys
 from pathlib import Path
 
-from agents.coding_pipeline.architect import (
+from forge.coding_pipeline.architect import (
     ArchitectError,
     decompose,
     persist_framing,
@@ -21,11 +21,11 @@ from agents.coding_pipeline.architect import (
     propose_framing,
     require_approved_framing,
 )
-from agents.coding_pipeline.config import settings
-from agents.coding_pipeline.emit import emit_tree
-from agents.coding_pipeline.inventory import collect_inventory, run_dir_for, write_inventory
-from agents.coding_pipeline.models import FramingProposal, GoalSpec, TaskTree, WaveRecord
-from agents.coding_pipeline.orchestrator import OrchestratorResult, run_epic
+from forge.coding_pipeline.config import settings
+from forge.coding_pipeline.emit import emit_tree
+from forge.coding_pipeline.inventory import collect_inventory, run_dir_for, write_inventory
+from forge.coding_pipeline.models import FramingProposal, GoalSpec, TaskTree, WaveRecord
+from forge.coding_pipeline.orchestrator import OrchestratorResult, run_epic
 
 # ---------------------------------------------------------------------------
 # plan
@@ -262,8 +262,8 @@ def _cmd_gate(argv: list[str]) -> int:
     parser.add_argument("--main", default="main", help="The mainline branch/bookmark name.")
     args = parser.parse_args(argv)
 
-    from agents.coding_pipeline.journal import append_gate_result
-    from agents.coding_pipeline.vcs_epic import render_epic_gate, run_epic_gate
+    from forge.coding_pipeline.journal import append_gate_result
+    from forge.coding_pipeline.vcs_epic import render_epic_gate, run_epic_gate
 
     run_dir = settings.runs_dir / args.epic_slug
     framing = require_approved_framing(run_dir)
@@ -330,7 +330,7 @@ def _cmd_status(argv: list[str]) -> int:
     try:
         from nous_mcp.workflow import _query_tasks
 
-        from agents.task_worker.nous_client import _read_db_content
+        from forge.task_worker.nous_client import _read_db_content
 
         rows = _query_tasks(_read_db_content(), project=args.project, include_done=True, limit=None)
         epic_prefix = f"pipeline:{epic}:"

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from agents.task_worker.sandbox import Sandbox
+    from forge.task_worker.sandbox import Sandbox
 
 _TEST_TIMEOUT = 300  # 5 min
 _OUTPUT_TAIL = 1000
@@ -88,7 +88,7 @@ def run_tests(repo_path: Path, sandbox: Sandbox | None = None) -> tuple[bool, st
         return True, "no tests configured"
 
     if sandbox is None:
-        from agents.task_worker.sandbox import make_sandbox
+        from forge.task_worker.sandbox import make_sandbox
 
         sandbox = make_sandbox(repo_path)
 

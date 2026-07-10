@@ -17,15 +17,15 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from agents.general_researcher.config import settings
-from agents.general_researcher.models import (
+from forge.general_researcher.config import settings
+from forge.general_researcher.models import (
     SprintFindings,
     Synthesis,
     TopicConfig,
     VerificationResult,
 )
-from agents.shared.ensemble import Pool
-from agents.shared.panel import build_router_executors, run_panel, structured
+from forge.shared.ensemble import Pool
+from forge.shared.panel import build_router_executors, run_panel, structured
 
 _JUDGE_CANDIDATE_CHARS = 6000  # bound each candidate answer in the judge's context
 

@@ -16,8 +16,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from agents.shared.ensemble import Executor
-from agents.shared.panel import PanelMember, run_member_panel
+from forge.shared.ensemble import Executor
+from forge.shared.panel import PanelMember, run_member_panel
 
 
 @dataclass(frozen=True)

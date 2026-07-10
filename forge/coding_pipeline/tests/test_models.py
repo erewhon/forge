@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from agents.coding_pipeline.models import (
+from forge.coding_pipeline.models import (
     BoundednessCheck,
     EscalateAction,
     FixupAction,
@@ -191,9 +191,9 @@ def test_leaf_file_scope_accepted_values():
         title="scaffold models",
         content="spec",
         feature="F",
-        file_scope=["agents/coding_pipeline/models.py", "agents/shared/"],
+        file_scope=["forge/coding_pipeline/models.py", "forge/shared/"],
     )
-    assert leaf.file_scope == ["agents/coding_pipeline/models.py", "agents/shared/"]
+    assert leaf.file_scope == ["forge/coding_pipeline/models.py", "forge/shared/"]
 
 
 def test_leaf_file_scope_comma_rejected():
@@ -202,7 +202,7 @@ def test_leaf_file_scope_comma_rejected():
             title="ok title",
             content="body",
             feature="F",
-            file_scope=["agents/foo.py,baz.py"],
+            file_scope=["forge/foo.py,baz.py"],
         )
 
 

@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from agents.general_researcher import synthesizer
-from agents.general_researcher.models import (
+from forge.general_researcher import synthesizer
+from forge.general_researcher.models import (
     ResearchFinding,
     SprintFindings,
     TopicConfig,
     VerificationResult,
     VerificationScores,
 )
-from agents.shared.ensemble import ExecResult, ExecStatus, FailureClass
-from agents.shared.panel import StructuredResult
+from forge.shared.ensemble import ExecResult, ExecStatus, FailureClass
+from forge.shared.panel import StructuredResult
 
 
 def _topic() -> TopicConfig:

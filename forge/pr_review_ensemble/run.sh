@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-exec uv run python -u -m agents.pr_review_ensemble.main "$@"
+exec uv run python -u -m forge.pr_review_ensemble.main "$@"

@@ -11,12 +11,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from agents.pr_review_ensemble.diffscan import scan_supply_chain
-from agents.pr_review_ensemble.models import EnsembleResult, SupplyChainResult, SupplyChainScan
-from agents.pr_review_ensemble.prompts import SUPPLY_CHAIN_AGG_PROMPT, SUPPLY_CHAIN_SYSTEM_PROMPT
-from agents.pr_review_ensemble.providers import ReviewerSlot
-from agents.pr_review_ensemble.runner import run_ensemble
-from agents.shared.ensemble import Combiner
+from forge.pr_review_ensemble.diffscan import scan_supply_chain
+from forge.pr_review_ensemble.models import EnsembleResult, SupplyChainResult, SupplyChainScan
+from forge.pr_review_ensemble.prompts import SUPPLY_CHAIN_AGG_PROMPT, SUPPLY_CHAIN_SYSTEM_PROMPT
+from forge.pr_review_ensemble.providers import ReviewerSlot
+from forge.pr_review_ensemble.runner import run_ensemble
+from forge.shared.ensemble import Combiner
 
 
 def signals_preamble(scan: SupplyChainScan) -> str:

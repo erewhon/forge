@@ -7,9 +7,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from agents.coding_pipeline import verify as v
-from agents.coding_pipeline.models import ReviewFinding
-from agents.shared.panel import PanelResult
+from forge.coding_pipeline import verify as v
+from forge.coding_pipeline.models import ReviewFinding
+from forge.shared.panel import PanelResult
 
 
 def _member(label: str) -> SimpleNamespace:
@@ -69,7 +69,7 @@ def test_collect_flattens_dedups_and_ranks(roster, monkeypatch):
 
 
 def test_collect_drops_malformed_envelopes_and_caps(roster, monkeypatch):
-    from agents.coding_pipeline.config import settings
+    from forge.coding_pipeline.config import settings
 
     monkeypatch.setattr(settings, "review_max_findings", 2)
     responses = [

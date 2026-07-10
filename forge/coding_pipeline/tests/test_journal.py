@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from agents.coding_pipeline.journal import (
+from forge.coding_pipeline.journal import (
     append_gate_result,
     append_leaf_outcome,
     append_replan_action,
@@ -21,7 +21,7 @@ from agents.coding_pipeline.journal import (
     persist_wave,
     reconcile,
 )
-from agents.coding_pipeline.models import LeafOutcome, SuiteResult, WaveRecord, WaveReport
+from forge.coding_pipeline.models import LeafOutcome, SuiteResult, WaveRecord, WaveReport
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -108,12 +108,12 @@ class TestWavePersistence:
 
     def test_no_run_dir_returns_zero_highest(self, epics_runs_dir: Path):
         """When no run dir exists for the epic, highest wave number is 0."""
-        from agents.coding_pipeline.journal import _highest_wave_number
+        from forge.coding_pipeline.journal import _highest_wave_number
 
         assert _highest_wave_number(epics_runs_dir, "nonexistent") == 0
 
     def test_next_wave_number_resumes_from_highest(self, epics_runs_dir: Path):
-        from agents.coding_pipeline.journal import next_wave_number
+        from forge.coding_pipeline.journal import next_wave_number
 
         assert next_wave_number(epics_runs_dir, "my-epic") == 1  # fresh epic
         persist_wave(epics_runs_dir, "my-epic", WaveRecord(wave=3, report=WaveReport(wave=3)))

@@ -17,9 +17,9 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from agents.coding_pipeline.config import settings
-from agents.coding_pipeline.inventory import render_inventory
-from agents.coding_pipeline.models import (
+from forge.coding_pipeline.config import settings
+from forge.coding_pipeline.inventory import render_inventory
+from forge.coding_pipeline.models import (
     BoundednessCheck,
     EscalateAction,
     FixupAction,
@@ -34,8 +34,8 @@ from agents.coding_pipeline.models import (
     TaskTree,
     WaveReport,
 )
-from agents.shared.ensemble import ApiExecutor, Pool
-from agents.shared.panel import Finder, discover, structured
+from forge.shared.ensemble import ApiExecutor, Pool
+from forge.shared.panel import Finder, discover, structured
 
 
 class ArchitectError(RuntimeError):
@@ -219,8 +219,8 @@ what/why (one short paragraph), acceptance criteria (bulleted, testable), a file
 test expectations.
 
 The architect also predicts which files/directories a leaf will touch. Include a \
-"file_scope" array in each leaf with repo-relative path prefixes (e.g. "agents/task_worker/\
-main.py" or "agents/shared/ensemble/"). Entries must NOT contain commas. This is prediction \
+"file_scope" array in each leaf with repo-relative path prefixes (e.g. "forge/task_worker/\
+main.py" or "forge/shared/ensemble/"). Entries must NOT contain commas. This is prediction \
 only — the batch picker uses it to schedule disjoint leaves together.
 
 Conservative autonomy tagging:
@@ -615,7 +615,7 @@ def replan(
 
     _apply_conservative_tags(new_leaves, framing)
 
-    from agents.shared.forge_emit import settings as emit_settings
+    from forge.shared.forge_emit import settings as emit_settings
 
     if creations > emit_settings.max_per_run:
         return [

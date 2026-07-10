@@ -6,7 +6,7 @@ through the same LLM call path the agents use — no mocks, no synthetic shortcu
 ## Package map
 
 ```
-agents/evals/
+forge/evals/
 ├── __init__.py          # package marker
 ├── main.py              # CLI front door: ``meta evals run | baseline | compare``
 ├── runner.py            # Scorecard runner — model → load gold sets → render prompts → call model → grade → aggregate
@@ -28,7 +28,7 @@ agents/evals/
 ## Gold-set directory layout
 
 Each gold case lives in its own directory under a step directory in the gold-set root
-(default ``agents/evals/goldsets`` inside the package, overridden by ``--goldsets`` or
+(default ``forge/evals/goldsets`` inside the package, overridden by ``--goldsets`` or
 ``EVALS_GOLDSETS_DIR``).
 
 ```
@@ -123,7 +123,7 @@ Each key maps to one production prompt surface and one grader module:
 1. Create a case directory under the step directory whose **name matches the step key**:
 
    ```bash
-   mkdir -p agents/evals/goldsets/replan/my-new-case
+   mkdir -p forge/evals/goldsets/replan/my-new-case
    ```
 
 2. Gather the input files that the step adapter needs (the adapter imports from the agent modules
@@ -137,8 +137,8 @@ Each key maps to one production prompt surface and one grader module:
    ```bash
    uv run python -c "
    from pathlib import Path
-   from agents.evals.fixtures import load_goldsets
-   print(load_goldsets(Path('agents/evals/goldsets')))"
+   from forge.evals.fixtures import load_goldsets
+   print(load_goldsets(Path('forge/evals/goldsets')))"
    ```
 
    Any missing file, schema mismatch, or step name mismatch raises ``EvalFixtureError``.
@@ -177,7 +177,7 @@ Prefixed with ``EVALS_`` (loaded via ``pydantic-settings``):
 
 | Variable | Default | Description |
 |---|---|---|
-| ``EVALS_GOLDSETS_DIR`` | ``agents/evals/goldsets`` (in-package) | Root directory for gold-set fixtures |
+| ``EVALS_GOLDSETS_DIR`` | ``forge/evals/goldsets`` (in-package) | Root directory for gold-set fixtures |
 | ``EVALS_RUNS_DIR`` | ``eval-runs/`` (repo root) | Where scorecard JSON/Markdown outputs are written |
 | ``EVALS_OPENAI_BASE_URL`` | ``http://localhost:4010/v1`` | LLM router endpoint |
 | ``EVALS_OPENAI_API_KEY`` | ``<your-router-key>`` | Router API key |

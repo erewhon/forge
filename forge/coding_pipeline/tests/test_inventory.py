@@ -6,15 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from agents.coding_pipeline import inventory as inv_mod
-from agents.coding_pipeline.inventory import (
+from forge.coding_pipeline import inventory as inv_mod
+from forge.coding_pipeline.inventory import (
     collect_inventory,
     goal_terms,
     render_inventory,
     run_dir_for,
     write_inventory,
 )
-from agents.coding_pipeline.models import ExistingTask, GoalSpec
+from forge.coding_pipeline.models import ExistingTask, GoalSpec
 
 
 @pytest.fixture
@@ -106,7 +106,7 @@ def test_render_and_write_inventory(repo, tmp_path):
 
 
 def test_render_trims_to_config_cap(repo, monkeypatch):
-    from agents.coding_pipeline.config import settings
+    from forge.coding_pipeline.config import settings
 
     monkeypatch.setattr(settings, "inventory_max_chars", 500)
     inv = collect_inventory(_goal(), repo, existing_tasks=[])
@@ -116,7 +116,7 @@ def test_render_trims_to_config_cap(repo, monkeypatch):
 
 
 def test_run_dir_uses_epic_slug_or_derives(monkeypatch, tmp_path):
-    from agents.coding_pipeline.config import settings
+    from forge.coding_pipeline.config import settings
 
     monkeypatch.setattr(settings, "runs_dir", tmp_path)
     assert run_dir_for(_goal()) == tmp_path / "json-export"

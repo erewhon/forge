@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from agents.refactor_ensemble import main as main_mod
-from agents.refactor_ensemble.emit import external_ref, plan_to_specs
-from agents.refactor_ensemble.models import (
+from forge.refactor_ensemble import main as main_mod
+from forge.refactor_ensemble.emit import external_ref, plan_to_specs
+from forge.refactor_ensemble.models import (
     CanonicalSmell,
     RefactorPlan,
     ScoredSmell,
@@ -89,11 +89,11 @@ def test_main_emits_confirmed_plan(monkeypatch):
 
     def fake_emit_plan(p, *, project, min_impact, dry_run, log):
         captured.update(project=project, min_impact=min_impact, dry_run=dry_run, plan=p)
-        from agents.shared.forge_emit import EmitSummary
+        from forge.shared.forge_emit import EmitSummary
 
         return EmitSummary(project=project)
 
-    monkeypatch.setattr("agents.refactor_ensemble.emit.emit_plan", fake_emit_plan)
+    monkeypatch.setattr("forge.refactor_ensemble.emit.emit_plan", fake_emit_plan)
     rc = main_mod.main(
         ["some.py", "--emit-tasks", "--project", "Meta", "--min-impact", "high", "--dry-run-emit"]
     )

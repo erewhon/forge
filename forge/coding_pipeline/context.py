@@ -25,9 +25,9 @@ import json
 import subprocess
 from pathlib import Path
 
-from agents.coding_pipeline.models import LeafRow
-from agents.task_worker.models import TaskInfo
-from agents.task_worker.vcs import detect_vcs
+from forge.coding_pipeline.models import LeafRow
+from forge.task_worker.models import TaskInfo
+from forge.task_worker.vcs import detect_vcs
 
 _MAX_CHARS = 4000
 _TIMEOUT = 30

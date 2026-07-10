@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agents.parallel_edit.models import (
+from forge.parallel_edit.models import (
     DimensionScores,
     EditRun,
     JudgeVerdict,

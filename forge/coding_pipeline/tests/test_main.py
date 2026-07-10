@@ -1,4 +1,4 @@
-"""Tests for the coding pipeline CLI (agents/coding_pipeline/main.py).
+"""Tests for the coding pipeline CLI (forge/coding_pipeline/main.py).
 
 Verifies: subcommand parsing, --help output, plan without --approve performs no Forge writes,
 and the registry wires the entry point correctly.
@@ -11,12 +11,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agents.coding_pipeline.main import main
+from forge.coding_pipeline.main import main
 
 
 def _inventory():
     """Return a minimal valid Inventory for mocking."""
-    from agents.coding_pipeline.models import Inventory
+    from forge.coding_pipeline.models import Inventory
 
     return Inventory.model_validate({"project": "Meta", "repo": "/tmp", "tree": ""})
 
@@ -24,7 +24,7 @@ def _inventory():
 @pytest.fixture(autouse=True)
 def _tmp_runs_dir(tmp_path, monkeypatch):
     """Every CLI test runs against a throwaway runs dir — never the real pipeline-runs/."""
-    from agents.coding_pipeline.config import settings
+    from forge.coding_pipeline.config import settings
 
     monkeypatch.setattr(settings, "runs_dir", tmp_path / "pipeline-runs")
     return tmp_path / "pipeline-runs"
@@ -73,10 +73,10 @@ def test_plan_parses_spec_and_project(tmp_path):
     spec.write_text("goal: build x\nproject: Meta\n")
 
     with (
-        patch("agents.coding_pipeline.main.collect_inventory") as mock_inv,
-        patch("agents.coding_pipeline.main.propose_framing") as mock_frame,
-        patch("agents.coding_pipeline.main.persist_framing") as mock_persist,
-        patch("agents.coding_pipeline.main.write_inventory"),
+        patch("forge.coding_pipeline.main.collect_inventory") as mock_inv,
+        patch("forge.coding_pipeline.main.propose_framing") as mock_frame,
+        patch("forge.coding_pipeline.main.persist_framing") as mock_persist,
+        patch("forge.coding_pipeline.main.write_inventory"),
     ):
         mock_inv.return_value = _inventory()
         mock_frame.return_value = MagicMock(approved=False)
@@ -148,11 +148,11 @@ def test_plan_approve_never_calls_propose_framing(tmp_path, _tmp_runs_dir):
         raise AssertionError("propose_framing must not run under --approve")
 
     with (
-        patch("agents.coding_pipeline.main.propose_framing", boom),
-        patch("agents.coding_pipeline.main.collect_inventory") as mock_inv,
-        patch("agents.coding_pipeline.main.decompose") as mock_decompose,
-        patch("agents.coding_pipeline.main.emit_tree") as mock_emit,
-        patch("agents.coding_pipeline.main.persist_tree"),
+        patch("forge.coding_pipeline.main.propose_framing", boom),
+        patch("forge.coding_pipeline.main.collect_inventory") as mock_inv,
+        patch("forge.coding_pipeline.main.decompose") as mock_decompose,
+        patch("forge.coding_pipeline.main.emit_tree") as mock_emit,
+        patch("forge.coding_pipeline.main.persist_tree"),
     ):
         mock_inv.return_value = _inventory()
         mock_decompose.return_value = []
@@ -173,8 +173,8 @@ def test_plan_existing_framing_refused_before_any_architect_call(tmp_path, _tmp_
         raise AssertionError("no architect call when the framing already exists")
 
     with (
-        patch("agents.coding_pipeline.main.propose_framing", boom),
-        patch("agents.coding_pipeline.main.collect_inventory", boom),
+        patch("forge.coding_pipeline.main.propose_framing", boom),
+        patch("forge.coding_pipeline.main.collect_inventory", boom),
     ):
         result = main(["plan", _epic_spec(tmp_path), "--project", "Meta"])
         assert result == 1
@@ -191,10 +191,10 @@ def test_plan_without_approve_does_no_emission(tmp_path):
     spec.write_text("goal: build x\nproject: Meta\n")
 
     with (
-        patch("agents.coding_pipeline.main.collect_inventory") as mock_inv,
-        patch("agents.coding_pipeline.main.propose_framing") as mock_frame,
-        patch("agents.coding_pipeline.main.persist_framing") as mock_persist,
-        patch("agents.coding_pipeline.main.write_inventory"),
+        patch("forge.coding_pipeline.main.collect_inventory") as mock_inv,
+        patch("forge.coding_pipeline.main.propose_framing") as mock_frame,
+        patch("forge.coding_pipeline.main.persist_framing") as mock_persist,
+        patch("forge.coding_pipeline.main.write_inventory"),
     ):
         mock_inv.return_value = _inventory()
         mock_frame.return_value = MagicMock(approved=False)
@@ -208,8 +208,8 @@ def test_plan_without_approve_does_no_emission(tmp_path):
         # decompose and emit_tree should NOT be called — re-run plan
         # and verify these functions are never imported/called.
         with (
-            patch("agents.coding_pipeline.main.decompose") as mock_decompose,
-            patch("agents.coding_pipeline.main.emit_tree") as mock_emit,
+            patch("forge.coding_pipeline.main.decompose") as mock_decompose,
+            patch("forge.coding_pipeline.main.emit_tree") as mock_emit,
         ):
             mock_inv.reset_mock()
             mock_persist.reset_mock()
@@ -249,7 +249,7 @@ def test_run_requires_project():
 def test_run_defaults_to_whole_epic_scope(tmp_path, _tmp_runs_dir):
     """With no --feature, the wave loop covers the whole epic (feature=None passes
     through) — decomposition legitimately spreads one epic across several features."""
-    from agents.coding_pipeline.models import FramingProposal
+    from forge.coding_pipeline.models import FramingProposal
 
     run_dir = _tmp_runs_dir / "my-epic"
     run_dir.mkdir(parents=True)
@@ -265,7 +265,7 @@ def test_run_defaults_to_whole_epic_scope(tmp_path, _tmp_runs_dir):
 
     seen = {}
     with patch(
-        "agents.coding_pipeline.main.run_epic",
+        "forge.coding_pipeline.main.run_epic",
         lambda **kw: (
             seen.update(kw) or MagicMock(status="dry", epic_slug="my-epic", waves_run=0, notes=[])
         ),
@@ -278,7 +278,7 @@ def test_run_defaults_to_whole_epic_scope(tmp_path, _tmp_runs_dir):
 
 
 def test_run_concurrency_flag_plumbs_through(tmp_path, _tmp_runs_dir):
-    from agents.coding_pipeline.models import FramingProposal
+    from forge.coding_pipeline.models import FramingProposal
 
     run_dir = _tmp_runs_dir / "my-epic"
     run_dir.mkdir(parents=True)
@@ -294,7 +294,7 @@ def test_run_concurrency_flag_plumbs_through(tmp_path, _tmp_runs_dir):
 
     seen = {}
     with patch(
-        "agents.coding_pipeline.main.run_epic",
+        "forge.coding_pipeline.main.run_epic",
         lambda **kw: (
             seen.update(kw) or MagicMock(status="dry", epic_slug="my-epic", waves_run=0, notes=[])
         ),
@@ -313,7 +313,7 @@ def test_status_accepts_epic_slug_argument(tmp_path):
 
     with (
         patch("nous_mcp.workflow._query_tasks", return_value=[]),
-        patch("agents.task_worker.nous_client._read_db_content", return_value=None),
+        patch("forge.task_worker.nous_client._read_db_content", return_value=None),
     ):
         result = main(["status", "some-epic", "--project", "Pipeline-Smoke"])
     assert result == 0
@@ -336,7 +336,7 @@ def test_status_reads_project_from_inventory_json(tmp_path, _tmp_runs_dir):
 
     with (
         patch("nous_mcp.workflow._query_tasks", fake_query),
-        patch("agents.task_worker.nous_client._read_db_content", return_value=None),
+        patch("forge.task_worker.nous_client._read_db_content", return_value=None),
     ):
         result = main(["status", "my-epic"])
     assert result == 0
@@ -389,7 +389,7 @@ def test_status_scopes_to_epic_and_includes_done(tmp_path, capsys):
     ]
     with (
         patch("nous_mcp.workflow._query_tasks", return_value=mock_rows),
-        patch("agents.task_worker.nous_client._read_db_content", return_value=None),
+        patch("forge.task_worker.nous_client._read_db_content", return_value=None),
     ):
         result = main(["status", "smoke-epic"])
     assert result == 0
@@ -410,7 +410,7 @@ def test_status_scopes_to_epic_and_includes_done(tmp_path, capsys):
 
 def test_status_without_args_no_prior_runs(tmp_path):
     """`meta build status` with no epic slug and no prior runs returns 0."""
-    with patch("agents.coding_pipeline.main.settings") as mock_settings:
+    with patch("forge.coding_pipeline.main.settings") as mock_settings:
         mock_settings.runs_dir = tmp_path / "does-not-exist"
         result = main(["status"])
         assert result == 0
@@ -423,7 +423,7 @@ def test_status_without_args_no_prior_runs(tmp_path):
 
 def test_registry_includes_build():
     """The build verb must appear in the registry."""
-    from agents.registry import REGISTRY
+    from forge.registry import REGISTRY
 
     names = [cmd.name for cmd in REGISTRY]
     assert "build" in names
@@ -431,7 +431,7 @@ def test_registry_includes_build():
 
 def test_build_exposes_mcp_false():
     """build must have exposes_mcp=False (it mutates repos)."""
-    from agents.registry import REGISTRY
+    from forge.registry import REGISTRY
 
     build_cmd = next(cmd for cmd in REGISTRY if cmd.name == "build")
     assert build_cmd.exposes_mcp is False
@@ -440,7 +440,7 @@ def test_build_exposes_mcp_false():
 
 def test_build_has_callable_main():
     """The build registry entry must resolve to a callable main."""
-    from agents.registry import REGISTRY
+    from forge.registry import REGISTRY
 
     build_cmd = next(cmd for cmd in REGISTRY if cmd.name == "build")
     assert callable(build_cmd.load_main())

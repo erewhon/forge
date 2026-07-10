@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from agents.shared import signoff as so
-from agents.shared.panel import PanelResult
-from agents.shared.signoff import SignoffSeat, full_quorum_signoff
+from forge.shared import signoff as so
+from forge.shared.panel import PanelResult
+from forge.shared.signoff import SignoffSeat, full_quorum_signoff
 
 
 def _seats(n: int) -> list[SignoffSeat]:

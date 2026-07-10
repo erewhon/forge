@@ -88,7 +88,7 @@ Under `GENERAL_RESEARCHER_PROJECT_DIR` (default
 **One-shot question:**
 
 ```bash
-agents/general_researcher/run.sh \
+forge/general_researcher/run.sh \
     "What is the history of the IETF standards process?"
 ```
 
@@ -105,7 +105,7 @@ score_threshold: 7
 ```
 
 ```bash
-agents/general_researcher/run.sh path/to/topic.yaml
+forge/general_researcher/run.sh path/to/topic.yaml
 ```
 
 **Useful flags:**

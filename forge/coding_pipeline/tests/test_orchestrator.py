@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from agents.coding_pipeline import orchestrator as orc
-from agents.coding_pipeline.models import (
+from forge.coding_pipeline import orchestrator as orc
+from forge.coding_pipeline.models import (
     EscalateAction,
     FixupAction,
     FramingProposal,
@@ -169,7 +169,7 @@ def test_dirty_working_copy_aborts_before_dispatch(wired, monkeypatch):
 
 
 def test_unapproved_framing_refuses_the_run(wired, monkeypatch):
-    from agents.coding_pipeline.architect import FramingNotApprovedError
+    from forge.coding_pipeline.architect import FramingNotApprovedError
 
     def refuse(run_dir):
         raise FramingNotApprovedError("not approved")
@@ -182,7 +182,7 @@ def test_unapproved_framing_refuses_the_run(wired, monkeypatch):
 def test_epic_rows_shared_between_planner_and_context_builder(wired, monkeypatch):
     """One Forge read per wave: the same rows feed plan_wave AND the sibling list,
     and dispatch receives a live preamble builder."""
-    from agents.coding_pipeline.models import LeafRow
+    from forge.coding_pipeline.models import LeafRow
 
     rows_sentinel = [LeafRow(task="done leaf", status="Done")]
     monkeypatch.setattr(orc, "fetch_epic_rows", lambda *a, **k: rows_sentinel)
@@ -347,12 +347,12 @@ def test_epic_bookmark_updated_at_each_wave_checkpoint(wired, monkeypatch):
 
 def test_wave_numbering_resumes_across_runs(wired, monkeypatch):
     # a previous run left wave-0002; this run's wave must be 0003
-    from agents.coding_pipeline.journal import persist_wave
+    from forge.coding_pipeline.journal import persist_wave
 
     persist_wave(
         wired,
         "toy-epic",
-        __import__("agents.coding_pipeline.models", fromlist=["WaveRecord"]).WaveRecord(
+        __import__("forge.coding_pipeline.models", fromlist=["WaveRecord"]).WaveRecord(
             wave=2, report=WaveReport(wave=2)
         ),
     )

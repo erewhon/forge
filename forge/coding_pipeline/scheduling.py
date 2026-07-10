@@ -16,7 +16,7 @@ def _parts(entry: str) -> tuple[str, ...]:
 
 
 def _entries_overlap(a: str, b: str) -> bool:
-    """Path-prefix overlap: `agents/shared/` vs `agents/shared/pool.py` collide; so do
+    """Path-prefix overlap: `forge/shared/` vs `forge/shared/pool.py` collide; so do
     identical entries. Distinct siblings (`a/x.py` vs `a/y.py`) do not."""
     pa, pb = _parts(a), _parts(b)
     if not pa or not pb:

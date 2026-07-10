@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from agents.dependabot.config import DependabotSettings, settings
-from agents.dependabot.models import (
+from forge.dependabot.config import DependabotSettings, settings
+from forge.dependabot.models import (
     AuditFinding,
     BumpCandidate,
     BumpResult,

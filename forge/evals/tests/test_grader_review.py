@@ -27,8 +27,8 @@ from pathlib import Path
 
 import pytest
 
-from agents.evals.graders.review import grade_confirm, grade_findings
-from agents.evals.models import GoldCase, GradeCheck, GradeResult
+from forge.evals.graders.review import grade_confirm, grade_findings
+from forge.evals.models import GoldCase, GradeCheck, GradeResult
 
 # ---------------------------------------------------------------------------
 # Helpers

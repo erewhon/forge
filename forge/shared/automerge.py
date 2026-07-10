@@ -7,7 +7,7 @@ decision log. Everything here is **fail-closed**: an unclassifiable change is no
 a VCS the module doesn't understand raises rather than guessing.
 
 The classifier and the log are VCS-agnostic; the branch/merge actions dispatch on ``detect_vcs``
-and reuse ``agents.task_worker.vcs`` for the existing detect/commit primitives.
+and reuse ``forge.task_worker.vcs`` for the existing detect/commit primitives.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from agents.task_worker.vcs import VCSError, commit, detect_vcs, get_changed_files
+from forge.task_worker.vcs import VCSError, commit, detect_vcs, get_changed_files
 
 _TIMEOUT = 30
 

@@ -31,9 +31,9 @@ from typing import Protocol
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from agents.coding_pipeline.models import LeafRow
-from agents.shared.forge_emit import EmitOutcome, EmitSpec, EmitSummary
-from agents.task_worker.models import TaskInfo
+from forge.coding_pipeline.models import LeafRow
+from forge.shared.forge_emit import EmitOutcome, EmitSpec, EmitSummary
+from forge.task_worker.models import TaskInfo
 
 _AUTO_MODES = {"auto-ok", "auto-preferred"}
 
@@ -504,7 +504,7 @@ class GitHubTaskStore:
         return self._task_info(candidates[0]) if candidates else None
 
     def worker_gate(self, name: str) -> str:
-        from agents.task_worker.nous_client import _gate_reason
+        from forge.task_worker.nous_client import _gate_reason
 
         title = _normalize_title(name)
         rows = {r.task: r for r in self._leaf_rows(self._gh.list_issues(state="all"))}

@@ -1,6 +1,6 @@
 """Tests for the replan step grader.
 
-Covers all 6 checks against the contract in ``agents/evals/graders/replan``:
+Covers all 6 checks against the contract in ``forge/evals/graders/replan``:
 
 1. valid-envelope      -- parse + schema validation
 2. must-actions         -- every must entry matched
@@ -18,8 +18,8 @@ from pathlib import Path
 
 import pytest
 
-from agents.evals.graders import grade
-from agents.evals.models import GoldCase, GradeCheck, GradeResult
+from forge.evals.graders import grade
+from forge.evals.models import GoldCase, GradeCheck, GradeResult
 
 # ---------------------------------------------------------------------------
 # Fixtures

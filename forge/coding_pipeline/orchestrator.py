@@ -28,18 +28,18 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from agents.coding_pipeline.architect import (
+from forge.coding_pipeline.architect import (
     ArchitectError,
     deterministic_escalations,
     replan,
     require_approved_framing,
 )
-from agents.coding_pipeline.architect import load_tree as _load_tree
-from agents.coding_pipeline.config import settings
-from agents.coding_pipeline.context import build_leaf_context
-from agents.coding_pipeline.dispatch import DispatchError, run_wave
-from agents.coding_pipeline.emit import emit_fixup
-from agents.coding_pipeline.journal import (
+from forge.coding_pipeline.architect import load_tree as _load_tree
+from forge.coding_pipeline.config import settings
+from forge.coding_pipeline.context import build_leaf_context
+from forge.coding_pipeline.dispatch import DispatchError, run_wave
+from forge.coding_pipeline.emit import emit_fixup
+from forge.coding_pipeline.journal import (
     append_escalation,
     append_gate_result,
     append_replan_action,
@@ -48,7 +48,7 @@ from agents.coding_pipeline.journal import (
     persist_wave,
     reconcile,
 )
-from agents.coding_pipeline.models import (
+from forge.coding_pipeline.models import (
     EscalateAction,
     FixupAction,
     HaltAction,
@@ -59,13 +59,13 @@ from agents.coding_pipeline.models import (
     WaveRecord,
     WaveReport,
 )
-from agents.coding_pipeline.reconcile import apply_bisect
-from agents.coding_pipeline.vcs_epic import ensure_epic_bookmark, update_epic_bookmark
-from agents.coding_pipeline.verify import verify_wave, wave_start_rev
-from agents.coding_pipeline.waves import fetch_epic_rows, fetch_feature_rows, plan_wave
-from agents.shared.task_store import TaskStore, get_task_store
-from agents.task_worker.tester import run_tests
-from agents.task_worker.vcs import VCSError, get_changed_files
+from forge.coding_pipeline.reconcile import apply_bisect
+from forge.coding_pipeline.vcs_epic import ensure_epic_bookmark, update_epic_bookmark
+from forge.coding_pipeline.verify import verify_wave, wave_start_rev
+from forge.coding_pipeline.waves import fetch_epic_rows, fetch_feature_rows, plan_wave
+from forge.shared.task_store import TaskStore, get_task_store
+from forge.task_worker.tester import run_tests
+from forge.task_worker.vcs import VCSError, get_changed_files
 
 ExitStatus = Literal[
     "dry", "waiting-on-human", "planned", "wave-gate", "max-waves", "halted", "aborted"

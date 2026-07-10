@@ -17,9 +17,9 @@ from datetime import UTC, datetime
 
 import httpx
 
-from agents.dependabot.audit import findings_for
-from agents.dependabot.config import settings
-from agents.dependabot.models import AuditFinding, BumpCandidate, EvidenceBundle
+from forge.dependabot.audit import findings_for
+from forge.dependabot.config import settings
+from forge.dependabot.models import AuditFinding, BumpCandidate, EvidenceBundle
 
 Fetcher = Callable[[str], dict | None]
 

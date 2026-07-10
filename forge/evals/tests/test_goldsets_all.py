@@ -14,11 +14,11 @@ import json
 
 import pytest
 
-from agents.evals.config import settings
-from agents.evals.fixtures import load_goldsets
-from agents.evals.models import GoldCase
-from agents.evals.runner import GRADERS
-from agents.evals.steps import ADAPTERS
+from forge.evals.config import settings
+from forge.evals.fixtures import load_goldsets
+from forge.evals.models import GoldCase
+from forge.evals.runner import GRADERS
+from forge.evals.steps import ADAPTERS
 
 STEPS = (
     "decompose",

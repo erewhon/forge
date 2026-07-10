@@ -76,13 +76,13 @@ The 7 autonomy fields on each Nous task:
 
 ```bash
 # Dry run — executes OpenCode but won't commit or update Nous
-agents/task_worker/run.sh --dry-run
+forge/task_worker/run.sh --dry-run
 
 # Pick from any project with a worker-ready task
-agents/task_worker/run.sh
+forge/task_worker/run.sh
 
 # Restrict to one project
-agents/task_worker/run.sh --project example
+forge/task_worker/run.sh --project example
 ```
 
 ## Configuration

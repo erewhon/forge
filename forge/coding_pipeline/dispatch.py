@@ -35,18 +35,18 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from agents.coding_pipeline.config import settings
-from agents.coding_pipeline.journal import (
+from forge.coding_pipeline.config import settings
+from forge.coding_pipeline.journal import (
     _journal_path,
     append_leaf_context,
     append_leaf_outcome,
 )
-from agents.coding_pipeline.models import LeafOutcome, WavePlan
-from agents.shared.automerge import log_decision
-from agents.task_worker.main import run_one
-from agents.task_worker.models import RunOutcome, TaskInfo
-from agents.task_worker.sandbox import make_sandbox
-from agents.task_worker.vcs import detect_vcs
+from forge.coding_pipeline.models import LeafOutcome, WavePlan
+from forge.shared.automerge import log_decision
+from forge.task_worker.main import run_one
+from forge.task_worker.models import RunOutcome, TaskInfo
+from forge.task_worker.sandbox import make_sandbox
+from forge.task_worker.vcs import detect_vcs
 
 _LOCK_RELPATH = Path(".task_worker") / "dispatch.lock"
 
@@ -185,7 +185,7 @@ def run_wave(
     plain and the worker fetches its own spec — injection can never block a wave.
     """
     if find is None or fetch_spec is None:
-        from agents.shared.task_store import get_task_store
+        from forge.shared.task_store import get_task_store
 
         store = get_task_store()
         find = find or store.find_task
@@ -269,7 +269,7 @@ def _scopes_from_tree(journal_dir: Path | None) -> dict[str, list[str]]:
     if journal_dir is None:
         return {}
     try:
-        from agents.coding_pipeline.architect import load_tree
+        from forge.coding_pipeline.architect import load_tree
 
         return {leaf.title: leaf.file_scope for leaf in load_tree(journal_dir) or []}
     except Exception:  # noqa: BLE001 — scheduling is an optimization, never a gate
@@ -300,9 +300,9 @@ def _run_concurrent(
     """
     import asyncio
 
-    from agents.coding_pipeline.reconcile import ReconcileError, reconcile_wave
-    from agents.shared.ensemble.pool import map_items
-    from agents.shared.workspaces import (
+    from forge.coding_pipeline.reconcile import ReconcileError, reconcile_wave
+    from forge.shared.ensemble.pool import map_items
+    from forge.shared.workspaces import (
         JJError,
         create_workspace,
         forget_workspace,
@@ -322,7 +322,7 @@ def _run_concurrent(
     if len(titles) > 1:
         scopes = _scopes_from_tree(journal_dir)
         if any(scopes.get(t) for t in titles):
-            from agents.coding_pipeline.scheduling import pick_disjoint
+            from forge.coding_pipeline.scheduling import pick_disjoint
 
             titles, deferred = pick_disjoint([(t, scopes.get(t, [])) for t in titles])
             if deferred:
@@ -394,7 +394,7 @@ def _run_concurrent(
         # map_items preserves input order, so `landed` is already dispatch order.
         landed = [(o, o.commit_id) for o in outcomes if o.status == "done" and o.commit_id]
 
-        from agents.shared.task_store import get_task_store
+        from forge.shared.task_store import get_task_store
 
         store = get_task_store()
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-from agents.shared.llm import extract_json
+from forge.shared.llm import extract_json
 
 
 def test_plain_json_passes_through():

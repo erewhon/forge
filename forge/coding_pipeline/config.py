@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from agents.shared.llm import LLMConfig
+from forge.shared.llm import LLMConfig
 
 
 class CodingPipelineSettings(BaseSettings):

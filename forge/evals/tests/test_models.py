@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from agents.evals.config import EvalsSettings
-from agents.evals.models import (
+from forge.evals.config import EvalsSettings
+from forge.evals.models import (
     CaseScore,
     GoldCase,
     GradeCheck,

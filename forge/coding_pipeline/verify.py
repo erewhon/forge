@@ -29,13 +29,13 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from agents.coding_pipeline.config import settings
-from agents.coding_pipeline.models import ReviewFinding, SuiteResult, WaveReport
-from agents.pr_review_ensemble.providers import build_reviewer_slots, rotation_pool
-from agents.shared.automerge import slugify
-from agents.shared.panel import PanelMember, PanelResult, run_member_panel, structured, verify_each
-from agents.task_worker.tester import run_tests
-from agents.task_worker.vcs import VCSError, detect_vcs
+from forge.coding_pipeline.config import settings
+from forge.coding_pipeline.models import ReviewFinding, SuiteResult, WaveReport
+from forge.pr_review_ensemble.providers import build_reviewer_slots, rotation_pool
+from forge.shared.automerge import slugify
+from forge.shared.panel import PanelMember, PanelResult, run_member_panel, structured, verify_each
+from forge.task_worker.tester import run_tests
+from forge.task_worker.vcs import VCSError, detect_vcs
 
 FINDINGS_SYSTEM = """You are reviewing the accumulated diff of one WAVE of automated coding work.
 List only REAL problems this diff introduces: bugs, broken interactions between the changes,

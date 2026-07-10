@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import json
 
-from agents.book_researcher import verifier
-from agents.book_researcher.models import (
+from forge.book_researcher import verifier
+from forge.book_researcher.models import (
     ResearchFinding,
     SprintContract,
     SprintFindings,
 )
-from agents.shared.panel import PanelResult
+from forge.shared.panel import PanelResult
 
 
 def _contract() -> SprintContract:

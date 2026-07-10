@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import date as date_type
 
-from agents.dependabot.models import EvidenceBundle
+from forge.dependabot.models import EvidenceBundle
 
 
 def should_propose_release(evidence: EvidenceBundle) -> bool:

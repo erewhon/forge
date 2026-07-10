@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agents.general_researcher.models import (
+from forge.general_researcher.models import (
     SprintFindings,
     Synthesis,
     TopicConfig,

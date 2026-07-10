@@ -23,8 +23,8 @@ from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ValidationError
 
-from agents.shared.ensemble import ApiExecutor, ExecResult, Executor, Pool, Prompt, map_items
-from agents.shared.llm import extract_json
+from forge.shared.ensemble import ApiExecutor, ExecResult, Executor, Pool, Prompt, map_items
+from forge.shared.llm import extract_json
 
 
 @dataclass

@@ -17,8 +17,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from agents.dependabot.autobump import auto_bump, render_bump
-from agents.shared.automerge import find_repo_root
+from forge.dependabot.autobump import auto_bump, render_bump
+from forge.shared.automerge import find_repo_root
 
 
 def main(argv: list[str] | None = None) -> int:

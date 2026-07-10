@@ -9,7 +9,7 @@ flag we couldn't determine) is ineligibility, not a judgment call — fail-close
 
 from __future__ import annotations
 
-from agents.dependabot.models import EvidenceBundle
+from forge.dependabot.models import EvidenceBundle
 
 
 def auto_eligible(evidence: EvidenceBundle) -> tuple[bool, str]:

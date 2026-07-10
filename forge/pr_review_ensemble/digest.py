@@ -14,16 +14,16 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from agents.pr_review_ensemble.config import settings
-from agents.pr_review_ensemble.diffsplit import DiffChunk, split_diff
-from agents.pr_review_ensemble.models import DigestResult
-from agents.pr_review_ensemble.prompts import (
+from forge.pr_review_ensemble.config import settings
+from forge.pr_review_ensemble.diffsplit import DiffChunk, split_diff
+from forge.pr_review_ensemble.models import DigestResult
+from forge.pr_review_ensemble.prompts import (
     DIGEST_MAP_SYSTEM_PROMPT,
     DIGEST_REDUCE_SYSTEM_PROMPT,
     DIGEST_SYSTEM_PROMPT,
 )
-from agents.pr_review_ensemble.providers import ReviewerSlot, build_reviewer_slots, rotation_pool
-from agents.shared.ensemble import Pool, Prompt, map_items
+from forge.pr_review_ensemble.providers import ReviewerSlot, build_reviewer_slots, rotation_pool
+from forge.shared.ensemble import Pool, Prompt, map_items
 
 
 def build_digest_pool(slots: list[ReviewerSlot]) -> Pool:

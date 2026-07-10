@@ -15,8 +15,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from agents.coding_pipeline.models import LeafOutcome, WaveRecord
-from agents.shared.automerge import log_decision
+from forge.coding_pipeline.models import LeafOutcome, WaveRecord
+from forge.shared.automerge import log_decision
 
 _WAVE_RE = re.compile(r"^wave-(\d+)\.json$")
 
@@ -268,8 +268,8 @@ def reconcile(
     notes=...) are injectable for tests; the defaults go through the configured task
     store (Forge today, GitHub issues under the work-deployable adapter).
     """
-    from agents.coding_pipeline.waves import epic_ref_prefix
-    from agents.shared.task_store import get_task_store
+    from forge.coding_pipeline.waves import epic_ref_prefix
+    from forge.shared.task_store import get_task_store
 
     if in_progress is None:
         in_progress = get_task_store().in_progress_titles

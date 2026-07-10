@@ -50,8 +50,8 @@ from pydantic import ValidationError
 # ---------------------------------------------------------------------------
 # ReplanEnvelope / ReplanAction import
 # ---------------------------------------------------------------------------
-from agents.coding_pipeline.architect import ReplanEnvelope
-from agents.coding_pipeline.models import (
+from forge.coding_pipeline.architect import ReplanEnvelope
+from forge.coding_pipeline.models import (
     EscalateAction,
     FixupAction,
     IntegrationFixAction,
@@ -59,9 +59,9 @@ from agents.coding_pipeline.models import (
     RespecAction,
     SplitSubtreeAction,
 )
-from agents.evals.graders._governance import floor_to_shipped
-from agents.evals.models import GoldCase, GradeCheck, GradeResult
-from agents.shared.llm import extract_json
+from forge.evals.graders._governance import floor_to_shipped
+from forge.evals.models import GoldCase, GradeCheck, GradeResult
+from forge.shared.llm import extract_json
 
 
 def grade(case: GoldCase, raw: str) -> GradeResult:

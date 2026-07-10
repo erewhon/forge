@@ -10,9 +10,9 @@ import tempfile
 import time
 from pathlib import Path
 
-from agents.parallel_edit.config import settings
-from agents.parallel_edit.models import CandidateSpec, DiffStat, EditRun
-from agents.parallel_edit.workspaces import (
+from forge.parallel_edit.config import settings
+from forge.parallel_edit.models import CandidateSpec, DiffStat, EditRun
+from forge.parallel_edit.workspaces import (
     JJError,
     collect_diff,
     create_workspace,

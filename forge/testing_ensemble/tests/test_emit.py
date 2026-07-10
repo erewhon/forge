@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from agents.testing_ensemble import main as main_mod
-from agents.testing_ensemble.emit import external_ref, report_to_specs
-from agents.testing_ensemble.models import CanonicalGap, ScoredGap, Verdict
+from forge.testing_ensemble import main as main_mod
+from forge.testing_ensemble.emit import external_ref, report_to_specs
+from forge.testing_ensemble.models import CanonicalGap, ScoredGap, Verdict
 
 # Aliased: pytest would otherwise try to collect the ``TestReport`` dataclass as a test class.
-from agents.testing_ensemble.models import TestReport as _TestReport
+from forge.testing_ensemble.models import TestReport as _TestReport
 
 
 def _scored(target, typ, sev, *, status="confirmed") -> ScoredGap:
@@ -88,11 +88,11 @@ def test_main_emits_confirmed_report(monkeypatch):
 
     def fake_emit_report(r, *, project, min_severity, dry_run, log):
         captured.update(project=project, min_severity=min_severity, dry_run=dry_run, report=r)
-        from agents.shared.forge_emit import EmitSummary
+        from forge.shared.forge_emit import EmitSummary
 
         return EmitSummary(project=project)
 
-    monkeypatch.setattr("agents.testing_ensemble.emit.emit_report", fake_emit_report)
+    monkeypatch.setattr("forge.testing_ensemble.emit.emit_report", fake_emit_report)
     rc = main_mod.main(
         ["some.py", "--emit-tasks", "--project", "Meta", "--min-severity", "high", "--dry-run-emit"]
     )

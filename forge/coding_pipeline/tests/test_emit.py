@@ -4,7 +4,7 @@ Covers: ref stability, dependency ordering, comma-title rejection, dedup on
 re-emit, cap behaviour, fixup ref shape, and dry-run parity.
 
 Patches ``_create_task`` and ``existing_external_refs`` from
-``agents.shared.forge_emit`` so no network / daemon is needed.
+``forge.shared.forge_emit`` so no network / daemon is needed.
 """
 
 from __future__ import annotations
@@ -14,14 +14,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agents.coding_pipeline.emit import (
+from forge.coding_pipeline.emit import (
     EmitResult,
     dry_run_emit,
     emit_fixup,
     emit_tree,
     stable_ref,
 )
-from agents.coding_pipeline.models import LeafSpec, TaskTree
+from forge.coding_pipeline.models import LeafSpec, TaskTree
 
 
 @pytest.fixture
@@ -33,7 +33,7 @@ def fake_nous(monkeypatch):
         calls.append(kwargs)
         return json.dumps({"page_id": f"pg-{len(calls)}", "row_id": f"row-{len(calls)}"})
 
-    import agents.shared.forge_emit as fe
+    import forge.shared.forge_emit as fe
 
     monkeypatch.setattr(fe, "_create_task", fake_create)
     monkeypatch.setattr(fe, "existing_external_refs", lambda: set())
@@ -127,11 +127,11 @@ class TestStableRef:
 
 class TestDependencyOrdering:
     def test_flat_no_deps_emits_as_is(self, fake_nous, monkeypatch):
-        monkeypatch.setattr("agents.shared.forge_emit.existing_external_refs", lambda: set())
+        monkeypatch.setattr("forge.shared.forge_emit.existing_external_refs", lambda: set())
         leaves = [_leaf("A"), _leaf("B"), _leaf("C")]
         tree = _tree(*leaves)
 
-        with patch("agents.coding_pipeline.emit._topo_sort") as mock_sort:
+        with patch("forge.coding_pipeline.emit._topo_sort") as mock_sort:
             mock_sort.return_value = leaves
             _result = emit_tree(tree, project="Meta", epic_slug="epic")
 
@@ -143,7 +143,7 @@ class TestDependencyOrdering:
         a = _leaf("Implement core")
         b = _leaf("Build on core", depends_on=["Implement core"])
 
-        with patch("agents.coding_pipeline.emit._topo_sort") as mock_sort:
+        with patch("forge.coding_pipeline.emit._topo_sort") as mock_sort:
             mock_sort.return_value = [a, b]
             assert mock_sort.return_value == [a, b]  # type: ignore[attr-defined]
 
@@ -253,7 +253,7 @@ class TestIdempotentReEmission:
         assert len(result1.skipped) == 0
 
         monkeypatch.setattr(
-            "agents.shared.forge_emit.existing_external_refs",
+            "forge.shared.forge_emit.existing_external_refs",
             lambda: {stable_ref("epic", leaf)},
         )
         result2 = emit_tree(tree, project="Meta", epic_slug="epic")
@@ -268,7 +268,7 @@ class TestIdempotentReEmission:
 
         b = _leaf("New leaf")
         monkeypatch.setattr(
-            "agents.shared.forge_emit.existing_external_refs",
+            "forge.shared.forge_emit.existing_external_refs",
             lambda: {stable_ref("epic", a)},
         )
         result2 = emit_tree(_tree(a, b), project="Meta", epic_slug="epic")
@@ -279,7 +279,7 @@ class TestIdempotentReEmission:
 
 class TestCapBehavior:
     def test_cap_drops_excess(self, fake_nous, monkeypatch):
-        monkeypatch.setattr("agents.shared.forge_emit.existing_external_refs", lambda: set())
+        monkeypatch.setattr("forge.shared.forge_emit.existing_external_refs", lambda: set())
         leaves = [_leaf(f"Leaf {i}") for i in range(5)]
         result = emit_tree(_tree(*leaves), project="Meta", epic_slug="epic", max_per_run=2)
         assert len(result.created) == 2
@@ -289,7 +289,7 @@ class TestCapBehavior:
         emit_tree(_tree(_leaf("Old")), project="Meta", epic_slug="epic")
 
         monkeypatch.setattr(
-            "agents.shared.forge_emit.existing_external_refs",
+            "forge.shared.forge_emit.existing_external_refs",
             lambda: {stable_ref("epic", _leaf("Old"))},
         )
         result = emit_tree(
@@ -322,7 +322,7 @@ class TestDryRun:
 
 class TestEmitFixup:
     def test_fixup_uses_fix_ref_shape(self, fake_nous, monkeypatch):
-        monkeypatch.setattr("agents.shared.forge_emit.existing_external_refs", lambda: set())
+        monkeypatch.setattr("forge.shared.forge_emit.existing_external_refs", lambda: set())
         leaf = _leaf("Fix crash after wave 1", feature="parser")
         outcome = emit_fixup(leaf, project="Meta", epic_slug="my-epic")
         assert outcome.action == "created"
@@ -334,7 +334,7 @@ class TestEmitFixup:
         leaf = _leaf("Fix crash", feature="auth")
         existing_ref = stable_ref("e", leaf, fixup=True)
         monkeypatch.setattr(
-            "agents.shared.forge_emit.existing_external_refs",
+            "forge.shared.forge_emit.existing_external_refs",
             lambda: {existing_ref},
         )
         outcome = emit_fixup(leaf, project="Meta", epic_slug="e")
@@ -343,7 +343,7 @@ class TestEmitFixup:
 
 class TestDecisionLog:
     def test_journal_written_on_emit(self, tmp_path, fake_nous, monkeypatch):
-        monkeypatch.setattr("agents.shared.forge_emit.existing_external_refs", lambda: set())
+        monkeypatch.setattr("forge.shared.forge_emit.existing_external_refs", lambda: set())
         leaf = _leaf("Logged task")
         tree = _tree(leaf)
         runs_dir = tmp_path / "pipeline-runs"
@@ -375,7 +375,7 @@ class TestDecisionLog:
         runs_dir = tmp_path / "pipeline-runs"
 
         monkeypatch.setattr(
-            "agents.shared.forge_emit.existing_external_refs",
+            "forge.shared.forge_emit.existing_external_refs",
             lambda: {stable_ref("e", leaf)},
         )
 

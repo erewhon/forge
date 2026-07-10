@@ -10,19 +10,19 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from agents.pr_review_ensemble.aggregator import build_aggregator
-from agents.pr_review_ensemble.config import settings
-from agents.pr_review_ensemble.models import (
+from forge.pr_review_ensemble.aggregator import build_aggregator
+from forge.pr_review_ensemble.config import settings
+from forge.pr_review_ensemble.models import (
     EnsembleResult,
     ProviderReview,
     ProviderStatus,
     QuorumState,
 )
-from agents.pr_review_ensemble.prompts import AGGREGATOR_SYSTEM_PROMPT, REVIEW_SYSTEM_PROMPT
-from agents.pr_review_ensemble.providers import ReviewerSlot, build_reviewer_slots
-from agents.shared.ensemble import Combiner, ExecResult, ExecStatus, Prompt
-from agents.shared.ensemble import QuorumState as HarnessQuorumState
-from agents.shared.ensemble.pool import fanout
+from forge.pr_review_ensemble.prompts import AGGREGATOR_SYSTEM_PROMPT, REVIEW_SYSTEM_PROMPT
+from forge.pr_review_ensemble.providers import ReviewerSlot, build_reviewer_slots
+from forge.shared.ensemble import Combiner, ExecResult, ExecStatus, Prompt
+from forge.shared.ensemble import QuorumState as HarnessQuorumState
+from forge.shared.ensemble.pool import fanout
 
 _STATUS_MAP: dict[ExecStatus, ProviderStatus] = {
     ExecStatus.OK: "ok",

@@ -21,8 +21,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from agents.coding_pipeline.models import LeafOutcome, SuiteResult, WaveReport
-from agents.shared.workspaces import JJError, _run_jj
+from forge.coding_pipeline.models import LeafOutcome, SuiteResult, WaveReport
+from forge.shared.workspaces import JJError, _run_jj
 
 
 class ReconcileError(RuntimeError):

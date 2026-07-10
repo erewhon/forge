@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agents.pr_review_ensemble.diffsplit import split_diff
+from forge.pr_review_ensemble.diffsplit import split_diff
 
 
 def _file_diff(path: str, *, hunks: int = 1, lines_per_hunk: int = 1) -> str:

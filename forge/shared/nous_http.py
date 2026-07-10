@@ -4,7 +4,7 @@ Auto-discovers the API key from ~/.local/share/nous/daemon-api-key (same
 pattern as nous_mcp.daemon_client). Falls back to NOUS_API_KEY env var.
 
 Usage:
-    from agents.shared.nous_http import nous_headers, nous_auth_kwargs
+    from forge.shared.nous_http import nous_headers, nous_auth_kwargs
 
     r = httpx.get(url, headers=nous_headers())
     # or for httpx.Client:

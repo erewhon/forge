@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from agents.code_reviewer.config import settings
-from agents.code_reviewer.models import NightlyReport, RepoScores
-from agents.shared.models.nous import EditorJsBlock
-from agents.shared.renderer.blocks import checklist, header, paragraph
+from forge.code_reviewer.config import settings
+from forge.code_reviewer.models import NightlyReport, RepoScores
+from forge.shared.models.nous import EditorJsBlock
+from forge.shared.renderer.blocks import header, paragraph
 
 
 def _score_marker(score: int) -> str:

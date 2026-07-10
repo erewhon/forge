@@ -12,17 +12,17 @@ import asyncio
 import json
 from datetime import UTC, datetime
 
-from agents.pr_review_ensemble.config import settings
-from agents.pr_review_ensemble.digest import build_digest_pool, run_digest
-from agents.pr_review_ensemble.logger import log_digest
-from agents.pr_review_ensemble.models import DigestResult
-from agents.pr_review_ensemble.prompts import (
+from forge.pr_review_ensemble.config import settings
+from forge.pr_review_ensemble.digest import build_digest_pool, run_digest
+from forge.pr_review_ensemble.logger import log_digest
+from forge.pr_review_ensemble.models import DigestResult
+from forge.pr_review_ensemble.prompts import (
     DIGEST_MAP_SYSTEM_PROMPT,
     DIGEST_REDUCE_SYSTEM_PROMPT,
 )
-from agents.pr_review_ensemble.providers import ReviewerSlot, SkipExecutor
-from agents.pr_review_ensemble.renderer import render_digest
-from agents.shared.ensemble import ExecResult, ExecStatus, FailureClass, Pool, Prompt
+from forge.pr_review_ensemble.providers import ReviewerSlot, SkipExecutor
+from forge.pr_review_ensemble.renderer import render_digest
+from forge.shared.ensemble import ExecResult, ExecStatus, FailureClass, Pool, Prompt
 
 
 def _ok(label: str, output: str) -> ExecResult:

@@ -30,14 +30,14 @@ import re
 import time
 from pathlib import Path
 
-from agents.shared.task_store import get_task_store
-from agents.task_worker.config import settings
-from agents.task_worker.executor import execute_task_with_opencode
-from agents.task_worker.linter import run_lint
-from agents.task_worker.models import RunOutcome, TaskInfo
-from agents.task_worker.sandbox import make_sandbox
-from agents.task_worker.tester import run_tests
-from agents.task_worker.vcs import (
+from forge.shared.task_store import get_task_store
+from forge.task_worker.config import settings
+from forge.task_worker.executor import execute_task_with_opencode
+from forge.task_worker.linter import run_lint
+from forge.task_worker.models import RunOutcome, TaskInfo
+from forge.task_worker.sandbox import make_sandbox
+from forge.task_worker.tester import run_tests
+from forge.task_worker.vcs import (
     VCSError,
     commit,
     detect_vcs,
