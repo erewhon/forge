@@ -17,6 +17,7 @@ class DependabotSettings(BaseSettings):
     audit_timeout: int = 300
     metadata_timeout: float = 20.0
     max_candidates: int = 20
+    require_attestation: bool = True
 
 
 settings = DependabotSettings()

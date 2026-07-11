@@ -24,6 +24,7 @@ def _evidence(candidate: BumpCandidate, **over) -> EvidenceBundle:
         changelog_url="https://example.com/CHANGES",
         lockfile_changes=["idna 3.11->3.15"],
         complete=True,
+        target_attested=True,
     )
     base.update(over)
     return EvidenceBundle(**base)
@@ -254,3 +255,15 @@ def test_render_bump_shows_the_story(loop, tmp_path):
     assert "meta deps — merged" in out
     assert "idna 3.11 -> 3.15 (minor)" in out
     assert "merged to main" in out
+
+
+def test_require_attestation_setting_reaches_auto_eligible(loop, tmp_path):
+    """Assert that settings.require_attestation is actually wired into the auto_eligible call.
+    When set to False and target is unattested, the bump should still proceed (pass-through)."""
+    ab.settings.require_attestation = False
+    # Flip target_attested to False — with require_attestation=False this should pass.
+    loop["collect_evidence"].side_effect = lambda c, f, d: _evidence(c, target_attested=False)
+    result = ab.auto_bump(tmp_path, log=lambda m: None)
+    assert result.status == "branched"
+    assert result.evidence is not None
+    assert result.evidence.target_attested is False

@@ -12,9 +12,19 @@ from __future__ import annotations
 from forge.dependabot.models import EvidenceBundle
 
 
-def auto_eligible(evidence: EvidenceBundle) -> tuple[bool, str]:
+def auto_eligible(
+    evidence: EvidenceBundle,
+    *,
+    require_attestation: bool = True,
+) -> tuple[bool, str]:
     """(eligible, reason). The reason names the FIRST failing condition — it becomes the
-    advisory Forge task's headline, so it must say something a human can act on."""
+    advisory Forge task's headline, so it must say something a human can act on.
+
+    Attestation posture diverges from the best-effort v2 signals: when enabled, only bumps whose
+    target is provably attested stay auto-eligible. Unattested or undeterminable targets route to
+    the advisory track. An integrity-API outage therefore pauses the auto track — bumps still
+    flow as advisory tasks, which is the correct failure mode.
+    """
     c = evidence.candidate
     if c.delta not in ("patch", "minor"):
         return False, f"version delta is {c.delta} — only patch/minor bumps auto-merge in v1"
@@ -43,5 +53,17 @@ def auto_eligible(evidence: EvidenceBundle) -> tuple[bool, str]:
         return False, (
             f"target {c.latest} introduces new install/build scripts or changes the build "
             "backend — install-time code surface grew"
+        )
+    # Attestation posture gate: when enabled, target_attested must be True. Under this
+    # posture None (undeterminable) is treated as unattested — the auto track pauses
+    # rather than guessing, and the bump still flows as an advisory task.
+    if require_attestation and evidence.target_attested is not True:
+        if evidence.target_attested is False:
+            return False, (
+                f"target {c.latest} publishes no PEP 740 attestations on PyPI — "
+                "not attested by posture"
+            )
+        return False, (
+            f"attestation status undeterminable for {c.latest} — treated as unattested by posture"
         )
     return True, ""

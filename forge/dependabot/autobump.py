@@ -180,7 +180,7 @@ def auto_bump(
             tests_passed=passed,
         )
 
-    eligible, why_not = auto_eligible(evidence)
+    eligible, why_not = auto_eligible(evidence, require_attestation=settings.require_attestation)
     if not eligible:
         return _advisory(why_not)
 

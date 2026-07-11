@@ -22,6 +22,7 @@ def _evidence(**over) -> EvidenceBundle:
         changelog_url="https://example.com/CHANGES",
         lockfile_changes=["idna 3.11->3.15"],
         complete=True,
+        target_attested=True,
     )
     base.update(over)
     return EvidenceBundle(**base)
@@ -90,6 +91,30 @@ class TestAutoEligible:
         eligible, _ = auto_eligible(_evidence(maintainer_changed=None, new_install_scripts=None))
         assert eligible
 
+    def test_attested_true_passes_with_require_attestation(self):
+        eligible, _ = auto_eligible(_evidence(target_attested=True))
+        assert eligible
+
+    def test_attested_false_blocks_when_require_attestation(self):
+        eligible, reason = auto_eligible(_evidence(target_attested=False))
+        assert not eligible
+        assert "no PEP 740 attestations" in reason
+        assert "not attested by posture" in reason
+
+    def test_attested_none_blocks_when_require_attestation(self):
+        eligible, reason = auto_eligible(_evidence(target_attested=None))
+        assert not eligible
+        assert "attestation status undeterminable" in reason
+        assert "treated as unattested by posture" in reason
+
+    def test_require_attestation_false_restores_passthrough_for_false(self):
+        eligible, _ = auto_eligible(_evidence(target_attested=False), require_attestation=False)
+        assert eligible
+
+    def test_require_attestation_false_restores_passthrough_for_none(self):
+        eligible, _ = auto_eligible(_evidence(target_attested=None), require_attestation=False)
+        assert eligible
+
 
 class TestPrompt:
     def test_prompt_carries_the_verdict_contract(self):
@@ -118,6 +143,7 @@ class TestRenderEvidence:
         assert "typosquat signal: none" in out
         assert "maintainer identity changed across the bump: unknown" in out
         assert "new install/build scripts at target: unknown" in out
+        assert "target PEP 740 attested on PyPI: YES" in out
         assert "idna 3.11->3.15" in out
         assert "evidence complete: yes" in out
 
