@@ -2,6 +2,9 @@
 
 Pydantic (like the sibling ensembles' models) so the loop can serialize evidence straight into
 the JSONL decision log and Literal fields validate on construction.
+
+The ``RedundancyReport`` model carries the LLM's redundancy analysis back to the markdown
+renderer for the read-only ``--redundancy-report`` sub-mode.
 """
 
 from __future__ import annotations
@@ -69,3 +72,18 @@ class BumpResult(BaseModel):
     merged_to_main: bool = False
     evidence: EvidenceBundle | None = None
     tests_passed: bool | None = None
+
+
+class RedundancyCluster(BaseModel):
+    """One cluster of overlapping-purpose dependencies identified by the LLM."""
+
+    purpose: str
+    packages: list[str]
+    keep: str
+    migration_note: str
+
+
+class RedundancyReport(BaseModel):
+    """The LLM's redundancy analysis — clusters of overlapping-purpose dependencies."""
+
+    clusters: list[RedundancyCluster] = Field(default_factory=list)

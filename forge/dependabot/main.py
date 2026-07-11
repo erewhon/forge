@@ -4,11 +4,15 @@ Scan, bump, gate, and (when eligible + all gates pass) auto-merge clean patch/mi
 bumps.  Fail-closed: any gate miss or policy-ineligible candidate falls through to an advisory
 branch plus a Forge task, never a merge.
 
+Also supports a read-only redundancy report sub-mode: ``--redundancy-report`` asks a model which
+dependencies overlap in purpose and prints a markdown report to stdout.
+
 Usage::
 
     meta deps                   # run the loop on the current repo
     meta deps --dry-run         # plan only (no writes)
     meta deps --auto-merge      # also advance main when every gate passes
+    meta deps --redundancy-report  # print a markdown redundancy report and exit
 """
 
 from __future__ import annotations
@@ -18,6 +22,7 @@ import sys
 from pathlib import Path
 
 from forge.dependabot.autobump import auto_bump, render_bump
+from forge.dependabot.redundancy import redundancy_report, render_report
 from forge.shared.automerge import find_repo_root
 
 
@@ -47,6 +52,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Override the repo root path (default: auto-detect from cwd)",
     )
+    parser.add_argument(
+        "--redundancy-report",
+        action="store_true",
+        default=False,
+        help="Print a read-only markdown report of overlapping-purpose dependency clusters",
+    )
     args = parser.parse_args(argv)
 
     if args.repo:
@@ -56,6 +67,12 @@ def main(argv: list[str] | None = None) -> int:
         if repo_path is None:
             print("error: no jj/git repo found in cwd or parents", file=sys.stderr)
             return 1
+
+    # Read-only redundancy report: scan deps, ask the model, print markdown, exit 0.
+    if args.redundancy_report:
+        report, deps = redundancy_report(repo_path)
+        print(render_report(report, deps))
+        return 0
 
     result = auto_bump(
         repo_path,

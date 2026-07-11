@@ -88,3 +88,23 @@ def test_no_repo_prints_error(capsys, monkeypatch):
     assert result == 1
     err = capsys.readouterr().err
     assert "no jj/git repo found" in err
+
+
+def test_redundancy_report_skips_auto_bump(monkeypatch, capsys):
+    """--redundancy-report must NOT call auto_bump at all."""
+    auto_bump_mock = MagicMock()
+    monkeypatch.setattr("forge.dependabot.main.auto_bump", auto_bump_mock)
+
+    # Patch redundancy_report so we don't hit the real LLM or uv.
+    from forge.dependabot.models import RedundancyReport
+
+    redundancy_mock = MagicMock(return_value=(RedundancyReport(clusters=[]), []))
+    monkeypatch.setattr("forge.dependabot.main.redundancy_report", redundancy_mock)
+
+    result = main(["--redundancy-report"])
+    assert result == 0
+    # auto_bump must NOT have been called — this is read-only mode.
+    auto_bump_mock.assert_not_called()
+    redundancy_mock.assert_called_once()
+    out = capsys.readouterr().out
+    assert "# Dependency Redundancy Report" in out
