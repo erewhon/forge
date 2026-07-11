@@ -7,3 +7,5 @@ dist/
 .ruff_cache/
 # Machine-local values (router endpoint, API keys, personal paths) — never committed.
 .env
+# Autonomous task-worker plumbing (specs, scratch) — never committed.
+.task_worker/
