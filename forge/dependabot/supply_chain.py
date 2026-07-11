@@ -163,6 +163,70 @@ def fetch_pypi_project(name: str, *, timeout: float | None = None) -> dict | Non
         return None
 
 
+_SCORECARD_URL = "https://api.securityscorecards.dev/projects/{host}/{owner}/{repo}"
+
+
+def source_repo_url(project_urls: dict | None) -> str | None:
+    """Extract a github.com/gitlab.com repository URL from PyPI project_urls.
+
+    Scans keys like 'Source', 'Repository', and also a repo-shaped 'Homepage'.
+    None when no recognizable repo URL is found.
+    """
+    if not project_urls:
+        return None
+    lowered = {k.lower(): v for k, v in project_urls.items() if v}
+    # Direct repo keys first
+    for key in ("source", "repository", "repo"):
+        if key in lowered:
+            return lowered[key]
+    # Homepage that looks like a repo (github.com / gitlab.com)
+    homepage = lowered.get("homepage")
+    if homepage and ("github.com" in homepage or "gitlab.com" in homepage):
+        return homepage
+    return None
+
+
+def fetch_scorecard(repo_url: str, *, timeout: float | None = None) -> dict | None:
+    """GET the OpenSSF Scorecard for *repo_url*. None on any HTTP/parse failure."""
+    try:
+        # Expect URLs like https://github.com/owner/repo
+        # API path: /projects/{host}/{owner}/{repo}
+        cleaned = repo_url.rstrip("/")
+        parts = cleaned.split("/")
+        if len(parts) < 4:
+            return None
+        host = parts[2].replace(".com", "")
+        owner = parts[3]
+        repo = parts[4] if len(parts) > 4 else parts[-1]
+        resp = httpx.get(
+            _SCORECARD_URL.format(host=host, owner=owner, repo=repo),
+            timeout=timeout if timeout is not None else settings.metadata_timeout,
+            follow_redirects=True,
+        )
+        return resp.json() if resp.status_code == 200 else None
+    except Exception:
+        return None
+
+
+def scorecard_fields(
+    data: dict | None,
+) -> tuple[float | None, str | None]:
+    """Extract (aggregate score, repo URL echo) from a Scorecard API payload.
+
+    Returns (None, None) when data is None or the score is missing/unparseable.
+    """
+    if not data:
+        return None, None
+    try:
+        score = data.get("scorecard", {}).get("score")
+        if score is not None:
+            score = float(score)
+        repo = data.get("scorecard", {}).get("repo", {}).get("name")
+        return score, repo
+    except (ValueError, TypeError):
+        return None, None
+
+
 # --- pure signal helpers --------------------------------------------------------------------
 
 
@@ -450,6 +514,7 @@ def collect_evidence(
     fetch_version: Callable[..., dict | None] = fetch_pypi_version,
     fetch_project: Fetcher = fetch_pypi_project,
     fetch_bytes: Callable[[str], bytes | None] = fetch_sdist,
+    fetch_scorecard: Callable[[str], dict | None] | None = None,
     now: datetime | None = None,
 ) -> EvidenceBundle:
     """Assemble the bundle. ``complete`` is True iff BOTH target-version PyPI fetches returned
@@ -457,7 +522,8 @@ def collect_evidence(
     unproven change). Audit findings may legitimately be empty — emptiness there is not
     incompleteness. The v2 provenance signals (maintainer change, install scripts) compare the
     CURRENT release's metadata/sdist against the target's; their unavailability yields None and
-    deliberately does not affect ``complete`` — they gate only when provably True."""
+    deliberately does not affect ``complete`` — they gate only when provably True. The Scorecard
+    signal (fetch_scorecard) is also best-effort; unavailability never affects ``complete``."""
     version_meta = fetch_version(candidate.name, candidate.latest)
     project_meta = fetch_project(candidate.name)
     current_meta = fetch_version(candidate.name, candidate.current)
@@ -467,6 +533,15 @@ def collect_evidence(
     project_urls = info.get("project_urls") or (project_meta or {}).get("info", {}).get(
         "project_urls"
     )
+
+    # Scorecard signal — best effort, injectable for tests; uses the real fetcher unless
+    # the caller supplies one (None is a valid injection for "fetch fails").
+    _fetch_sc: Callable[[str], dict | None] | None = (
+        fetch_scorecard if fetch_scorecard is not None else fetch_scorecard
+    )
+    repo_url = source_repo_url(project_urls)
+    sc_data = _fetch_sc(repo_url) if _fetch_sc and repo_url else None
+    sc_score, sc_repo = scorecard_fields(sc_data)
 
     return EvidenceBundle(
         candidate=candidate,
@@ -483,6 +558,8 @@ def collect_evidence(
         new_install_scripts=install_script_change(
             current_meta, version_meta, fetch_bytes=fetch_bytes
         ),
+        scorecard_score=sc_score,
+        scorecard_repo=sc_repo,
         lockfile_changes=lock_delta,
         complete=version_meta is not None and project_meta is not None and bool(lock_delta),
     )

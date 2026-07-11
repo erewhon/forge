@@ -44,6 +44,9 @@ class EvidenceBundle(BaseModel):
     # does NOT mark the evidence incomplete (they block only when provably True).
     maintainer_changed: bool | None = None  # identity differs between current and target release
     new_install_scripts: bool | None = None  # target sdist adds setup.py / changes build backend
+    # v2: OpenSSF Scorecard (best-effort provenance from source repo)
+    scorecard_score: float | None = None  # aggregate score from OpenSSF Scorecard
+    scorecard_repo: str | None = None  # repo name echoed from the Scorecard payload
     lockfile_changes: list[str] = Field(default_factory=list)
     complete: bool = False
 

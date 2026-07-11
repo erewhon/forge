@@ -1,0 +1,52 @@
+{
+  "scorecard": {
+    "repo": {
+      "name": "github.com/kjd/idna",
+      "email": ""
+    },
+    "scorecard": {
+      "version": "5.4.0",
+      "commit": "abc123def456"
+    },
+    "score": 6.1,
+    "date": "2026-07-01T00:00:00Z",
+    "report_uri": "https://api.securityscorecards.dev/projects/github.com/kjd/idna",
+    "checks": [
+      {
+        "name": "Binary-Binarity",
+        "score": 0,
+        "reason": "binary artifact detected"
+      },
+      {
+        "name": "Code-Review",
+        "score": 8.4,
+        "reason": "code review process detected"
+      },
+      {
+        "name": "Dependency-Update-Tool",
+        "score": 8,
+        "reason": "dependency update tool in use"
+      },
+      {
+        "name": "Fuzzing",
+        "score": 0,
+        "reason": "no fuzzing detected"
+      },
+      {
+        "name": "Pinned-Dependencies",
+        "score": 7,
+        "reason": "pinned dependencies found"
+      },
+      {
+        "name": "SAST",
+        "score": 0,
+        "reason": "no SAST tool detected"
+      },
+      {
+        "name": "Vulnerabilities",
+        "score": 10,
+        "reason": "no known vulnerabilities"
+      }
+    ]
+  }
+}

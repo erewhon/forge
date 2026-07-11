@@ -15,6 +15,8 @@ from forge.dependabot.supply_chain import (
     install_script_change,
     maintainer_change,
     package_age_days,
+    scorecard_fields,
+    source_repo_url,
     split_findings,
     typosquat_suspect,
 )
@@ -325,3 +327,127 @@ def test_empty_findings_is_not_incompleteness():
     )
     assert bundle.complete
     assert bundle.findings_current == [] and bundle.findings_target == []
+
+
+# --- source_repo_url ------------------------------------------------------------------------
+
+
+def test_source_repo_url_from_source_key():
+    urls = {"Source": "https://github.com/kjd/idna"}
+    assert source_repo_url(urls) == "https://github.com/kjd/idna"
+
+
+def test_source_repo_url_from_repository_key():
+    urls = {"Repository": "https://github.com/pallets/flask"}
+    assert source_repo_url(urls) == "https://github.com/pallets/flask"
+
+
+def test_source_repo_url_from_homepage_github():
+    urls = {"Homepage": "https://github.com/psf/requests"}
+    assert source_repo_url(urls) == "https://github.com/psf/requests"
+
+
+def test_source_repo_url_from_homepage_gitlab():
+    urls = {"Homepage": "https://gitlab.com/python-poetry/poetry"}
+    assert source_repo_url(urls) == "https://gitlab.com/python-poetry/poetry"
+
+
+def test_source_repo_url_homepage_not_repo_ignored():
+    urls = {"Homepage": "https://requests.readthedocs.io"}
+    assert source_repo_url(urls) is None
+
+
+def test_source_repo_url_none_when_empty():
+    assert source_repo_url(None) is None
+    assert source_repo_url({}) is None
+    assert source_repo_url({"Documentation": "https://docs.example.com"}) is None
+
+
+# --- scorecard_fields -----------------------------------------------------------------------
+
+
+def test_scorecard_fields_parses_score_and_repo():
+    data = json.loads((FIXTURES / "scorecard.json").read_text())
+    score, repo = scorecard_fields(data)
+    assert score == 6.1
+    assert repo == "github.com/kjd/idna"
+
+
+def test_scorecard_fields_none_on_null():
+    score, repo = scorecard_fields(None)
+    assert score is None and repo is None
+
+
+def test_scorecard_fields_none_on_empty_dict():
+    score, repo = scorecard_fields({})
+    assert score is None and repo is None
+
+
+def test_scorecard_fields_none_on_missing_score_key():
+    # scorecard score key is nested under top-level "scorecard" too — both levels checked
+    score, repo = scorecard_fields({"score": {"repo": {"name": "x"}}})
+    assert score is None
+    assert repo is None
+
+
+# --- collect_evidence with scorecard --------------------------------------------------------
+
+
+def test_collect_evidence_populates_scorecard_with_injected_fetcher():
+    meta = _meta()
+    sc = json.loads((FIXTURES / "scorecard.json").read_text())
+
+    bundle = collect_evidence(
+        _candidate(),
+        [AuditFinding(package="idna", vuln_id="PYSEC-2026-215", fix_versions=["3.15"])],
+        ["idna 3.11->3.15"],
+        fetch_version=lambda n, v: meta["version"],
+        fetch_project=lambda n: meta["project"],
+        fetch_scorecard=lambda u: sc,
+        now=datetime(2026, 7, 6, tzinfo=UTC),
+    )
+    assert bundle.complete
+    assert bundle.scorecard_score == 6.1
+    assert bundle.scorecard_repo == "github.com/kjd/idna"
+
+
+def test_collect_evidence_failing_scorecard_fetch_yields_none_complete_stays_true():
+    """Contract: scorecard unavailability yields None fields and never affects complete."""
+    meta = _meta()
+
+    bundle = collect_evidence(
+        _candidate(),
+        [AuditFinding(package="idna", vuln_id="PYSEC-2026-215", fix_versions=["3.15"])],
+        ["idna 3.11->3.15"],
+        fetch_version=lambda n, v: meta["version"],
+        fetch_project=lambda n: meta["project"],
+        fetch_scorecard=lambda u: None,
+    )
+    assert bundle.complete
+    assert bundle.scorecard_score is None
+    assert bundle.scorecard_repo is None
+
+
+def test_collect_evidence_no_repo_url_yields_none_scorecard():
+    """When no repo URL can be extracted, scorecard fields stay None and complete is unaffected."""
+    meta = _meta()
+    # Override project_urls to remove the Source key so source_repo_url returns None
+    mv = json.loads(json.dumps(meta["version"]))
+    mv["info"]["project_urls"] = {"Documentation": "https://docs.example.com"}
+    mp = json.loads(json.dumps(meta["project"]))
+    mp["info"]["project_urls"] = {"Documentation": "https://docs.example.com"}
+
+    def fv(name, version):
+        return mv if version == "3.15" else None
+
+    bundle = collect_evidence(
+        _candidate(),
+        [],
+        ["idna 3.11->3.15"],
+        fetch_version=fv,
+        fetch_project=lambda n: mp,
+        fetch_scorecard=lambda u: None,
+    )
+    assert bundle.complete
+    assert bundle.scorecard_score is None
+    assert bundle.scorecard_repo is None
