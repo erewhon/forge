@@ -22,6 +22,12 @@ from forge.coding_pipeline.journal import (
     reconcile,
 )
 from forge.coding_pipeline.models import LeafOutcome, SuiteResult, WaveRecord, WaveReport
+from forge.task_worker.nous_client import nous_available
+
+requires_nous = pytest.mark.skipif(
+    not nous_available(),
+    reason="exercises the Nous task-store path (install forge[nous])",
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -279,6 +285,7 @@ class TestReconcile:
         assert result == []
         assert update_calls == []
 
+    @requires_nous
     def test_epic_ref_prefix_passes_through_to_query(self):
         """reconcile scopes by the epic's external_ref prefix — the same membership
         rule as the wave planner, whatever Feature value a leaf carries."""

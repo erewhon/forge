@@ -12,6 +12,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from forge.coding_pipeline.main import main
+from forge.task_worker.nous_client import nous_available
+
+requires_nous = pytest.mark.skipif(
+    not nous_available(),
+    reason="exercises the Nous task-store path (install forge[nous])",
+)
 
 
 def _inventory():
@@ -304,6 +310,7 @@ def test_run_concurrency_flag_plumbs_through(tmp_path, _tmp_runs_dir):
     assert seen["concurrency"] == 3
 
 
+@requires_nous
 def test_status_accepts_epic_slug_argument(tmp_path):
     """`meta build status <epic>` must route and work with --project flag."""
     from unittest.mock import patch
@@ -319,6 +326,7 @@ def test_status_accepts_epic_slug_argument(tmp_path):
     assert result == 0
 
 
+@requires_nous
 def test_status_reads_project_from_inventory_json(tmp_path, _tmp_runs_dir):
     """status without --project reads project from inventory.json AND passes it
     to the Forge query (epic-gate feedback: the passthrough must be asserted)."""
@@ -353,6 +361,7 @@ def test_status_fails_without_project_and_no_inventory(tmp_path):
     assert result == 1
 
 
+@requires_nous
 def test_status_scopes_to_epic_and_includes_done(tmp_path, capsys):
     """status should filter by epic ref prefix and include Done tasks."""
     from unittest.mock import patch

@@ -22,6 +22,12 @@ from forge.coding_pipeline.emit import (
     stable_ref,
 )
 from forge.coding_pipeline.models import LeafSpec, TaskTree
+from forge.task_worker.nous_client import nous_available
+
+requires_nous = pytest.mark.skipif(
+    not nous_available(),
+    reason="exercises the Nous task-store path (install forge[nous])",
+)
 
 
 @pytest.fixture
@@ -126,6 +132,7 @@ class TestStableRef:
 
 
 class TestDependencyOrdering:
+    @requires_nous
     def test_flat_no_deps_emits_as_is(self, fake_nous, monkeypatch):
         monkeypatch.setattr("forge.shared.forge_emit.existing_external_refs", lambda: set())
         leaves = [_leaf("A"), _leaf("B"), _leaf("C")]
@@ -188,6 +195,7 @@ class TestDependencyOrdering:
             emit_tree(tree, project="Meta", epic_slug="epic")
 
 
+@requires_nous
 class TestGatingPassthrough:
     def test_architect_tags_pass_through_verbatim(self, fake_nous):
         # The architect's conservative tagging IS the gating decision — emission
@@ -242,6 +250,7 @@ class TestGatingPassthrough:
         assert fake_nous[0]["task_type"] == "bug-fix"
 
 
+@requires_nous
 class TestIdempotentReEmission:
     def test_re_emit_skips_existing(self, fake_nous, monkeypatch):
         """Second emit of the same tree should skip all leaves."""
@@ -277,6 +286,7 @@ class TestIdempotentReEmission:
         assert result2.created[0].external_ref == stable_ref("epic", b)
 
 
+@requires_nous
 class TestCapBehavior:
     def test_cap_drops_excess(self, fake_nous, monkeypatch):
         monkeypatch.setattr("forge.shared.forge_emit.existing_external_refs", lambda: set())
@@ -303,6 +313,7 @@ class TestCapBehavior:
         assert result.capped == 0
 
 
+@requires_nous
 class TestDryRun:
     def test_dry_run_creates_nothing(self, fake_nous):
         result = emit_tree(_tree(_leaf("Dry task")), project="Meta", epic_slug="epic", dry_run=True)
@@ -320,6 +331,7 @@ class TestDryRun:
         assert len(result.created) == 0
 
 
+@requires_nous
 class TestEmitFixup:
     def test_fixup_uses_fix_ref_shape(self, fake_nous, monkeypatch):
         monkeypatch.setattr("forge.shared.forge_emit.existing_external_refs", lambda: set())
@@ -341,6 +353,7 @@ class TestEmitFixup:
         assert outcome.action == "skipped"
 
 
+@requires_nous
 class TestDecisionLog:
     def test_journal_written_on_emit(self, tmp_path, fake_nous, monkeypatch):
         monkeypatch.setattr("forge.shared.forge_emit.existing_external_refs", lambda: set())

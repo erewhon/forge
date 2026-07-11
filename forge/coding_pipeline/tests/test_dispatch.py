@@ -13,6 +13,12 @@ from forge.coding_pipeline import dispatch as dp
 from forge.coding_pipeline.dispatch import DispatchError, repo_lock, run_wave
 from forge.coding_pipeline.models import WavePlan
 from forge.task_worker.models import RunOutcome, TaskInfo
+from forge.task_worker.nous_client import nous_available
+
+requires_nous = pytest.mark.skipif(
+    not nous_available(),
+    reason="exercises the Nous task-store path (install forge[nous])",
+)
 
 
 def _plan(*titles: str) -> WavePlan:
@@ -57,6 +63,7 @@ def wired(monkeypatch, tmp_path):
 # --- wave execution -----------------------------------------------------------
 
 
+@requires_nous
 def test_dispatches_serially_in_plan_order(wired):
     calls: list[str] = []
 
@@ -72,6 +79,7 @@ def test_dispatches_serially_in_plan_order(wired):
     ]
 
 
+@requires_nous
 def test_leaf_failure_does_not_abort_the_wave(wired):
     def fake_run(task):
         return _failed(task.task) if task.task == "a" else _done(task.task)
@@ -80,6 +88,7 @@ def test_leaf_failure_does_not_abort_the_wave(wired):
     assert [o.status for o in outcomes] == ["failed", "done"]
 
 
+@requires_nous
 def test_missing_forge_task_is_skipped_and_wave_continues(wired):
     outcomes = run_wave(
         _plan("ghost", "real"),
@@ -93,6 +102,7 @@ def test_missing_forge_task_is_skipped_and_wave_continues(wired):
     assert outcomes[1].status == "done"
 
 
+@requires_nous
 def test_outcomes_journaled_as_they_land(wired, tmp_path):
     journal_dir = tmp_path / "runs" / "epic"
     journal_dir.mkdir(parents=True)
@@ -108,6 +118,7 @@ def test_outcomes_journaled_as_they_land(wired, tmp_path):
     assert len(lines) == 2  # one record per leaf, appended incrementally
 
 
+@requires_nous
 def test_preflight_failure_aborts_with_nothing_dispatched(monkeypatch, tmp_path):
     monkeypatch.setattr(dp.settings, "dispatch_concurrency", 1)
     monkeypatch.setattr(dp, "_preflight", lambda repo: "sandbox not ready: not created")
@@ -126,6 +137,7 @@ def test_preflight_failure_aborts_with_nothing_dispatched(monkeypatch, tmp_path)
 # --- the repo lock ---------------------------------------------------------------
 
 
+@requires_nous
 def test_lock_held_by_live_process_refuses_the_wave(wired):
     lock = wired / ".task_worker" / "dispatch.lock"
     lock.parent.mkdir(parents=True)
@@ -134,6 +146,7 @@ def test_lock_held_by_live_process_refuses_the_wave(wired):
         run_wave(_plan("a"), wired, run_leaf=_done, find=_task, log=lambda m: None)
 
 
+@requires_nous
 def test_stale_lock_from_dead_process_is_stolen(wired, monkeypatch):
     lock = wired / ".task_worker" / "dispatch.lock"
     lock.parent.mkdir(parents=True)
@@ -146,6 +159,7 @@ def test_stale_lock_from_dead_process_is_stolen(wired, monkeypatch):
     assert not lock.exists()  # released after the wave
 
 
+@requires_nous
 def test_lock_released_even_when_a_leaf_raises(wired):
     def exploding_run(task):
         raise RuntimeError("worker crashed hard")
@@ -155,6 +169,7 @@ def test_lock_released_even_when_a_leaf_raises(wired):
     assert not (wired / ".task_worker" / "dispatch.lock").exists()
 
 
+@requires_nous
 def test_unparseable_lock_is_treated_as_stale(wired):
     lock = wired / ".task_worker" / "dispatch.lock"
     lock.parent.mkdir(parents=True)
@@ -218,6 +233,7 @@ def test_empty_preamble_dispatches_plain(wired):
     assert seen["spec"] is None
 
 
+@requires_nous
 def test_preamble_failure_never_blocks_dispatch(wired, tmp_path):
     """Context injection is best-effort by design: a crashing builder logs, journals
     the error, and the leaf still runs plain."""
@@ -540,6 +556,7 @@ def test_concurrent_reconcile_error_is_a_loud_dispatch_error(cw, tmp_path, monke
     assert len(cw.forgotten) == 1  # cleanup still ran
 
 
+@requires_nous
 def test_serial_path_never_touches_workspace_or_reconcile_code(wired, monkeypatch):
     """The serial-fallback invariant: concurrency 1 is byte-for-byte the old path — no
     workspaces, no reconcile, no scheduler, dx-kind preflight. Pinned explicitly via the
@@ -582,15 +599,9 @@ def test_concurrent_scheduler_defers_overlapping_scopes(cw, tmp_path):
     journal_dir.mkdir()
     persist_tree(
         [
-            LeafSpec(
-                title="a", content="x", feature="F", file_scope=["forge/x.py"], priority=1
-            ),
-            LeafSpec(
-                title="b", content="x", feature="F", file_scope=["forge/x.py"], priority=2
-            ),
-            LeafSpec(
-                title="c", content="x", feature="F", file_scope=["forge/y.py"], priority=3
-            ),
+            LeafSpec(title="a", content="x", feature="F", file_scope=["forge/x.py"], priority=1),
+            LeafSpec(title="b", content="x", feature="F", file_scope=["forge/x.py"], priority=2),
+            LeafSpec(title="c", content="x", feature="F", file_scope=["forge/y.py"], priority=3),
         ],
         journal_dir,
     )

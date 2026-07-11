@@ -43,6 +43,11 @@ except ModuleNotFoundError as _e:
     _NOUS_IMPORT_ERROR = _e
 
 
+def nous_available() -> bool:
+    """True when the optional nous extra is importable (the guard for ``require_nous``)."""
+    return _NOUS_IMPORT_ERROR is None
+
+
 def require_nous() -> None:
     """Raise the actionable install hint if the optional nous extra is missing.
 
