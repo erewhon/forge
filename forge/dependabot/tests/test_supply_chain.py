@@ -651,3 +651,16 @@ def test_collect_evidence_no_version_meta_yields_none_attested():
     )
     assert not bundle.complete
     assert bundle.target_attested is None
+
+
+def test_collect_evidence_defaults_are_the_live_fetchers():
+    """Regression (epic-gate finding, deps-v2): the fetcher params must default to the real
+    network fetchers. A None default with a self-referential fallback compiled and passed
+    every injected-fetcher test while silently disabling both signals in production."""
+    import inspect
+
+    from forge.dependabot import supply_chain
+
+    params = inspect.signature(collect_evidence).parameters
+    assert params["fetch_scorecard"].default is supply_chain.fetch_scorecard
+    assert params["fetch_attestation"].default is supply_chain.fetch_attestation

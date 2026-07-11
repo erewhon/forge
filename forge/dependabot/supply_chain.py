@@ -619,8 +619,8 @@ def collect_evidence(
     fetch_version: Callable[..., dict | None] = fetch_pypi_version,
     fetch_project: Fetcher = fetch_pypi_project,
     fetch_bytes: Callable[[str], bytes | None] = fetch_sdist,
-    fetch_scorecard: Callable[[str], dict | None] | None = None,
-    fetch_attestation: Callable[[str, str, str], bool | None] | None = None,
+    fetch_scorecard: Callable[[str], dict | None] = fetch_scorecard,
+    fetch_attestation: Callable[[str, str, str], bool | None] = fetch_attestation,
     now: datetime | None = None,
     reachability_checker: Callable[[Path, str], bool | None] | None = None,
     repo_root: Path | None = None,
@@ -644,21 +644,16 @@ def collect_evidence(
         "project_urls"
     )
 
-    # Scorecard signal — best effort, injectable for tests; uses the real fetcher unless
-    # the caller supplies one (None is a valid injection for "fetch fails").
-    _fetch_sc: Callable[[str], dict | None] | None = (
-        fetch_scorecard if fetch_scorecard is not None else fetch_scorecard
-    )
+    # Scorecard signal — best effort; the parameter defaults to the live fetcher (bound at
+    # def time, same pattern as fetch_version) so production call sites that pass nothing
+    # still fetch. Tests inject a lambda; simulate failure with `lambda u: None`.
     repo_url = source_repo_url(project_urls)
-    sc_data = _fetch_sc(repo_url) if _fetch_sc and repo_url else None
+    sc_data = fetch_scorecard(repo_url) if repo_url else None
     sc_score, sc_repo = scorecard_fields(sc_data)
 
-    # PEP 740 attestation signal — best effort, injectable for tests.
-    _fetch_att: Callable[[str, str, str], bool | None] | None = (
-        fetch_attestation if fetch_attestation is not None else fetch_attestation
-    )
+    # PEP 740 attestation signal — best effort, same live-fetcher default.
     att = (
-        target_attestation(candidate.name, version_meta, integrity_fetcher=_fetch_att)
+        target_attestation(candidate.name, version_meta, integrity_fetcher=fetch_attestation)
         if version_meta
         else None
     )
