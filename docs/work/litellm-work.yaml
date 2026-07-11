@@ -1,0 +1,61 @@
+# LiteLLM proxy config for a work machine: Bedrock strong tiers + a local cheap tier.
+#
+# Run on demand, in the foreground (no background service needed):
+#
+#     litellm --config docs/work/litellm-work.yaml --port 4000
+#
+# Port 4000 matches forge's neutral defaults (http://localhost:4000/v1), so a work
+# install needs no base-url env vars while the router is up.
+#
+# Auth: AWS credentials come from the standard chain (env vars, ~/.aws profile, SSO).
+# This file carries NO credentials. Set LITELLM_MASTER_KEY in the environment if you
+# want the proxy itself keyed; forge's *_OPENAI_API_KEY settings then carry that value.
+#
+# Model IDs: pinned to the current Claude generation (2026-07). Bedrock uses the
+# first-party ID with an `anthropic.` prefix and NO date suffix. Availability varies
+# by AWS account and region — verify with
+#     aws bedrock list-foundation-models --by-provider anthropic
+# and adjust (some accounts expose inference-profile IDs instead, e.g. a `us.` prefix).
+# Refresh procedure: when a new Claude generation ships, update the IDs here and re-run
+# `forge evals` against the cheap tier (see the model-selection task).
+
+model_list:
+  # coder — the workhorse tier for leaves and coding sessions.
+  - model_name: coder
+    litellm_params:
+      model: bedrock/anthropic.claude-sonnet-5
+      aws_region_name: os.environ/AWS_REGION
+
+  # auto — the cheap/default routing tier. Points at Bedrock Haiku until the
+  # M3-local model is pinned (swap in the m3-local entry's params once selected).
+  - model_name: auto
+    litellm_params:
+      model: bedrock/anthropic.claude-haiku-4-5
+      aws_region_name: os.environ/AWS_REGION
+
+  # auto-free — local-only tier: no per-token cost, runs on the M3.
+  # PLACEHOLDER until "Select the M3 cheap-tier model with forge evals" pins the
+  # model. Ollama and LM Studio both serve OpenAI-compatible endpoints; MLX via
+  # mlx_lm.server works the same way.
+  - model_name: auto-free
+    litellm_params:
+      model: openai/REPLACE-WITH-SELECTED-MODEL     # e.g. openai/qwen3-coder:14b
+      api_base: http://localhost:11434/v1           # Ollama default; adjust for MLX/LM Studio
+      api_key: none
+
+  # auto-full — the strongest tier for framing, gates, and hard verification seats.
+  - model_name: auto-full
+    litellm_params:
+      model: bedrock/anthropic.claude-opus-4-8
+      aws_region_name: os.environ/AWS_REGION
+
+  # research — the research harness tier (general_researcher / book_researcher).
+  - model_name: research
+    litellm_params:
+      model: bedrock/anthropic.claude-sonnet-5
+      aws_region_name: os.environ/AWS_REGION
+
+litellm_settings:
+  drop_params: true          # OpenAI-shape params Bedrock doesn't accept are dropped, not errors
+  num_retries: 2
+  request_timeout: 240

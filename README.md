@@ -64,6 +64,10 @@ uv tool install --editable '~/path/to/forge[nous]'  # with the Nous backend
 Machine-local settings (router URL, API key, project paths) live in a gitignored `.env` at the
 repo root — every agent's settings read it when run from the repo.
 
+Setting up on a work machine (Bedrock strong tiers + a local model)? See
+[docs/RUNBOOK-work-install.md](docs/RUNBOOK-work-install.md) and the router recipe at
+[docs/work/litellm-work.yaml](docs/work/litellm-work.yaml).
+
 ---
 
 **Conventions.** Path-based verbs (`audit`/`testing`/`refactor`) read files/dirs into one context
