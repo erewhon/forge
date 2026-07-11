@@ -36,7 +36,7 @@ from forge.task_worker.executor import execute_task_with_opencode
 from forge.task_worker.linter import run_lint
 from forge.task_worker.models import RunOutcome, TaskInfo
 from forge.task_worker.sandbox import make_sandbox
-from forge.task_worker.tester import run_tests
+from forge.task_worker.tester import run_build, run_tests
 from forge.task_worker.vcs import (
     VCSError,
     commit,
@@ -321,6 +321,31 @@ def run_one(
             ),
         )
         return _outcome("failed", "no file changes produced", notes_written=nw)
+
+    # 7.5 Compile gate — ALWAYS runs, independent of requires_tests. Non-compiling
+    # code must never land, even for tasks that don't require tests. No-op for
+    # languages without a cheap standalone compile step (Python/JS).
+    print("Compile check...")
+    try:
+        build_ok, build_output, build_ran = run_build(project_dir, sandbox=sandbox)
+    except Exception as e:  # noqa: BLE001
+        build_ok, build_output, build_ran = False, f"builder raised: {e}", True
+    if build_ran and not build_ok:
+        print(f"Build failed. Reverting. Tail: {_tail(build_output, 200)}")
+        _safe_revert(project_dir, "build-failed")
+        nw = _safe_status(
+            task.task,
+            "Ready",
+            notes=f"Worker build failed (does not compile):\n\n{_tail(build_output, 500)}",
+        )
+        return _outcome(
+            "failed",
+            f"build failed: {_tail(build_output, 200)}",
+            changed=changed,
+            notes_written=nw,
+        )
+    if build_ran:
+        print("Compile clean")
 
     # 8. Lint gate (inside dx container) — changed files only, autofix-then-recheck.
     # Runs BEFORE tests so a single test run validates the final (possibly autofixed)
