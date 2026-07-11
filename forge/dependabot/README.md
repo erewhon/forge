@@ -51,3 +51,45 @@ is diff the dependency's source: a compromised release with stable metadata, an 
 build backend, and no new scripts can pass — the conservative dial (patch/minor only,
 complete evidence, unanimous cross-family sign-off, one bump per branch) is the mitigation,
 not a detection claim.
+
+---
+
+## Provenance signals (v2)
+
+The v2 signals live as optional fields on ``EvidenceBundle``. All are **best-effort**: when they
+cannot be determined they report ``None``, which **never** marks the evidence incomplete and
+**never** blocks on its own. The policy gates only when a signal is provably-True (or provably
+below a threshold for scorecard).
+
+| Signal | Evidence field | What it checks | Gate behaviour | None semantics |
+|---|---|---|---|---|
+| Scorecard floor | ``scorecard_score`` | OpenSSF Scorecard aggregate score for the package's source repo | **Blocks** when ``score < SCORECARD_FLOOR`` (default 5.0). Advisory + Forge task. | Best-effort pass — missing data does not block |
+| Attestation posture | ``target_attested`` | PEP 740 provenance attestation presence on PyPI (via the integrity API) | **Blocks** when ``require_attestation=True`` and the target is not provably attested (``False`` or ``None``). Advisory + Forge task. | Treated as **unattested** when ``require_attestation=True`` — the auto track pauses, bumps still flow as advisory tasks |
+| Maintainer change | ``maintainer_changed`` | Author/maintainer identity differs between current and target release (email comparison primary, names fallback) | **Blocks** when provably different. Advisory + Forge task. | Best-effort pass |
+| Install scripts | ``new_install_scripts`` | Target sdist introduces a top-level ``setup.py`` or changes the build backend | **Blocks** when provably true. Advisory + Forge task. | Best-effort pass |
+| Typosquat | ``typosquat_suspect`` | Package name is one edit away from a popular package (OsaDistance ≤ 2 against a curated list) | **Blocks** when set. Advisory + Forge task. | N/A — the field is ``None`` (not suspect) when no match |
+| Reachability demotion | ``reachable`` | Whether the package is actually imported by this repo (AST import-graph analysis) | **Demotes** — packages provably not imported (``False``) receive lower advisory priority. Never blocks or promotes. | Unknown — treated as normal priority |
+
+### Attestation posture: the ``None`` divergence
+
+The attestation signal diverges from the other best-effort v2 signals in its handling of
+``None``. When ``require_attestation=True`` (the default), ``None`` (undeterminable due to an
+API outage or malformed response) is treated as **unattested**, because the auto track should
+pause rather than guess. This is the correct failure mode for an integrity check.
+
+All other v2 signals (scorecard, maintainer change, install scripts, reachability) treat
+``None`` as **best-effort pass** — missing data does not become a block.
+
+### ``--redundancy-report``
+
+The ``--redundancy-report`` flag runs a **read-only** sub-mode: it scans the repo's direct
+dependencies, asks a configured LLM to identify overlapping-purpose clusters, and prints a
+markdown report to stdout. No bumps are applied, no branches pushed, no tasks emitted.
+
+```bash
+# Default: uses the local LiteLLM router (alias ``coder``)
+forge deps --redundancy-report
+
+# Specify a repo
+forge deps --redundancy-report --repo /path/to/project
+```
