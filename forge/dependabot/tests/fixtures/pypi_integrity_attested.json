@@ -1,8 +1,0 @@
-{
-  "attestation_bundles": [
-    {
-      "attestations": [
-        {
-          "envelope": {
-            "signature": "MEYCIQD78o7HBC4AtJ9I7bcJaG2V8dc21XZ6jVAiLymOhLzWiAIhAPH32pCb",
-            "statement": "eyJfdHlwZSI6Imh0dHBzOi8vaW4tdG90by5pby9TdGF0ZW1lbnQvdjEiLCJzdWJqZWN0IjpbeyJ

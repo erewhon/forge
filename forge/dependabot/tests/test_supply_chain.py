@@ -664,3 +664,28 @@ def test_collect_evidence_defaults_are_the_live_fetchers():
     params = inspect.signature(collect_evidence).parameters
     assert params["fetch_scorecard"].default is supply_chain.fetch_scorecard
     assert params["fetch_attestation"].default is supply_chain.fetch_attestation
+
+
+def test_collect_evidence_threads_repo_root_into_reachability(tmp_path):
+    """Epic-gate coverage ask (deps-v2): the checker must receive collect_evidence's
+    repo_root and its verdict must land on the bundle — the in-process wiring behind the
+    demote-only reachability signal."""
+    meta = _meta()
+    calls: list[tuple[Path, str]] = []
+
+    def checker(root: Path, dist: str) -> bool | None:
+        calls.append((root, dist))
+        return False
+
+    bundle = collect_evidence(
+        _candidate(),
+        [],
+        ["idna 3.11->3.15"],
+        fetch_version=lambda n, v: meta["version"],
+        fetch_project=lambda n: meta["project"],
+        fetch_attestation=lambda n, v, f: True,
+        reachability_checker=checker,
+        repo_root=tmp_path,
+    )
+    assert calls == [(tmp_path, "idna")]
+    assert bundle.reachable is False
