@@ -22,12 +22,14 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 
 import httpx
 
 from forge.dependabot.audit import findings_for
 from forge.dependabot.config import settings
 from forge.dependabot.models import AuditFinding, BumpCandidate, EvidenceBundle
+from forge.dependabot.reachability import is_imported as _default_is_imported
 
 Fetcher = Callable[[str], dict | None]
 
@@ -620,6 +622,8 @@ def collect_evidence(
     fetch_scorecard: Callable[[str], dict | None] | None = None,
     fetch_attestation: Callable[[str, str, str], bool | None] | None = None,
     now: datetime | None = None,
+    reachability_checker: Callable[[Path, str], bool | None] | None = None,
+    repo_root: Path | None = None,
 ) -> EvidenceBundle:
     """Assemble the bundle. ``complete`` is True iff BOTH target-version PyPI fetches returned
     data AND the lockfile delta is non-empty (a changed lock with an unparseable delta is
@@ -659,6 +663,12 @@ def collect_evidence(
         else None
     )
 
+    # Reachability signal — demote-only, injectable for tests.
+    checker = reachability_checker if reachability_checker is not None else _default_is_imported
+    reachable: bool | None = None
+    if checker is not None and repo_root is not None:
+        reachable = checker(repo_root, candidate.name)
+
     return EvidenceBundle(
         candidate=candidate,
         findings_current=findings_current,
@@ -677,6 +687,7 @@ def collect_evidence(
         scorecard_score=sc_score,
         scorecard_repo=sc_repo,
         target_attested=att,
+        reachable=reachable,
         lockfile_changes=lock_delta,
         complete=version_meta is not None and project_meta is not None and bool(lock_delta),
     )

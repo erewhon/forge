@@ -50,6 +50,9 @@ class EvidenceBundle(BaseModel):
     # v2: PEP 740 attestation presence on PyPI — True if any release file has a provenance
     # attestation, False if the lookups succeeded and none do, None on any fetch failure.
     target_attested: bool | None = None
+    # Reachability: demote-only signal — is the package actually imported by this repo?
+    # True = imported, False = provably not imported (demote priority), None = unknown.
+    reachable: bool | None = None
     lockfile_changes: list[str] = Field(default_factory=list)
     complete: bool = False
 

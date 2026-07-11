@@ -31,31 +31,43 @@ READMEs cover each agent.
 ### .task_worker/
 | ID | Type | Title | Date |
 |----|------|-------|------|
-| ca25fc8d-081c-41a1-a401-5efe0a80cc50 | 🟣 feature | Attestation posture gate for auto-merge track | 2026-07-11 |
+| 7589440c-c859-46e8-9e9c-0df581ee99db | 🟣 feature | Import graph reachability signal for advisory prioritization | 2026-07-11 |
 
-**Key concepts:** attestation-posture, auto-merge-gate, pep-740, best-effort-divergence, failure-mode, provenance-signals, evidence-bundle, auto-eligible-policy
+**Key concepts:** import-graph-reachability, demote-only-signal, advisory-prioritization, ast-walk, importlib-metadata, reachability-heuristic, false-negative-safety, auto-merge-isolation
 
 ### forge/dependabot/
 | ID | Type | Title | Date |
 |----|------|-------|------|
-| 1e0256b5-d15c-4f1e-9500-e501838a825a | 🔴 bugfix | Phantom LSP error: pydantic_settings import not resolved | 2026-07-11 |
-| e7ca582e-ffc0-4fa5-8c58-adb52e8269ae | 🔵 discovery | models.py EvidenceBundle has all provenance fields including target_attested | 2026-07-11 |
-| f79de1b0-caff-499d-a1e1-ecd898462a6a | 🔵 discovery | prompts.py render_evidence missing attested tri-state line | 2026-07-11 |
-| 988f06da-6447-4ce5-8ace-a51c13364ce4 | 🔵 discovery | autobump.py call site needs require_attestation wire-up | 2026-07-11 |
-| 5d1dabfc-8f88-4cfa-bab5-b446ab0523e1 | 🔵 discovery | policy.py auto_eligible lacks attestation gate | 2026-07-11 |
-| 5073d1e3-8e76-4300-bbab-771facd5f169 | ✅ change | config.py lacks require_attestation setting | 2026-07-11 |
+| ad34bc7b-7379-4d05-804e-df80dfcc0f80 | 🔴 bugfix | Real LSP error: external_ref not defined in emit.py | 2026-07-11 |
+| a532dce3-be79-4722-ba99-bce6dceec2c7 | 🔵 discovery | autobump.py call site: emit_advisory at line 168 with evidence available | 2026-07-11 |
+| 454f02e0-100e-4c69-aad0-5923ace7a07f | 🔵 discovery | emit.py current state: no demotion logic yet | 2026-07-11 |
+| 1ed1f867-8bc0-4083-9e88-12fe3eeea0b6 | 🔴 bugfix | Phantom httpx LSP error persists — no action needed | 2026-07-11 |
+| 9d085e76-c45b-496e-9bcf-c583c9479deb | 🔴 bugfix | Path import fixed, only phantom httpx LSP error remains | 2026-07-11 |
+| 7a648ca3-4ba8-4137-a3da-8e271d5dca65 | 🔴 bugfix | Real error: Path is not defined in supply_chain.py | 2026-07-11 |
+| 74816c49-f4c4-42b9-bab0-55decd4c4ab0 | 🔴 bugfix | Phantom LSP error: httpx import not resolved in supply_chain.py | 2026-07-11 |
+| 4cd7b7e3-27b5-4c7b-9203-ce4c1962b3be | 🔴 bugfix | Phantom LSP error: pydantic import not resolved in models.py | 2026-07-11 |
+| fe4e90bc-112b-44d6-9d95-f64457842ddc | 🔵 discovery | Auto-merge risk policy with fail-closed conservative design | 2026-07-11 |
+| e624f856-b892-45a1-8e0f-0f8dce58ca64 | 🔵 discovery | Advisory emission pipeline via Forge task store | 2026-07-11 |
 
-**Key concepts:** phantom-lsp-errors, pydantic-settings, false-positives, lsp-resolution, attestation-posture, pep-740, pydantic-models, best-effort-contract, tri-state-signals, v2-provenance-signals
+**Key concepts:** real-error, missing-function, edit-regression, call-site, autobump-flow, advisory-track, demotion-wiring, demote-only-signal, advisory-emission, content-modification
 
 ### forge/dependabot/tests/
 | ID | Type | Title | Date |
 |----|------|-------|------|
-| b3aae839-f8f7-44b1-989a-ac8d27d0edb2 | 🔴 bugfix | Phantom LSP error: pytest import not resolved (repeated) | 2026-07-11 |
-| ca25202f-90cf-4c9d-adc3-941fab2f4fc9 | 🔴 bugfix | Phantom LSP error: pytest import not resolved | 2026-07-11 |
-| 5d058ef3-9c36-46b2-b141-f2ef7aa31c0a | 🔵 discovery | test_autobump.py needs settings-wire verification test | 2026-07-11 |
-| 93829db1-5b4b-40a1-964a-4a4ec4836861 | 🔵 discovery | test_policy.py needs attestation gate test cases | 2026-07-11 |
+| a152a265-bb69-47b0-9d39-56bf010178e2 | ✅ change | test_reachability.py created — phantom LSP errors in other files | 2026-07-11 |
+| 5dbf16c3-bf06-4160-a9d9-6403189d144c | 🔵 discovery | Supply chain test suite: comprehensive evidence assembly testing | 2026-07-11 |
+| 37db0871-baf9-486a-a79c-1e6220e32b4f | 🔵 discovery | Advisory emit test: mock-based emission verification | 2026-07-11 |
+| e496df54-6537-4ea6-b011-7e3a20ce2726 | 🔵 discovery | Policy test suite: truth table pattern with _evidence fixture | 2026-07-11 |
 
-**Key concepts:** phantom-lsp-errors, false-positives, lsp-resolution, attestation-posture, integration-testing, fixture-extensibility, settings-wiring, mock-verification, test-coverage, truth-table-testing
+**Key concepts:** test-coverage, phantom-lsp-errors, write-success, injectable-fetchers, zero-network-tests, fixture-based-testing, contract-testing, v2-provenance-signals, test-completeness, mock-testing
+
+### forge/shared/
+| ID | Type | Title | Date |
+|----|------|-------|------|
+| 6b2b1cfa-ce39-4289-8713-b301f3102a0f | 🔵 discovery | emit_task function signature with priority=6 default | 2026-07-11 |
+| 750a55a5-f706-45cc-93ff-0d2a103222d9 | 🔵 discovery | EmitSpec priority override mechanism for demotion | 2026-07-11 |
+
+**Key concepts:** emit-task, priority-default, idempotent-creation, batch-emission, emit-spec, priority-override, per-spec-configuration, demote-only-signal
 
 💡 *Use `mem-find` to search full details. Use `mem-create` to save important decisions.*
 <!-- /open-mem-context -->
