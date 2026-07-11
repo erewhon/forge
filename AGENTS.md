@@ -31,43 +31,9 @@ READMEs cover each agent.
 ### .task_worker/
 | ID | Type | Title | Date |
 |----|------|-------|------|
-| 7589440c-c859-46e8-9e9c-0df581ee99db | 🟣 feature | Import graph reachability signal for advisory prioritization | 2026-07-11 |
+| 64bceec1-3dbd-47b9-a33c-e83e22280beb | 🔵 discovery | Untitled observation | 2026-07-11 |
 
-**Key concepts:** import-graph-reachability, demote-only-signal, advisory-prioritization, ast-walk, importlib-metadata, reachability-heuristic, false-negative-safety, auto-merge-isolation
-
-### forge/dependabot/
-| ID | Type | Title | Date |
-|----|------|-------|------|
-| ad34bc7b-7379-4d05-804e-df80dfcc0f80 | 🔴 bugfix | Real LSP error: external_ref not defined in emit.py | 2026-07-11 |
-| a532dce3-be79-4722-ba99-bce6dceec2c7 | 🔵 discovery | autobump.py call site: emit_advisory at line 168 with evidence available | 2026-07-11 |
-| 454f02e0-100e-4c69-aad0-5923ace7a07f | 🔵 discovery | emit.py current state: no demotion logic yet | 2026-07-11 |
-| 1ed1f867-8bc0-4083-9e88-12fe3eeea0b6 | 🔴 bugfix | Phantom httpx LSP error persists — no action needed | 2026-07-11 |
-| 9d085e76-c45b-496e-9bcf-c583c9479deb | 🔴 bugfix | Path import fixed, only phantom httpx LSP error remains | 2026-07-11 |
-| 7a648ca3-4ba8-4137-a3da-8e271d5dca65 | 🔴 bugfix | Real error: Path is not defined in supply_chain.py | 2026-07-11 |
-| 74816c49-f4c4-42b9-bab0-55decd4c4ab0 | 🔴 bugfix | Phantom LSP error: httpx import not resolved in supply_chain.py | 2026-07-11 |
-| 4cd7b7e3-27b5-4c7b-9203-ce4c1962b3be | 🔴 bugfix | Phantom LSP error: pydantic import not resolved in models.py | 2026-07-11 |
-| fe4e90bc-112b-44d6-9d95-f64457842ddc | 🔵 discovery | Auto-merge risk policy with fail-closed conservative design | 2026-07-11 |
-| e624f856-b892-45a1-8e0f-0f8dce58ca64 | 🔵 discovery | Advisory emission pipeline via Forge task store | 2026-07-11 |
-
-**Key concepts:** real-error, missing-function, edit-regression, call-site, autobump-flow, advisory-track, demotion-wiring, demote-only-signal, advisory-emission, content-modification
-
-### forge/dependabot/tests/
-| ID | Type | Title | Date |
-|----|------|-------|------|
-| a152a265-bb69-47b0-9d39-56bf010178e2 | ✅ change | test_reachability.py created — phantom LSP errors in other files | 2026-07-11 |
-| 5dbf16c3-bf06-4160-a9d9-6403189d144c | 🔵 discovery | Supply chain test suite: comprehensive evidence assembly testing | 2026-07-11 |
-| 37db0871-baf9-486a-a79c-1e6220e32b4f | 🔵 discovery | Advisory emit test: mock-based emission verification | 2026-07-11 |
-| e496df54-6537-4ea6-b011-7e3a20ce2726 | 🔵 discovery | Policy test suite: truth table pattern with _evidence fixture | 2026-07-11 |
-
-**Key concepts:** test-coverage, phantom-lsp-errors, write-success, injectable-fetchers, zero-network-tests, fixture-based-testing, contract-testing, v2-provenance-signals, test-completeness, mock-testing
-
-### forge/shared/
-| ID | Type | Title | Date |
-|----|------|-------|------|
-| 6b2b1cfa-ce39-4289-8713-b301f3102a0f | 🔵 discovery | emit_task function signature with priority=6 default | 2026-07-11 |
-| 750a55a5-f706-45cc-93ff-0d2a103222d9 | 🔵 discovery | EmitSpec priority override mechanism for demotion | 2026-07-11 |
-
-**Key concepts:** emit-task, priority-default, idempotent-creation, batch-emission, emit-spec, priority-override, per-spec-configuration, demote-only-signal
+**Key concepts:** test-pollution, singleton-mutation, test-isolation, config-singleton, pytest-teardown
 
 💡 *Use `mem-find` to search full details. Use `mem-create` to save important decisions.*
 <!-- /open-mem-context -->
