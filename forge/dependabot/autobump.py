@@ -144,8 +144,11 @@ def auto_bump(
             candidate=candidate,
         )
 
-    # 2. Evidence + policy — the deterministic dial runs before any LLM.
-    evidence = collect_evidence(candidate, findings, lockfile_delta(repo_path))
+    # 2. Evidence + policy — the deterministic dial runs before any LLM. repo_root wires the
+    # reachability signal; without it `reachable` is None on every run and demotion never fires.
+    evidence = collect_evidence(
+        candidate, findings, lockfile_delta(repo_path), repo_root=repo_path
+    )
 
     def _advisory(reason: str, *, passed: bool | None = None, so=None) -> BumpResult:
         log(f"advisory: {reason}")

@@ -59,7 +59,7 @@ def loop(monkeypatch, tmp_path):
         "apply_bump": patch.object(ab, "apply_bump", return_value=["uv.lock"]),
         "lockfile_delta": patch.object(ab, "lockfile_delta", return_value=["idna 3.11->3.15"]),
         "collect_evidence": patch.object(
-            ab, "collect_evidence", side_effect=lambda c, f, d: _evidence(c)
+            ab, "collect_evidence", side_effect=lambda c, f, d, **kw: _evidence(c)
         ),
         "classify_manifest_only": patch.object(
             ab,
@@ -109,7 +109,7 @@ def test_merged_run_does_not_repark(loop, tmp_path):
 
 
 def test_advisory_reparks_too(loop, tmp_path):
-    loop["collect_evidence"].side_effect = lambda c, f, d: _evidence(c, complete=False)
+    loop["collect_evidence"].side_effect = lambda c, f, d, **kw: _evidence(c, complete=False)
     result = ab.auto_bump(tmp_path, log=lambda m: None)
     assert result.status == "advisory"
     loop["repark_working_copy"].assert_called_once_with(tmp_path, "base123")
@@ -128,7 +128,7 @@ def test_policy_ineligible_goes_advisory_without_expensive_gates(loop, tmp_path)
 
 
 def test_incomplete_evidence_goes_advisory(loop, tmp_path):
-    loop["collect_evidence"].side_effect = lambda c, f, d: _evidence(c, complete=False)
+    loop["collect_evidence"].side_effect = lambda c, f, d, **kw: _evidence(c, complete=False)
     result = ab.auto_bump(tmp_path, log=lambda m: None)
     assert result.status == "advisory"
     assert "incomplete" in result.reason
@@ -165,7 +165,9 @@ def test_signoff_block_goes_advisory_with_detail(loop, tmp_path):
 
 def test_fixed_cve_bump_rides_auto_track(loop, tmp_path):
     fixed = AuditFinding(package="idna", vuln_id="PYSEC-2026-215", fix_versions=["3.15"])
-    loop["collect_evidence"].side_effect = lambda c, f, d: _evidence(c, findings_current=[fixed])
+    loop["collect_evidence"].side_effect = lambda c, f, d, **kw: _evidence(
+        c, findings_current=[fixed]
+    )
     result = ab.auto_bump(tmp_path, log=lambda m: None)
     assert result.status == "branched"
     assert result.evidence is not None
@@ -225,7 +227,7 @@ def test_advisory_push_failure_also_reparks(loop, tmp_path):
     — the cleanup must repark so the bump commit doesn't become the mainline's parent."""
     from forge.task_worker.vcs import VCSError
 
-    loop["collect_evidence"].side_effect = lambda c, f, d: _evidence(c, complete=False)
+    loop["collect_evidence"].side_effect = lambda c, f, d, **kw: _evidence(c, complete=False)
     loop["push_branch"].side_effect = VCSError("ssh exploded")
     result = ab.auto_bump(tmp_path, log=lambda m: None)
     assert result.status == "error"
@@ -264,10 +266,20 @@ def test_require_attestation_setting_reaches_auto_eligible(loop, tmp_path):
     try:
         ab.settings.require_attestation = False
         # Flip target_attested to False — with require_attestation=False this should pass.
-        loop["collect_evidence"].side_effect = lambda c, f, d: _evidence(c, target_attested=False)
+        loop["collect_evidence"].side_effect = lambda c, f, d, **kw: _evidence(
+            c, target_attested=False
+        )
         result = ab.auto_bump(tmp_path, log=lambda m: None)
         assert result.status == "branched"
         assert result.evidence is not None
         assert result.evidence.target_attested is False
     finally:
         ab.settings.require_attestation = original
+
+
+def test_reachability_repo_root_reaches_collect_evidence(loop, tmp_path):
+    """Regression (epic-gate finding, deps-v2): the loop must pass repo_root through to
+    collect_evidence — without it `reachable` is None on every real run and the demote-only
+    reachability signal never fires."""
+    ab.auto_bump(tmp_path, log=lambda m: None)
+    assert loop["collect_evidence"].call_args.kwargs.get("repo_root") == tmp_path

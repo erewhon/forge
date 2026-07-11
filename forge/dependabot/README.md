@@ -93,3 +93,15 @@ forge deps --redundancy-report
 # Specify a repo
 forge deps --redundancy-report --repo /path/to/project
 ```
+
+## Out of scope — deferred deliberately (deps-v2 framing)
+
+Two sub-features of the original "deps v2 — supply-chain provenance" brief were re-homed
+rather than built here, per the approved epic framing:
+
+- **AI-BOM (model provenance inventory).** The models it would inventory belong to the LLM
+  router, not this repo — filed in the **LLM Router** project as "Static CycloneDX ML-BOM for
+  the router models" (task ref `deps-v2:ai-bom-moved`).
+- **AI vendoring of small unmaintained dependencies.** Reimplementing a dependency writes
+  code with wide design latitude — a response playbook, not an evidence signal. Deferred to
+  its own future epic; `--redundancy-report` output is its natural candidate list.
