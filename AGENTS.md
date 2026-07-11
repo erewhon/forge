@@ -31,9 +31,25 @@ READMEs cover each agent.
 ### .task_worker/
 | ID | Type | Title | Date |
 |----|------|-------|------|
-| 64bceec1-3dbd-47b9-a33c-e83e22280beb | 🔵 discovery | Untitled observation | 2026-07-11 |
+| 2542239c-6127-49af-8941-79aa710609aa | 🟣 feature | Scorecard floor gate in auto-merge policy | 2026-07-11 |
 
-**Key concepts:** test-pollution, singleton-mutation, test-isolation, config-singleton, pytest-teardown
+**Key concepts:** scorecard-floor, auto-merge-gate, evidence-bundle, policy-constraint, provenance-signals, fail-soft-on-missing
+
+### forge/dependabot/
+| ID | Type | Title | Date |
+|----|------|-------|------|
+| 2a35eccf-3849-4add-b1bc-65d21f7a51ef | 🔵 discovery | EvidenceBundle schema already has scorecard fields | 2026-07-11 |
+| 6085199b-4b6e-4dbc-8558-e19378beccb9 | 🔵 discovery | Current render_evidence format and signal ordering | 2026-07-11 |
+| e4e9f89d-77db-4729-9503-058ef7bbc6b0 | 🔵 discovery | Current auto_eligible policy structure and gate order | 2026-07-11 |
+
+**Key concepts:** scorecard-fields, pydantic-models, best-effort-signals, schema-already-defined, nullable-types, evidence-rendering, signal-formatting, truthy-tri-state, gate-ordering, fail-closed
+
+### forge/dependabot/tests/
+| ID | Type | Title | Date |
+|----|------|-------|------|
+| 2f3c67d5-28e3-48b6-8478-a3769edec7ef | 🔵 discovery | Test patterns: clean baseline + single-override strategy | 2026-07-11 |
+
+**Key concepts:** test-factory-pattern, single-variable-testing, reason-substring-assertions, clean-baseline
 
 💡 *Use `mem-find` to search full details. Use `mem-create` to save important decisions.*
 <!-- /open-mem-context -->

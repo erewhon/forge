@@ -5,11 +5,17 @@ deliberately conservative for v1: patch/minor only, complete evidence only, no r
 no yanked target, no typosquat suspicion. The full-quorum sign-off can still block an eligible
 bump; nothing can promote an ineligible one. Missing evidence (``complete=False``, or a yanked
 flag we couldn't determine) is ineligibility, not a judgment call — fail-closed by construction.
+
+Scorecard floor is a best-effort provenance signal: block only when the score is provably
+below the threshold, never when it is missing. The v2 contract says None must not turn into
+a block.
 """
 
 from __future__ import annotations
 
 from forge.dependabot.models import EvidenceBundle
+
+SCORECARD_FLOOR = 5.0  # OpenSSF Scorecard aggregate floor for auto-eligible bumps
 
 
 def auto_eligible(
@@ -65,5 +71,13 @@ def auto_eligible(
             )
         return False, (
             f"attestation status undeterminable for {c.latest} — treated as unattested by posture"
+        )
+    # v2 scorecard: block only when provably below floor — None passes (best-effort signal,
+    # by contract missing data must not become a block).
+    if evidence.scorecard_score is not None and evidence.scorecard_score < SCORECARD_FLOOR:
+        return False, (
+            f"OpenSSF Scorecard for {evidence.scorecard_repo or 'unknown'} "
+            f"is {evidence.scorecard_score:.1f} (floor {SCORECARD_FLOOR}) — "
+            "weak supply-chain posture; needs human eyes"
         )
     return True, ""

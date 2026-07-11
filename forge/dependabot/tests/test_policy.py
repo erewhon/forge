@@ -116,6 +116,44 @@ class TestAutoEligible:
         assert eligible
 
 
+class TestScorecardFloor:
+    def test_score_below_floor_blocks(self):
+        eligible, reason = auto_eligible(_evidence(scorecard_score=4.0, scorecard_repo="pypa/pip"))
+        assert not eligible
+        assert "4.0" in reason
+        assert "pip" in reason
+        assert "floor 5.0" in reason
+
+    def test_score_at_floor_passes(self):
+        eligible, _ = auto_eligible(_evidence(scorecard_score=5.0, scorecard_repo="pypa/pip"))
+        assert eligible
+
+    def test_score_above_floor_passes(self):
+        eligible, _ = auto_eligible(_evidence(scorecard_score=9.3, scorecard_repo="pypa/pip"))
+        assert eligible
+
+    def test_none_score_passes(self):
+        eligible, _ = auto_eligible(_evidence(scorecard_score=None, scorecard_repo=None))
+        assert eligible
+
+    def test_earlier_failing_condition_wins_reason(self):
+        # major delta is checked before scorecard — its reason must win
+        eligible, reason = auto_eligible(
+            _evidence(delta="major", scorecard_score=1.0, scorecard_repo="pypa/pip")
+        )
+        assert not eligible
+        assert "major" in reason
+        assert "OpenSSF" not in reason
+
+    def test_render_evidence_includes_scorecard_line(self):
+        out = render_evidence(_evidence(scorecard_score=7.2, scorecard_repo="pypa/pip"))
+        assert "OpenSSF Scorecard: 7.2 (pypa/pip)" in out
+
+    def test_render_evidence_scorecard_unavailable_when_none(self):
+        out = render_evidence(_evidence(scorecard_score=None, scorecard_repo=None))
+        assert "OpenSSF Scorecard: unavailable (no source repo mapped)" in out
+
+
 class TestPrompt:
     def test_prompt_carries_the_verdict_contract(self):
         assert '{"approve": true|false, "blockers": ["..."], "notes": "..."}' in (
@@ -133,7 +171,12 @@ class TestPrompt:
 class TestRenderEvidence:
     def test_every_signal_present(self):
         finding = AuditFinding(package="idna", vuln_id="PYSEC-2026-215", fix_versions=["3.15"])
-        out = render_evidence(_evidence(findings_current=[finding]))
+        ev = _evidence(
+            findings_current=[finding],
+            scorecard_score=7.2,
+            scorecard_repo="pypa/idna",
+        )
+        out = render_evidence(ev)
         assert "idna 3.11 -> 3.15 (delta: minor)" in out
         assert "fixed by this bump: PYSEC-2026-215" in out
         assert "REMAINING at target: none" in out
@@ -144,6 +187,7 @@ class TestRenderEvidence:
         assert "maintainer identity changed across the bump: unknown" in out
         assert "new install/build scripts at target: unknown" in out
         assert "target PEP 740 attested on PyPI: YES" in out
+        assert "OpenSSF Scorecard: 7.2 (pypa/idna)" in out
         assert "idna 3.11->3.15" in out
         assert "evidence complete: yes" in out
 

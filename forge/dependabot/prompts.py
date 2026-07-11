@@ -61,6 +61,8 @@ def render_evidence(evidence: EvidenceBundle) -> str:
         f"- maintainer identity changed across the bump: {_tri(evidence.maintainer_changed)}",
         f"- new install/build scripts at target: {_tri(evidence.new_install_scripts)}",
         f"- target PEP 740 attested on PyPI: {_tri(evidence.target_attested)}",
+        f"- OpenSSF Scorecard: {evidence.scorecard_score or 'unavailable'} "
+        f"({evidence.scorecard_repo or 'no source repo mapped'})",
         f"- lockfile changes: {'; '.join(evidence.lockfile_changes) or 'none parsed'}",
         f"- evidence complete: {'yes' if evidence.complete else 'NO'}",
     ]
