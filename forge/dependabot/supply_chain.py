@@ -7,6 +7,14 @@ delta for a changed lock is.
 
 Pure signal helpers are separated from the two PyPI fetchers so tests inject canned metadata
 and never touch the network.
+
+Observed PyPI API shapes (verified 2026-07-11):
+- Version JSON ``/pypi/{name}/{version}/json``: ``urls`` entries have ``filename``,
+  ``packagetype`` (``bdist_wheel`` or ``sdist``), ``has_sig`` (GPG signature, NOT PEP 740),
+  and other standard fields. No provenance marker in the version JSON itself.
+- Integrity API ``/integrity/{name}/{version}/{filename}/provenance``: returns 200 with a
+  JSON body containing ``attestation_bundles`` when a PEP 740 provenance attestation exists,
+  and 404 when it does not. This is the sole signal for attestation presence.
 """
 
 from __future__ import annotations
@@ -22,6 +30,8 @@ from forge.dependabot.config import settings
 from forge.dependabot.models import AuditFinding, BumpCandidate, EvidenceBundle
 
 Fetcher = Callable[[str], dict | None]
+
+PYPI_INTEGRITY_PROVENANCE_URL = "https://pypi.org/integrity/{name}/{version}/{filename}/provenance"
 
 _PYPI_VERSION_URL = "https://pypi.org/pypi/{name}/{version}/json"
 _PYPI_PROJECT_URL = "https://pypi.org/pypi/{name}/json"
@@ -330,6 +340,99 @@ def typosquat_suspect(name: str) -> str | None:
     return None
 
 
+# --- attestation presence signal (PEP 740) --------------------------------------------------
+# Best-effort by contract: None = "could not determine", which never marks evidence incomplete
+# and never blocks on its own; only a provably-True signal is a policy stop.
+
+
+def _wheel_or_sdist_filename(version_meta: dict | None) -> list[str] | None:
+    """Return up to two filenames: first wheel, first sdist from the version release files.
+
+    Returns None when there are no release files to inspect.
+    """
+    if not version_meta:
+        return None
+    filenames: list[str] = []
+    seen_types: set[str] = set()
+    for f in version_meta.get("urls", []):
+        pt = f.get("packagetype", "")
+        if pt in ("bdist_wheel", "sdist") and pt not in seen_types:
+            fn = f.get("filename")
+            if fn:
+                filenames.append(fn)
+                seen_types.add(pt)
+        if len(seen_types) == 2:
+            break
+    return filenames if filenames else None
+
+
+def fetch_attestation(
+    name: str, version: str, filename: str, *, timeout: float | None = None
+) -> bool | None:
+    """Check whether *filename* of package *name* version *version* has a PEP 740 provenance
+    attestation on PyPI.
+
+    Returns True for 200 (attested), False for 404 (not attested), None on any other failure.
+    """
+    try:
+        resp = httpx.get(
+            PYPI_INTEGRITY_PROVENANCE_URL.format(name=name, version=version, filename=filename),
+            timeout=timeout if timeout is not None else settings.metadata_timeout,
+            follow_redirects=True,
+        )
+        if resp.status_code == 200:
+            return True
+        if resp.status_code == 404:
+            return False
+        return None
+    except Exception:
+        return None
+
+
+def target_attestation(
+    name: str,
+    version_meta: dict | None,
+    *,
+    integrity_fetcher: Callable[[str, str, str], bool | None] | None = None,
+) -> bool | None:
+    """Determine whether the target version has any PEP 740 provenance attestation.
+
+    Two sources, in order of preference:
+    1. If an ``integrity_fetcher`` is injected (for tests), use it for the first sdist and
+       first wheel filenames extracted from *version_meta*.
+    2. Otherwise, hit the PyPI integrity API directly.
+
+    Returns True if at least one release file is attested, False if lookups succeeded and
+    none are, None on any fetch failure.
+    """
+    filenames = _wheel_or_sdist_filename(version_meta)
+    if filenames is None or not filenames:
+        # No release files to check — can't determine
+        return None
+
+    # Use the first sdist and first wheel (at most 2 requests)
+    to_check = []
+    for fn in filenames:
+        if len(to_check) >= 2:
+            break
+        to_check.append(fn)
+
+    if version_meta is None:
+        return None
+    fetcher = integrity_fetcher if integrity_fetcher is not None else fetch_attestation
+
+    attested = False
+    for fn in to_check:
+        result = fetcher(name, version_meta.get("info", {}).get("version", "") or "", fn)
+        if result is None:
+            return None  # any failure -> undeterminable
+        if result:
+            attested = True
+            break  # found at least one attested file — done
+
+    return attested
+
+
 # --- v2 provenance signals --------------------------------------------------------------------
 # Best-effort by contract: None = "could not determine", which never marks evidence incomplete
 # and never blocks on its own; only a provably-True signal is a policy stop.
@@ -515,6 +618,7 @@ def collect_evidence(
     fetch_project: Fetcher = fetch_pypi_project,
     fetch_bytes: Callable[[str], bytes | None] = fetch_sdist,
     fetch_scorecard: Callable[[str], dict | None] | None = None,
+    fetch_attestation: Callable[[str, str, str], bool | None] | None = None,
     now: datetime | None = None,
 ) -> EvidenceBundle:
     """Assemble the bundle. ``complete`` is True iff BOTH target-version PyPI fetches returned
@@ -523,7 +627,9 @@ def collect_evidence(
     incompleteness. The v2 provenance signals (maintainer change, install scripts) compare the
     CURRENT release's metadata/sdist against the target's; their unavailability yields None and
     deliberately does not affect ``complete`` — they gate only when provably True. The Scorecard
-    signal (fetch_scorecard) is also best-effort; unavailability never affects ``complete``."""
+    signal (fetch_scorecard) is also best-effort; unavailability never affects ``complete``.
+    The PEP 740 attestation signal (fetch_attestation) is also best-effort; unavailability
+    (None) never affects ``complete``."""
     version_meta = fetch_version(candidate.name, candidate.latest)
     project_meta = fetch_project(candidate.name)
     current_meta = fetch_version(candidate.name, candidate.current)
@@ -543,6 +649,16 @@ def collect_evidence(
     sc_data = _fetch_sc(repo_url) if _fetch_sc and repo_url else None
     sc_score, sc_repo = scorecard_fields(sc_data)
 
+    # PEP 740 attestation signal — best effort, injectable for tests.
+    _fetch_att: Callable[[str, str, str], bool | None] | None = (
+        fetch_attestation if fetch_attestation is not None else fetch_attestation
+    )
+    att = (
+        target_attestation(candidate.name, version_meta, integrity_fetcher=_fetch_att)
+        if version_meta
+        else None
+    )
+
     return EvidenceBundle(
         candidate=candidate,
         findings_current=findings_current,
@@ -560,6 +676,7 @@ def collect_evidence(
         ),
         scorecard_score=sc_score,
         scorecard_repo=sc_repo,
+        target_attested=att,
         lockfile_changes=lock_delta,
         complete=version_meta is not None and project_meta is not None and bool(lock_delta),
     )

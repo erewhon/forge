@@ -10,6 +10,7 @@ from pathlib import Path
 
 from forge.dependabot.models import AuditFinding, BumpCandidate
 from forge.dependabot.supply_chain import (
+    _wheel_or_sdist_filename,
     changelog_url,
     collect_evidence,
     install_script_change,
@@ -18,6 +19,7 @@ from forge.dependabot.supply_chain import (
     scorecard_fields,
     source_repo_url,
     split_findings,
+    target_attestation,
     typosquat_suspect,
 )
 
@@ -451,3 +453,201 @@ def test_collect_evidence_no_repo_url_yields_none_scorecard():
     assert bundle.complete
     assert bundle.scorecard_score is None
     assert bundle.scorecard_repo is None
+
+
+# --- _wheel_or_sdist_filename ---------------------------------------------------------------
+
+
+def test_wheel_or_sdist_filename_returns_wheel_and_sdist():
+    meta = {
+        "urls": [
+            {"filename": "pkg-1.0-py3-none-any.whl", "packagetype": "bdist_wheel"},
+            {"filename": "pkg-1.0.tar.gz", "packagetype": "sdist"},
+        ]
+    }
+    assert _wheel_or_sdist_filename(meta) == [
+        "pkg-1.0-py3-none-any.whl",
+        "pkg-1.0.tar.gz",
+    ]
+
+
+def test_wheel_or_sdist_filename_skips_non_wheel_sdist():
+    meta = {
+        "urls": [
+            {"filename": "pkg-1.0-cp38-win32.whl", "packagetype": "bdist_wheel"},
+            {"filename": "pkg-1.0-cp39-win32.whl", "packagetype": "bdist_wheel"},
+            {"filename": "pkg-1.0.tar.gz", "packagetype": "sdist"},
+            {"filename": "pkg-1.0-egg.txt", "packagetype": "other"},
+        ]
+    }
+    assert _wheel_or_sdist_filename(meta) == [
+        "pkg-1.0-cp38-win32.whl",
+        "pkg-1.0.tar.gz",
+    ]
+
+
+def test_wheel_or_sdist_filename_empty_returns_none():
+    assert _wheel_or_sdist_filename(None) is None
+    assert _wheel_or_sdist_filename({"urls": []}) is None
+
+
+def test_wheel_or_sdist_filename_no_wheel_or_sdist_returns_none():
+    meta = {"urls": [{"filename": "pkg.egg", "packagetype": "other"}]}
+    assert _wheel_or_sdist_filename(meta) is None
+
+
+# --- target_attestation ---------------------------------------------------------------------
+
+
+def test_target_attestation_true_when_wheel_attested():
+    meta = {
+        "info": {"version": "3.15"},
+        "urls": [
+            {"filename": "idna-3.15-py3-none-any.whl", "packagetype": "bdist_wheel"},
+            {"filename": "idna-3.15.tar.gz", "packagetype": "sdist"},
+        ],
+    }
+    result = target_attestation("idna", meta, integrity_fetcher=lambda n, v, f: True)
+    assert result is True
+
+
+def test_target_attestation_false_when_no_file_attested():
+    meta = {
+        "info": {"version": "3.15"},
+        "urls": [
+            {"filename": "idna-3.15-py3-none-any.whl", "packagetype": "bdist_wheel"},
+            {"filename": "idna-3.15.tar.gz", "packagetype": "sdist"},
+        ],
+    }
+    result = target_attestation("idna", meta, integrity_fetcher=lambda n, v, f: False)
+    assert result is False
+
+
+def test_target_attestation_false_stops_at_first_attested():
+    """Once one file is attested, we stop — second file's result doesn't matter."""
+    meta = {
+        "info": {"version": "3.15"},
+        "urls": [
+            {"filename": "idna-3.15-py3-none-any.whl", "packagetype": "bdist_wheel"},
+            {"filename": "idna-3.15.tar.gz", "packagetype": "sdist"},
+        ],
+    }
+    call_count = 0
+
+    def counting_fetcher(n, v, f):
+        nonlocal call_count
+        call_count += 1
+        if f.endswith(".whl"):
+            return True
+        return False
+
+    result = target_attestation("idna", meta, integrity_fetcher=counting_fetcher)
+    assert result is True
+    assert call_count == 1  # stopped after first attested
+
+
+def test_target_attestation_none_on_fetch_failure():
+    meta = {
+        "info": {"version": "3.15"},
+        "urls": [
+            {"filename": "idna-3.15-py3-none-any.whl", "packagetype": "bdist_wheel"},
+        ],
+    }
+    result = target_attestation("idna", meta, integrity_fetcher=lambda n, v, f: None)
+    assert result is None
+
+
+def test_target_attestation_none_when_no_release_files():
+    result = target_attestation("idna", None)
+    assert result is None
+
+    result = target_attestation("idna", {"urls": []})
+    assert result is None
+
+
+def test_target_attestation_uses_first_sdist_and_first_wheel():
+    """Should only check at most one sdist and one wheel (first of each)."""
+    meta = {
+        "info": {"version": "1.0"},
+        "urls": [
+            {"filename": "pkg-1.0-cp38.whl", "packagetype": "bdist_wheel"},
+            {"filename": "pkg-1.0-cp39.whl", "packagetype": "bdist_wheel"},
+            {"filename": "pkg-1.0.tar.gz", "packagetype": "sdist"},
+            {"filename": "pkg-1.0-2.tar.gz", "packagetype": "sdist"},
+        ],
+    }
+    checked = []
+
+    def tracker(n, v, f):
+        checked.append(f)
+        return False
+
+    target_attestation("pkg", meta, integrity_fetcher=tracker)
+    # Only first wheel and first sdist checked
+    assert len(checked) == 2
+    assert "pkg-1.0-cp38.whl" in checked
+    assert "pkg-1.0.tar.gz" in checked
+
+
+# --- collect_evidence with attestation ------------------------------------------------------
+
+
+def test_collect_evidence_attested_target_is_true():
+    meta = _meta()
+    bundle = collect_evidence(
+        _candidate(),
+        [],
+        ["idna 3.11->3.15"],
+        fetch_version=lambda n, v: meta["version"],
+        fetch_project=lambda n: meta["project"],
+        fetch_attestation=lambda n, v, f: True,
+    )
+    assert bundle.complete
+    assert bundle.target_attested is True
+
+
+def test_collect_evidence_not_attested_target_is_false():
+    meta = _meta()
+    bundle = collect_evidence(
+        _candidate(),
+        [],
+        ["idna 3.11->3.15"],
+        fetch_version=lambda n, v: meta["version"],
+        fetch_project=lambda n: meta["project"],
+        fetch_attestation=lambda n, v, f: False,
+    )
+    assert bundle.complete
+    assert bundle.target_attested is False
+
+
+def test_collect_evidence_attestation_fetch_failure_yields_none_complete_stays_true():
+    """Contract: attestation unavailability yields None and never affects complete."""
+    meta = _meta()
+    bundle = collect_evidence(
+        _candidate(),
+        [],
+        ["idna 3.11->3.15"],
+        fetch_version=lambda n, v: meta["version"],
+        fetch_project=lambda n: meta["project"],
+        fetch_attestation=lambda n, v, f: None,
+    )
+    assert bundle.complete
+    assert bundle.target_attested is None
+
+
+def test_collect_evidence_no_version_meta_yields_none_attested():
+    """When target version fetch fails, attestation stays None (and complete is False)."""
+    meta = _meta()
+
+    def fetch_version_fail(name, version):
+        return None
+
+    bundle = collect_evidence(
+        _candidate(),
+        [],
+        ["idna 3.11->3.15"],
+        fetch_version=fetch_version_fail,
+        fetch_project=lambda n: meta["project"],
+    )
+    assert not bundle.complete
+    assert bundle.target_attested is None

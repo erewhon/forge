@@ -47,6 +47,9 @@ class EvidenceBundle(BaseModel):
     # v2: OpenSSF Scorecard (best-effort provenance from source repo)
     scorecard_score: float | None = None  # aggregate score from OpenSSF Scorecard
     scorecard_repo: str | None = None  # repo name echoed from the Scorecard payload
+    # v2: PEP 740 attestation presence on PyPI — True if any release file has a provenance
+    # attestation, False if the lookups succeeded and none do, None on any fetch failure.
+    target_attested: bool | None = None
     lockfile_changes: list[str] = Field(default_factory=list)
     complete: bool = False
 

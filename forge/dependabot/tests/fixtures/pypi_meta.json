@@ -10,12 +10,17 @@
     },
     "urls": [
       {
+        "filename": "idna-3.15-py3-none-any.whl",
+        "packagetype": "bdist_wheel",
         "upload_time_iso_8601": "2026-05-12T22:45:55.733813Z"
       },
       {
+        "filename": "idna-3.15.tar.gz",
+        "packagetype": "sdist",
         "upload_time_iso_8601": "2026-05-12T22:45:57.011321Z"
       }
-    ]
+    ],
+    "version": "3.15"
   },
   "project": {
     "info": {
