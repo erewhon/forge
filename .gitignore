@@ -9,3 +9,5 @@ dist/
 .env
 # Autonomous task-worker plumbing (specs, scratch) — never committed.
 .task_worker/
+# Agent decision logs (JSONL runtime output) — never committed.
+forge/*/logs/

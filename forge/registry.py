@@ -105,4 +105,11 @@ REGISTRY: list[AgentCommand] = [
         module="forge.dependabot.main",
         exposes_mcp=False,
     ),
+    AgentCommand(
+        name="upstream",
+        summary="Upstream sync for additive forks: fetch, merge, gate, push.",
+        module="forge.upstream_sync.main",
+        # CLI-only like deps: it pushes branches to real remotes.
+        exposes_mcp=False,
+    ),
 ]
