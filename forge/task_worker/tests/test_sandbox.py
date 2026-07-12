@@ -202,9 +202,7 @@ def test_run_once_metachars_pass_through_as_single_elements(tmp_path, monkeypatc
     assert seen["args"][-2] == "echo"
 
 
-def test_run_once_without_host_opencode_mounts_only_the_workspace(
-    tmp_path, monkeypatch, bare_home
-):
+def test_run_once_without_host_opencode_mounts_only_the_workspace(tmp_path, monkeypatch, bare_home):
     seen = _capture_run(monkeypatch)
     box = GaolRunOnceSandbox(tmp_path)
     box.run(["true"], timeout=5)
@@ -213,9 +211,7 @@ def test_run_once_without_host_opencode_mounts_only_the_workspace(
     assert not (tmp_path / ".task_worker").exists()  # no state dir created for nothing
 
 
-def test_run_once_mounts_opencode_config_and_seeds_private_state(
-    tmp_path, monkeypatch, bare_home
-):
+def test_run_once_mounts_opencode_config_and_seeds_private_state(tmp_path, monkeypatch, bare_home):
     """Host config is shared read-mostly; the data dir is per-sandbox, seeded with ONLY
     auth.json (private opencode.db per worker — concurrent sessions corrupt the shared
     sqlite WAL), and lives under the repo's self-ignored .task_worker/."""
@@ -322,7 +318,7 @@ def test_tester_timeout_message_preserved(tmp_path):
 def test_tester_no_config_skips_sandbox_entirely(tmp_path):
     box = FakeSandbox(tmp_path)
     passed, out = tester.run_tests(tmp_path, sandbox=box)
-    assert passed and out == "no tests configured"
+    assert passed and out.startswith("no test runner configured")
     assert box.commands == []
 
 

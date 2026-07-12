@@ -322,30 +322,34 @@ def run_one(
         )
         return _outcome("failed", "no file changes produced", notes_written=nw)
 
-    # 7.5 Compile gate — ALWAYS runs, independent of requires_tests. Non-compiling
-    # code must never land, even for tasks that don't require tests. No-op for
-    # languages without a cheap standalone compile step (Python/JS).
-    print("Compile check...")
+    # 7.5 Static-check gate — ALWAYS runs, independent of requires_tests. Statically
+    # broken code (doesn't compile, doesn't type-check, syntax errors) must never
+    # land, even for tasks that don't require tests. Checks are additive per
+    # detected language; a detected language with its tool missing from the
+    # sandbox fails closed rather than passing silent.
+    print("Static checks...")
     try:
-        build_ok, build_output, build_ran = run_build(project_dir, sandbox=sandbox)
+        build_ok, build_output, build_ran = run_build(
+            project_dir, sandbox=sandbox, changed_files=changed
+        )
     except Exception as e:  # noqa: BLE001
         build_ok, build_output, build_ran = False, f"builder raised: {e}", True
     if build_ran and not build_ok:
-        print(f"Build failed. Reverting. Tail: {_tail(build_output, 200)}")
+        print(f"Static checks failed. Reverting. Tail: {_tail(build_output, 200)}")
         _safe_revert(project_dir, "build-failed")
         nw = _safe_status(
             task.task,
             "Ready",
-            notes=f"Worker build failed (does not compile):\n\n{_tail(build_output, 500)}",
+            notes=f"Worker static checks failed:\n\n{_tail(build_output, 500)}",
         )
         return _outcome(
             "failed",
-            f"build failed: {_tail(build_output, 200)}",
+            f"static checks failed: {_tail(build_output, 200)}",
             changed=changed,
             notes_written=nw,
         )
     if build_ran:
-        print("Compile clean")
+        print("Static checks clean")
 
     # 8. Lint gate (inside dx container) — changed files only, autofix-then-recheck.
     # Runs BEFORE tests so a single test run validates the final (possibly autofixed)
@@ -378,7 +382,9 @@ def run_one(
     if task.requires_tests:
         print("Running tests...")
         try:
-            tests_passed, test_output = run_tests(project_dir, sandbox=sandbox)
+            tests_passed, test_output = run_tests(
+                project_dir, sandbox=sandbox, changed_files=changed
+            )
         except Exception as e:  # noqa: BLE001
             tests_passed = False
             test_output = f"tester raised: {e}"

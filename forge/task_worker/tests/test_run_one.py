@@ -88,7 +88,7 @@ def wired(monkeypatch, tmp_path):
             events.append("execute") or (True, "ok", False)
         ),
     )
-    monkeypatch.setattr(tw, "run_tests", lambda p, sandbox=None: (True, "all green"))
+    monkeypatch.setattr(tw, "run_tests", lambda p, sandbox=None, **kw: (True, "all green"))
     monkeypatch.setattr(tw, "commit", lambda p, msg: events.append("commit") or "abc123")
     monkeypatch.setattr(tw, "revert_changes", lambda p: events.append("revert"))
     return events
@@ -204,7 +204,7 @@ def test_repo_override_pins_every_collaborator_to_the_same_dir(wired, monkeypatc
         tw, "run_lint", lambda p, files, sandbox=None: seen["lint"].append(p) or (True, "", False)
     )
     monkeypatch.setattr(
-        tw, "run_tests", lambda p, sandbox=None: seen["tests"].append(p) or (True, "green")
+        tw, "run_tests", lambda p, sandbox=None, **kw: seen["tests"].append(p) or (True, "green")
     )
     monkeypatch.setattr(tw, "commit", lambda p, msg: seen["commit"].append(p) or "abc123")
 
@@ -274,7 +274,7 @@ def test_max_files_bail_reverts_before_reopening(wired, monkeypatch):
 
 
 def test_tests_fail_reverts_and_reopens(wired, monkeypatch):
-    monkeypatch.setattr(tw, "run_tests", lambda p, sandbox=None: (False, "assertion boom"))
+    monkeypatch.setattr(tw, "run_tests", lambda p, sandbox=None, **kw: (False, "assertion boom"))
     out = tw.run_one(_task())
     assert out.status == "failed"
     assert "tests failed" in out.reason
@@ -457,7 +457,9 @@ def test_lint_failure_reverts_before_tests(wired, monkeypatch):
         tw, "run_lint", lambda p, files, sandbox=None: (False, "E501 survived autofix", True)
     )
     tests_ran = []
-    monkeypatch.setattr(tw, "run_tests", lambda p, sandbox=None: tests_ran.append(1) or (True, ""))
+    monkeypatch.setattr(
+        tw, "run_tests", lambda p, sandbox=None, **kw: tests_ran.append(1) or (True, "")
+    )
     out = tw.run_one(_task())
     assert out.status == "failed"
     assert out.reason.startswith("lint failed:")

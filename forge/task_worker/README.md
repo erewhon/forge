@@ -34,12 +34,23 @@ goes sideways.
    --dangerously-skip-permissions "Read .task_worker/spec-<id>.md and execute it"`.
 8. **Scope guard** — host inspects diff, bails and reverts if changes exceed
    `max_files`.
-9. **Test** — auto-detects `Justfile` / `pyproject.toml` (pytest) /
-   `package.json` / `Cargo.toml` and runs via `gaol dx run --` inside the
-   container if `requires_tests=Yes`.
-10. **Commit** — on host. `jj describe/new` or `git add/commit` with `auto:
+9. **Static checks** — ALWAYS run, independent of `requires_tests`. Additive
+   per detected language: `go build ./...` (go.mod), `cargo build`
+   (Cargo.toml), `pnpm exec tsc --noEmit` (tsconfig.json), `shellcheck` over
+   changed `*.sh`, and a `py_compile` syntax floor over changed `*.py`.
+   Commands run in the sandbox, so a detected language whose tool is missing
+   there fails closed naming the tool — never a silent pass. (The lint gate,
+   `linter.py`, is ruff/Python-only; other languages rely on this gate plus
+   their test runner.)
+10. **Test** — auto-detects `Justfile` / go.mod (`go build` + `go test`) /
+    `pyproject.toml` (pytest) / `package.json` scripts.test / `Cargo.toml`
+    and runs via `gaol dx run --` inside the container if
+    `requires_tests=Yes`. A Python repo without pytest gets the syntax floor
+    instead of a pass; a repo with no runner at all passes with a reason
+    string naming every probe — a disclosed decision, never a silent one.
+11. **Commit** — on host. `jj describe/new` or `git add/commit` with `auto:
     <title>` message (prefix configurable).
-11. **Mark Done** — writes diagnostic notes back to Nous including commit id
+12. **Mark Done** — writes diagnostic notes back to Nous including commit id
     and duration.
 
 **Any failure reverts first (on host), then marks the task back to Ready with

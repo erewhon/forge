@@ -224,6 +224,4 @@ def make_sandbox(repo: Path, kind: str | None = None) -> Sandbox:
         return GaolDxSandbox(repo)
     if resolved == "gaol-run-once":
         return GaolRunOnceSandbox(repo)
-    raise ValueError(
-        f"unknown sandbox kind {resolved!r} (implemented: 'gaol-dx', 'gaol-run-once')"
-    )
+    raise ValueError(f"unknown sandbox kind {resolved!r} (implemented: 'gaol-dx', 'gaol-run-once')")
