@@ -43,7 +43,7 @@ bumping, testing loops, and an architect/worker coding pipeline.
 | `forge build plan --epic <slug> --project Meta --repo <path>` | Coding pipeline A0+A1 framing; `--approve` unlocks decompose + emit |
 | `forge build run --epic <slug> --project Meta --repo <path>` | Orchestrator wave loop (dispatch → verify → replan); `--concurrency N` |
 | `forge build gate --epic <slug> --repo <path>` | Final full-quorum epic sign-off (a human merges after) |
-| `forge deps --project Meta --dry-run` | Dependency bumper: scan + gate; `--auto-merge` advances main on clean low-risk bumps; Python (uv) and Go repos auto-detected (`--ecosystem` to force); `--redundancy-report` prints a read-only markdown report of overlapping-purpose dependency clusters (uv-only) |
+| `forge deps --project Meta --dry-run` | Dependency bumper: scan + gate; `--auto-merge` advances main on clean low-risk bumps; Python (uv) / Go / pnpm repos auto-detected (`--ecosystem` to force); `--redundancy-report` prints a read-only markdown report of overlapping-purpose dependency clusters (uv-only) |
 | `forge upstream --dry-run` | Upstream sync for additive forks: fetch + merge on a sync branch in a disposable worktree; green-suite + collision-seat gates; `--auto-merge` advances the default branch when all green |
 | `forge sweep --dry-run` | Fleet sweep over a Soft Serve instance: enumerate repos via SSH, keep workdir clones fresh, run `deps`/`upstream` per repo with git-bug advisories filed in-repo; fail-isolated per repo |
 

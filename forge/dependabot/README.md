@@ -23,8 +23,9 @@ task, never a merge (fail-closed).
 
 Scan/bump/delta/audit/evidence live behind an adapter port (`ecosystems/`); the loop, gates,
 VCS actions, and advisory emission are ecosystem-neutral. Detection is by manifest —
-`uv.lock` → uv, `go.mod` → go; a repo with both requires `--ecosystem` (or
-`DEPENDABOT_ECOSYSTEM`). Backends:
+`uv.lock` → uv, `go.mod` → go, `pnpm-lock.yaml` → pnpm; a repo with several requires
+`--ecosystem` (or `DEPENDABOT_ECOSYSTEM`) — the fleet sweep instead runs once per present
+ecosystem. Backends:
 
 - **uv (Python)** — `uv tree --outdated` / `uv lock -P <name>` / pip-audit, plus the full
   PyPI evidence bundle (yanked, release age, typosquat, maintainer change, install scripts,
@@ -38,6 +39,12 @@ VCS actions, and advisory emission are ecosystem-neutral. Detection is by manife
   raise its own requirements' minimums), and a one-time `go mod tidy` cleanup on repos whose
   go.mod carried stale `// indirect` annotations. The `--redundancy-report` sub-mode remains
   uv-only.
+- **pnpm (JS/TS)** — `pnpm outdated --json` / `pnpm update <name> --ignore-scripts` (the
+  security floor: dependency lifecycle scripts never execute on the host) / `pnpm audit`
+  (osv-scanner fallback). The locked version comes from pnpm-lock.yaml's root importer
+  (workspace members are audited but not bumped — v1 limitation); `pnpm update` rewrites
+  the package.json range Dependabot-style, and both files are manifests. No npm-native
+  provenance source yet, so pnpm bumps ride the advisory track by construction.
 
 ## Threshold policy
 

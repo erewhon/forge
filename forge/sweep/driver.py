@@ -29,7 +29,7 @@ from datetime import UTC, datetime
 from fnmatch import fnmatch
 from pathlib import Path
 
-from forge.dependabot.ecosystems import EcosystemError, detect_ecosystem
+from forge.dependabot.ecosystems import present_ecosystems
 from forge.shared.automerge import log_decision
 from forge.shared.gitops import GitError, detect_branch, git, git_ok
 from forge.sweep.config import settings
@@ -156,9 +156,17 @@ def run_agent(
     auto_merge: bool,
     backend: str,
     timeout: int,
+    ecosystem: str | None = None,
+    label: str | None = None,
 ) -> AgentRun:
-    """One agent, one repo, one subprocess — with the task store pointed at THIS clone."""
+    """One agent, one repo, one subprocess — with the task store pointed at THIS clone.
+
+    ``ecosystem`` pins the deps agent's backend explicitly (the sweep already detected the
+    markers, and mixed repos run once per ecosystem); ``label`` names the summary row when
+    the plain agent name would collide (e.g. ``deps:uv`` vs ``deps:pnpm``)."""
     cmd = [sys.executable, "-m", _AGENT_MODULES[agent], "--repo", str(clone), "--project", project]
+    if ecosystem:
+        cmd += ["--ecosystem", ecosystem]
     if dry_run:
         cmd.append("--dry-run")
     if auto_merge:
@@ -180,7 +188,7 @@ def run_agent(
     except subprocess.TimeoutExpired:
         return AgentRun(
             repo=repo_name,
-            agent=agent,
+            agent=label or agent,
             status="error",
             detail=f"timed out after {timeout}s",
             exit_code=-1,
@@ -192,7 +200,11 @@ def run_agent(
         combined = (proc.stdout + "\n" + proc.stderr).strip()
         detail = combined[-400:]
     return AgentRun(
-        repo=repo_name, agent=agent, status=status, detail=detail, exit_code=proc.returncode
+        repo=repo_name,
+        agent=label or agent,
+        status=status,
+        detail=detail,
+        exit_code=proc.returncode,
     )
 
 
@@ -339,31 +351,35 @@ def sweep(
             continue
 
         project = name.rsplit("/", 1)[-1]
-        agents: list[str] = []
+        # (agent, ecosystem override, row label) — a mixed repo (e.g. uv.lock AND
+        # pnpm-lock.yaml) runs deps once per ecosystem with an explicit --ecosystem, so
+        # detect_ecosystem's single-run ambiguity error never fires from the sweep.
+        jobs: list[tuple[str, str | None, str]] = []
         if s.deps_enabled:
-            # Pre-check the ecosystem so unsupported repos (no uv.lock/go.mod yet) read
-            # as benign skips in the summary, not as error rows from the deps agent.
-            try:
-                detect_ecosystem(dest)
-                agents.append("deps")
-            except EcosystemError as e:
+            ecos = present_ecosystems(dest)
+            if not ecos:
                 runs.append(
                     AgentRun(
                         repo=name,
                         agent="deps",
                         status="skipped",
-                        detail=str(e).splitlines()[0][:120],
+                        detail="no supported dependency manifest (uv.lock / go.mod / "
+                        "pnpm-lock.yaml)",
                     )
                 )
                 log(f"{name} [deps]: skipped (no supported ecosystem)")
+            else:
+                for eco in ecos:
+                    row_label = "deps" if len(ecos) == 1 else f"deps:{eco}"
+                    jobs.append(("deps", eco, row_label))
         if s.upstream_enabled and name in s.upstream_remotes:
             try:
                 ensure_upstream_remote(dest, s.upstream_remotes[name])
-                agents.append("upstream")
+                jobs.append(("upstream", None, "upstream"))
             except GitError as e:
                 errors.append(f"{name}: upstream remote: {e}")
 
-        for agent in agents:
+        for agent, eco, row_label in jobs:
             try:
                 run = run_agent(
                     name,
@@ -374,11 +390,15 @@ def sweep(
                     auto_merge=auto_merge,
                     backend=backend,
                     timeout=s.run_timeout,
+                    ecosystem=eco,
+                    label=row_label,
                 )
             except Exception as e:  # noqa: BLE001 — same isolation contract
-                run = AgentRun(repo=name, agent=agent, status="error", detail=str(e), exit_code=-1)
+                run = AgentRun(
+                    repo=name, agent=row_label, status="error", detail=str(e), exit_code=-1
+                )
             runs.append(run)
-            log(f"{name} [{agent}]: {run.status}")
+            log(f"{name} [{row_label}]: {run.status}")
 
         if backend == "git-bug" and not dry_run:
             warning = bug_sync(dest, "push", timeout=s.ssh_timeout)

@@ -61,10 +61,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--ecosystem",
-        choices=("uv", "go"),
+        choices=("uv", "go", "pnpm"),
         default=None,
-        help="Force the dependency ecosystem (default: auto-detect from uv.lock / go.mod; "
-        "env: DEPENDABOT_ECOSYSTEM)",
+        help="Force the dependency ecosystem (default: auto-detect from uv.lock / go.mod / "
+        "pnpm-lock.yaml; env: DEPENDABOT_ECOSYSTEM)",
     )
     args = parser.parse_args(argv)
 

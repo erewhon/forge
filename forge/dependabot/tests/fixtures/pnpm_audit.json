@@ -1,0 +1,55 @@
+{
+ "advisories": {
+  "1112053": {
+   "id": 1112053,
+   "github_advisory_id": "GHSA-2w69-qvjg-hvjx",
+   "module_name": "react-router",
+   "title": "React Router vulnerable to XSS via Open Redirects",
+   "severity": "high",
+   "vulnerable_versions": ">=7.0.0 <=7.11.0",
+   "patched_versions": ">=7.11.1",
+   "url": "https://github.com/advisories/GHSA-2w69-qvjg-hvjx",
+   "cwe": "CWE-79",
+   "findings": [
+    {
+     "version": "7.11.0",
+     "paths": [
+      ".>react-router-dom>react-router"
+     ],
+     "dev": false,
+     "optional": false,
+     "bundled": false
+    }
+   ],
+   "cves": []
+  },
+  "1112055": {
+   "id": 1112055,
+   "github_advisory_id": "GHSA-8v8x-cx79-35w7",
+   "module_name": "react-router",
+   "title": "React Router SSR XSS in ScrollRestoration",
+   "severity": "high",
+   "vulnerable_versions": ">=7.0.0 <7.12.0",
+   "patched_versions": ">=7.12.0",
+   "url": "https://github.com/advisories/GHSA-8v8x-cx79-35w7",
+   "cwe": "CWE-79",
+   "findings": [
+    {
+     "version": "7.11.0",
+     "paths": [
+      ".>react-router-dom>react-router"
+     ],
+     "dev": false,
+     "optional": false,
+     "bundled": false
+    }
+   ],
+   "cves": []
+  }
+ },
+ "metadata": {
+  "vulnerabilities": {
+   "high": 2
+  }
+ }
+}

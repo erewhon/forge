@@ -61,7 +61,16 @@ class Ecosystem(Protocol):
 
 
 # Manifest markers, checked in this order. Detection requires exactly one match.
-_MARKERS: dict[str, str] = {"uv": "uv.lock", "go": "go.mod"}
+_MARKERS: dict[str, str] = {"uv": "uv.lock", "go": "go.mod", "pnpm": "pnpm-lock.yaml"}
+
+
+def present_ecosystems(repo: Path) -> list[str]:
+    """Every ecosystem whose marker exists in *repo*, in _MARKERS order.
+
+    For callers that handle multi-ecosystem repos by running the bumper once per
+    ecosystem (the fleet sweep) — ``detect_ecosystem`` stays strict and errors on
+    ambiguity for direct single-run use."""
+    return [name for name, marker in _MARKERS.items() if (repo / marker).exists()]
 
 
 def detect_ecosystem(repo: Path, *, override: str | None = None) -> str:
@@ -97,6 +106,10 @@ def resolve_ecosystem(repo: Path, *, override: str | None = None) -> Ecosystem:
         from forge.dependabot.ecosystems.golang import GoEcosystem
 
         return GoEcosystem()
+    if name == "pnpm":
+        from forge.dependabot.ecosystems.pnpm import PnpmEcosystem
+
+        return PnpmEcosystem()
     from forge.dependabot.ecosystems.uv import UvEcosystem
 
     return UvEcosystem()

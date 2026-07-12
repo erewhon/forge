@@ -1,0 +1,14 @@
+{
+  "prettier": {
+    "latest": "3.9.5",
+    "wanted": "3.8.1",
+    "isDeprecated": false,
+    "dependencyType": "devDependencies"
+  },
+  "typescript": {
+    "latest": "7.0.2",
+    "wanted": "5.9.3",
+    "isDeprecated": false,
+    "dependencyType": "devDependencies"
+  }
+}

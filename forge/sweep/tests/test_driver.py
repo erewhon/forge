@@ -319,6 +319,37 @@ def test_unsupported_ecosystem_is_a_skip_row_not_an_error(swept, monkeypatch):
     assert not result.errors  # a missing ecosystem is not an error
 
 
+def test_mixed_ecosystem_repo_runs_deps_once_per_ecosystem(swept, monkeypatch):
+    """A repo with uv.lock AND pnpm-lock.yaml (e.g. esc) gets two deps runs with explicit
+    --ecosystem pins and distinguishable row labels — never the ambiguity error."""
+
+    def clone_mixed(url, dest, timeout):
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / "uv.lock").touch()
+        if "a/one" in str(dest):
+            (dest / "pnpm-lock.yaml").touch()
+        return dest
+
+    captured = []
+
+    def fake_agent(repo, clone, agent, **kw):
+        captured.append((repo, kw.get("ecosystem"), kw.get("label")))
+        from forge.sweep.models import AgentRun
+
+        return AgentRun(repo=repo, agent=kw.get("label") or agent, status="branched")
+
+    monkeypatch.setattr(dr, "ensure_clone", clone_mixed)
+    monkeypatch.setattr(dr, "run_agent", fake_agent)
+    result, _ = dr.sweep(log=lambda m: None)
+
+    assert ("a/one", "uv", "deps:uv") in captured
+    assert ("a/one", "pnpm", "deps:pnpm") in captured
+    # Single-ecosystem repos keep the plain label and still pin explicitly.
+    assert ("a/two", "uv", "deps") in captured
+    rows = {(r.repo, r.agent) for r in result.runs}
+    assert ("a/one", "deps:uv") in rows and ("a/one", "deps:pnpm") in rows
+
+
 # ---------------------------------------------------------------------------
 # GitHub source: enumeration, clone URLs, backend resolution, injection, prune
 # ---------------------------------------------------------------------------
@@ -422,6 +453,30 @@ def test_unknown_source_is_a_driver_failure(swept, monkeypatch):
     monkeypatch.setattr(settings, "source", "gitlab")
     result, code = dr.sweep(log=lambda m: None)
     assert code == 2 and "gitlab" in result.errors[0]
+
+
+def test_run_agent_passes_explicit_ecosystem_flag(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        return CompletedProcess(cmd, 0, stdout="# meta deps — branched\n", stderr="")
+
+    monkeypatch.setattr(dr.subprocess, "run", fake_run)
+    run = dr.run_agent(
+        "a/one",
+        tmp_path,
+        "deps",
+        project="one",
+        dry_run=True,
+        auto_merge=False,
+        backend="",
+        timeout=60,
+        ecosystem="pnpm",
+        label="deps:pnpm",
+    )
+    assert "--ecosystem" in seen["cmd"] and "pnpm" in seen["cmd"]
+    assert run.agent == "deps:pnpm"
 
 
 def test_run_agent_injects_github_task_store_repo(monkeypatch, tmp_path):

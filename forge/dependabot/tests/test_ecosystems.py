@@ -4,9 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from forge.dependabot.ecosystems import EcosystemError, detect_ecosystem, resolve_ecosystem
+from forge.dependabot.ecosystems import (
+    EcosystemError,
+    detect_ecosystem,
+    present_ecosystems,
+    resolve_ecosystem,
+)
 from forge.dependabot.ecosystems import uv as uv_mod
 from forge.dependabot.ecosystems.golang import GoEcosystem
+from forge.dependabot.ecosystems.pnpm import PnpmEcosystem
 from forge.dependabot.ecosystems.uv import UvEcosystem
 from forge.dependabot.models import BumpCandidate
 
@@ -52,8 +58,22 @@ class TestDetection:
             detect_ecosystem(tmp_path, override="go")
 
     def test_unknown_override_names_supported_ecosystems(self, tmp_path):
-        with pytest.raises(EcosystemError, match="go, uv"):
+        with pytest.raises(EcosystemError, match="go, pnpm, uv"):
             detect_ecosystem(tmp_path, override="cargo")
+
+    def test_pnpm_lock_selects_pnpm(self, tmp_path):
+        (tmp_path / "pnpm-lock.yaml").touch()
+        assert detect_ecosystem(tmp_path) == "pnpm"
+
+
+class TestPresentEcosystems:
+    def test_lists_all_markers_in_order(self, tmp_path):
+        (tmp_path / "pnpm-lock.yaml").touch()
+        (tmp_path / "uv.lock").touch()
+        assert present_ecosystems(tmp_path) == ["uv", "pnpm"]
+
+    def test_empty_when_no_markers(self, tmp_path):
+        assert present_ecosystems(tmp_path) == []
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +91,11 @@ class TestResolve:
         (tmp_path / "go.mod").touch()
         eco = resolve_ecosystem(tmp_path)
         assert isinstance(eco, GoEcosystem) and eco.name == "go"
+
+    def test_pnpm_repo_resolves_to_pnpm_adapter(self, tmp_path):
+        (tmp_path / "pnpm-lock.yaml").touch()
+        eco = resolve_ecosystem(tmp_path)
+        assert isinstance(eco, PnpmEcosystem) and eco.name == "pnpm"
 
 
 # ---------------------------------------------------------------------------
