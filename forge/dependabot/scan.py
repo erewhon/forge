@@ -103,8 +103,11 @@ def scan_outdated(
     """
     timeout = timeout if timeout is not None else settings.scan_timeout
 
+    # --frozen: without it, uv tree RE-RESOLVES a stale uv.lock in place — the scan itself
+    # dirties the working copy and trips the bumper's own clean-WC guard (live finding on a
+    # fleet clone, 2026-07-12). The scan must never write.
     result = subprocess.run(
-        ["uv", "tree", "--outdated", "--depth", "1", "--no-dedupe"],
+        ["uv", "tree", "--outdated", "--depth", "1", "--no-dedupe", "--frozen"],
         cwd=str(repo),
         capture_output=True,
         text=True,

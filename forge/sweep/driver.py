@@ -18,8 +18,10 @@ belong to the per-repo agents (`forge deps`, `forge upstream`). What the driver 
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable
@@ -27,6 +29,7 @@ from datetime import UTC, datetime
 from fnmatch import fnmatch
 from pathlib import Path
 
+from forge.dependabot.ecosystems import EcosystemError, detect_ecosystem
 from forge.shared.automerge import log_decision
 from forge.shared.gitops import GitError, detect_branch, git, git_ok
 from forge.sweep.config import settings
@@ -167,6 +170,8 @@ def run_agent(
         if backend == "git-bug":
             env["GIT_BUG_TASK_STORE_REPO_PATH"] = str(clone)
             env["GIT_BUG_TASK_STORE_PROJECT"] = project
+        elif backend == "github":
+            env["GITHUB_TASK_STORE_REPO"] = repo_name
 
     try:
         proc = subprocess.run(
@@ -191,6 +196,102 @@ def run_agent(
     )
 
 
+def list_github_repos(
+    owners: list[str],
+    *,
+    skip_archived: bool,
+    skip_forks: bool,
+    timeout: int,
+) -> list[str]:
+    """``owner/name`` for every listable repo across *owners*, via the gh CLI.
+
+    Archived repos and forks are skipped by default: archives are read-only, and forks
+    are what `forge upstream` handles deliberately via SWEEP_UPSTREAM_REMOTES — not what
+    a bulk deps sweep should stumble into."""
+    names: list[str] = []
+    for owner in owners:
+        result = subprocess.run(
+            ["gh", "repo", "list", owner, "--json", "name,isArchived,isFork", "--limit", "500"],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if result.returncode != 0:
+            raise SweepError(
+                f"gh repo list {owner} failed (exit {result.returncode}): {result.stderr.strip()}"
+            )
+        for repo in json.loads(result.stdout or "[]"):
+            if skip_archived and repo.get("isArchived"):
+                continue
+            if skip_forks and repo.get("isFork"):
+                continue
+            names.append(f"{owner}/{repo['name']}")
+    return names
+
+
+def github_clone_url(name: str, protocol: str) -> str:
+    if protocol == "ssh":
+        return f"git@github.com:{name}.git"
+    return f"https://github.com/{name}.git"
+
+
+def prune_workdir(workdir: Path, names: list[str]) -> list[str]:
+    """Remove workdir clones whose repo no longer appears in the FULL enumeration.
+
+    Compares against everything the instance listed (not the include/exclude selection —
+    a scoped run must never prune repos it merely didn't look at). A clone is any dir with
+    a ``.git`` at depth one or two under the workdir."""
+    keep = set(names)
+    removed: list[str] = []
+    if not workdir.is_dir():
+        return removed
+    for first in sorted(p for p in workdir.iterdir() if p.is_dir()):
+        if (first / ".git").exists():
+            candidates = [(first.name, first)]
+        else:
+            candidates = [
+                (f"{first.name}/{second.name}", second)
+                for second in sorted(p for p in first.iterdir() if p.is_dir())
+                if (second / ".git").exists()
+            ]
+        for name, path in candidates:
+            if name not in keep:
+                shutil.rmtree(path, ignore_errors=True)
+                removed.append(name)
+    return removed
+
+
+def _enumerate(s) -> tuple[list[str], Callable[[str], str], str]:
+    """(names, url_for, display_host) for the configured source; raises SweepError."""
+    if s.source == "soft-serve":
+        if not s.host:
+            raise SweepError("SWEEP_HOST is not set")
+        names = list_repos(s.host, s.port, timeout=s.ssh_timeout)
+        return names, (lambda n: clone_url(s.host, s.port, n)), s.host
+    if s.source == "github":
+        if not s.github_owners:
+            raise SweepError("SWEEP_GITHUB_OWNERS is not set")
+        names = list_github_repos(
+            s.github_owners,
+            skip_archived=s.skip_archived,
+            skip_forks=s.skip_forks,
+            timeout=s.ssh_timeout,
+        )
+        display = "github:" + ",".join(s.github_owners)
+        return names, (lambda n: github_clone_url(n, s.clone_protocol)), display
+    raise SweepError(f"unknown SWEEP_SOURCE {s.source!r} (supported: soft-serve, github)")
+
+
+def _resolve_backend(s) -> str:
+    """The task-store backend injected into agent runs. "auto" follows the source —
+    advisories belong where that host's repos keep their tasks."""
+    if s.task_store_backend == "auto":
+        return "github" if s.source == "github" else "git-bug"
+    if s.task_store_backend == "inherit":
+        return ""
+    return s.task_store_backend
+
+
 def sweep(
     *,
     dry_run: bool = False,
@@ -198,26 +299,27 @@ def sweep(
     log: Callable[[str], None] = print,
 ) -> tuple[SweepResult, int]:
     """Run the whole sweep. Returns (result, exit_code): 0 unless a DRIVER-level failure
-    (no host, enumeration failed, workdir unusable) — per-repo failures are rows, not
-    exit codes."""
+    (bad source config, enumeration failed, workdir unusable) — per-repo failures are
+    rows, not exit codes."""
     s = settings
-    if not s.host:
-        return SweepResult(errors=["SWEEP_HOST is not set"]), 2
-
     try:
-        names = list_repos(s.host, s.port, timeout=s.ssh_timeout)
-    except (SweepError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+        names, url_for, display_host = _enumerate(s)
+    except (SweepError, subprocess.TimeoutExpired, FileNotFoundError, ValueError) as e:
         return SweepResult(host=s.host, errors=[f"enumeration failed: {e}"]), 2
 
+    backend = _resolve_backend(s)
     selected = filter_repos(names, s.include, s.exclude)
     skipped = sorted(set(names) - set(selected))
-    log(f"{s.host}: {len(names)} repo(s), {len(selected)} selected")
+    log(f"{display_host}: {len(names)} repo(s), {len(selected)} selected")
 
     try:
         s.workdir.mkdir(parents=True, exist_ok=True)
     except OSError as e:
         return SweepResult(
-            host=s.host, repos=selected, skipped=skipped, errors=[f"workdir unusable: {e}"]
+            host=display_host,
+            repos=selected,
+            skipped=skipped,
+            errors=[f"workdir unusable: {e}"],
         ), 2
 
     runs: list[AgentRun] = []
@@ -225,8 +327,8 @@ def sweep(
     for name in selected:
         dest = s.workdir / name
         try:
-            ensure_clone(clone_url(s.host, s.port, name), dest, timeout=s.clone_timeout)
-            if s.task_store_backend == "git-bug":
+            ensure_clone(url_for(name), dest, timeout=s.clone_timeout)
+            if backend == "git-bug":
                 ensure_bug_identity(dest, name=s.bug_user_name, email=s.bug_user_email)
                 warning = bug_sync(dest, "pull", timeout=s.ssh_timeout)
                 if warning:
@@ -239,7 +341,21 @@ def sweep(
         project = name.rsplit("/", 1)[-1]
         agents: list[str] = []
         if s.deps_enabled:
-            agents.append("deps")
+            # Pre-check the ecosystem so unsupported repos (no uv.lock/go.mod yet) read
+            # as benign skips in the summary, not as error rows from the deps agent.
+            try:
+                detect_ecosystem(dest)
+                agents.append("deps")
+            except EcosystemError as e:
+                runs.append(
+                    AgentRun(
+                        repo=name,
+                        agent="deps",
+                        status="skipped",
+                        detail=str(e).splitlines()[0][:120],
+                    )
+                )
+                log(f"{name} [deps]: skipped (no supported ecosystem)")
         if s.upstream_enabled and name in s.upstream_remotes:
             try:
                 ensure_upstream_remote(dest, s.upstream_remotes[name])
@@ -256,7 +372,7 @@ def sweep(
                     project=project,
                     dry_run=dry_run,
                     auto_merge=auto_merge,
-                    backend=s.task_store_backend,
+                    backend=backend,
                     timeout=s.run_timeout,
                 )
             except Exception as e:  # noqa: BLE001 — same isolation contract
@@ -264,12 +380,18 @@ def sweep(
             runs.append(run)
             log(f"{name} [{agent}]: {run.status}")
 
-        if s.task_store_backend == "git-bug" and not dry_run:
+        if backend == "git-bug" and not dry_run:
             warning = bug_sync(dest, "push", timeout=s.ssh_timeout)
             if warning:
                 log(f"{name}: warning: {warning}")
 
-    result = SweepResult(host=s.host, repos=selected, skipped=skipped, runs=runs, errors=errors)
+    if s.prune:
+        for removed in prune_workdir(s.workdir, names):
+            log(f"pruned stale workdir clone: {removed}")
+
+    result = SweepResult(
+        host=display_host, repos=selected, skipped=skipped, runs=runs, errors=errors
+    )
     _log(result)
     return result, 0
 

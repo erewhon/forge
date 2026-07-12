@@ -210,7 +210,8 @@ class TestScanOutdated:
 
         mock.stop()
         m.assert_called_once_with(
-            ["uv", "tree", "--outdated", "--depth", "1", "--no-dedupe"],
+            # --frozen: the scan must never rewrite a stale uv.lock (fleet-clone finding).
+            ["uv", "tree", "--outdated", "--depth", "1", "--no-dedupe", "--frozen"],
             cwd="/fake/repo",
             capture_output=True,
             text=True,

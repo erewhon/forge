@@ -23,10 +23,29 @@ from forge.sweep.models import SweepResult
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Sweep a Soft Serve instance: run the fleet agents on every repo."
+        description="Sweep a Soft Serve instance or GitHub owner set: run the fleet "
+        "agents on every repo."
     )
     parser.add_argument(
         "--host", default=None, help="SSH destination of the instance (default: SWEEP_HOST)"
+    )
+    parser.add_argument(
+        "--source",
+        choices=("soft-serve", "github"),
+        default=None,
+        help="Enumeration source (default: SWEEP_SOURCE)",
+    )
+    parser.add_argument(
+        "--owners",
+        default=None,
+        metavar="A,B",
+        help="Comma-separated GitHub owners for --source github (default: SWEEP_GITHUB_OWNERS)",
+    )
+    parser.add_argument(
+        "--prune",
+        action="store_true",
+        default=False,
+        help="Remove workdir clones absent from the full enumeration (default: OFF)",
     )
     parser.add_argument(
         "--only",
@@ -50,8 +69,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.host:
         settings.host = args.host
+    if args.source:
+        settings.source = args.source
+    if args.owners:
+        settings.github_owners = [o.strip() for o in args.owners.split(",") if o.strip()]
     if args.only:
         settings.include = [args.only]
+    if args.prune:
+        settings.prune = True
 
     result, code = sweep(dry_run=args.dry_run, auto_merge=args.auto_merge)
     print(render_sweep(result))

@@ -9,9 +9,19 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class SweepSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="SWEEP_")
 
-    # SSH destination of the Soft Serve instance (e.g. "code-public") — required.
+    # Where repos are enumerated from: "soft-serve" (SSH CLI) or "github" (gh CLI).
+    source: str = "soft-serve"
+
+    # soft-serve source: SSH destination of the instance (e.g. "code-public") — required.
     host: str = ""
     port: int = 23231
+
+    # github source: organizations/users to enumerate (JSON list) — required.
+    # SWEEP_GITHUB_OWNERS='["natorinator", "example-org"]'
+    github_owners: list[str] = Field(default_factory=list)
+    skip_archived: bool = True
+    skip_forks: bool = True  # forks are `upstream`'s job via SWEEP_UPSTREAM_REMOTES
+    clone_protocol: str = "https"  # gh's credential helper serves https; "ssh" for keys
 
     # Where the sweep keeps its clones. Machine-owned cache: a refresh hard-resets each
     # clone to origin, so nothing of value may live only here.
@@ -29,15 +39,20 @@ class SweepSettings(BaseSettings):
     deps_enabled: bool = True
     upstream_enabled: bool = True
 
-    # Task-store env injected into each agent run. "" = inherit the caller's env untouched.
-    # git-bug is the default: advisories land IN the swept repo and travel with it.
-    task_store_backend: str = "git-bug"
+    # Task-store env injected into each agent run. "auto" follows the source (git-bug for
+    # soft-serve — advisories travel with the repo; github issues for github). "inherit"
+    # leaves the caller's env untouched; anything else is an explicit backend name.
+    task_store_backend: str = "auto"
     bug_user_name: str = "forge-sweep"
     bug_user_email: str = "forge-sweep@localhost"
 
     ssh_timeout: int = 60
     clone_timeout: int = 600
     run_timeout: int = 2400  # matches the bumper's systemd TimeoutStartSec
+
+    # Remove workdir clones absent from the FULL enumeration (for repo shuffles). OFF by
+    # default; a scoped --only run never prunes what it didn't look at.
+    prune: bool = False
 
     auto_log_path: Path = Path(__file__).parent / "logs" / "sweep.jsonl"
 

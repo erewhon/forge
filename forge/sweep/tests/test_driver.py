@@ -207,26 +207,36 @@ class TestRunAgent:
 
 @pytest.fixture
 def swept(monkeypatch, tmp_path):
-    """Configure settings + fake collaborators; returns the capture dict."""
+    """Configure settings + fake collaborators; returns the capture dict.
+
+    The fake ensure_clone materializes a uv.lock so the ecosystem pre-check passes —
+    tests for the skip path remove it deliberately."""
+    monkeypatch.setattr(settings, "source", "soft-serve")
     monkeypatch.setattr(settings, "host", "test-host")
     monkeypatch.setattr(settings, "workdir", tmp_path / "wd")
     monkeypatch.setattr(settings, "include", ["*"])
     monkeypatch.setattr(settings, "exclude", [])
     monkeypatch.setattr(settings, "upstream_remotes", {})
-    monkeypatch.setattr(settings, "task_store_backend", "")
+    monkeypatch.setattr(settings, "task_store_backend", "inherit")
+    monkeypatch.setattr(settings, "prune", False)
     monkeypatch.setattr(settings, "auto_log_path", tmp_path / "sweep.jsonl")
 
     calls = {"clones": [], "agents": [], "remotes": []}
     monkeypatch.setattr(dr, "list_repos", lambda host, port, timeout: ["a/one", "a/two", "a/three"])
-    monkeypatch.setattr(
-        dr, "ensure_clone", lambda url, dest, timeout: calls["clones"].append(str(dest)) or dest
-    )
+
+    def fake_clone(url, dest, timeout):
+        calls["clones"].append(str(dest))
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / "uv.lock").touch()
+        return dest
+
+    monkeypatch.setattr(dr, "ensure_clone", fake_clone)
     monkeypatch.setattr(
         dr, "ensure_upstream_remote", lambda dest, url: calls["remotes"].append((str(dest), url))
     )
 
     def fake_agent(repo, clone, agent, **kw):
-        calls["agents"].append((repo, agent))
+        calls["agents"].append((repo, agent, kw.get("backend")))
         return AgentRun(repo=repo, agent=agent, status="branched")
 
     monkeypatch.setattr(dr, "run_agent", fake_agent)
@@ -259,8 +269,9 @@ def test_sweep_fail_isolation_skips_only_the_broken_repo(swept, monkeypatch):
 def test_sweep_wires_upstream_only_for_configured_forks(swept, monkeypatch):
     monkeypatch.setattr(settings, "upstream_remotes", {"a/one": "https://example.com/up.git"})
     result, _ = dr.sweep(log=lambda m: None)
-    assert ("a/one", "upstream") in swept["agents"]
-    assert ("a/two", "upstream") not in swept["agents"]
+    pairs = [(repo, agent) for repo, agent, _ in swept["agents"]]
+    assert ("a/one", "upstream") in pairs
+    assert ("a/two", "upstream") not in pairs
     assert swept["remotes"] and swept["remotes"][0][1] == "https://example.com/up.git"
 
 
@@ -289,3 +300,176 @@ def test_enumeration_failure_is_a_driver_failure(swept, monkeypatch):
 def test_sweep_writes_the_decision_log(swept, tmp_path):
     dr.sweep(log=lambda m: None)
     assert (tmp_path / "sweep.jsonl").exists()
+
+
+def test_unsupported_ecosystem_is_a_skip_row_not_an_error(swept, monkeypatch):
+    def clone_no_manifest(url, dest, timeout):
+        dest.mkdir(parents=True, exist_ok=True)
+        if "a/two" not in str(dest):
+            (dest / "uv.lock").touch()  # only one and three are bumpable
+        return dest
+
+    monkeypatch.setattr(dr, "ensure_clone", clone_no_manifest)
+    result, code = dr.sweep(log=lambda m: None)
+    assert code == 0
+    by_repo = {r.repo: r for r in result.runs}
+    assert by_repo["a/two"].status == "skipped"
+    assert "manifest" in by_repo["a/two"].detail
+    assert by_repo["a/one"].status == "branched"
+    assert not result.errors  # a missing ecosystem is not an error
+
+
+# ---------------------------------------------------------------------------
+# GitHub source: enumeration, clone URLs, backend resolution, injection, prune
+# ---------------------------------------------------------------------------
+
+
+GH_LIST_JSON = (
+    '[{"name": "processinator", "isArchived": false, "isFork": false},'
+    ' {"name": "smarttel", "isArchived": true, "isFork": false},'
+    ' {"name": "seestar_alp", "isArchived": false, "isFork": true}]'
+)
+
+
+class TestGithubEnumeration:
+    def test_skips_archived_and_forks_by_default(self, monkeypatch):
+        def fake_run(cmd, **kw):
+            assert cmd[:3] == ["gh", "repo", "list"]
+            return CompletedProcess(cmd, 0, stdout=GH_LIST_JSON, stderr="")
+
+        monkeypatch.setattr(dr.subprocess, "run", fake_run)
+        names = dr.list_github_repos(
+            ["example-org"], skip_archived=True, skip_forks=True, timeout=60
+        )
+        assert names == ["example-org/processinator"]
+
+    def test_toggles_include_archived_and_forks(self, monkeypatch):
+        monkeypatch.setattr(
+            dr.subprocess,
+            "run",
+            lambda cmd, **kw: CompletedProcess(cmd, 0, stdout=GH_LIST_JSON, stderr=""),
+        )
+        names = dr.list_github_repos(
+            ["example-org"], skip_archived=False, skip_forks=False, timeout=60
+        )
+        assert len(names) == 3
+
+    def test_multiple_owners_concatenate(self, monkeypatch):
+        def fake_run(cmd, **kw):
+            owner = cmd[3]
+            out = f'[{{"name": "r-{owner}", "isArchived": false, "isFork": false}}]'
+            return CompletedProcess(cmd, 0, stdout=out, stderr="")
+
+        monkeypatch.setattr(dr.subprocess, "run", fake_run)
+        names = dr.list_github_repos(["a", "b"], skip_archived=True, skip_forks=True, timeout=60)
+        assert names == ["a/r-a", "b/r-b"]
+
+    def test_gh_failure_raises_sweep_error(self, monkeypatch):
+        monkeypatch.setattr(
+            dr.subprocess,
+            "run",
+            lambda cmd, **kw: CompletedProcess(cmd, 1, stdout="", stderr="no auth"),
+        )
+        with pytest.raises(dr.SweepError, match="no auth"):
+            dr.list_github_repos(["a"], skip_archived=True, skip_forks=True, timeout=60)
+
+    def test_clone_urls(self):
+        assert dr.github_clone_url("a/b", "https") == "https://github.com/a/b.git"
+        assert dr.github_clone_url("a/b", "ssh") == "git@github.com:a/b.git"
+
+
+class TestBackendResolution:
+    def test_auto_follows_source(self, monkeypatch):
+        monkeypatch.setattr(settings, "task_store_backend", "auto")
+        monkeypatch.setattr(settings, "source", "github")
+        assert dr._resolve_backend(settings) == "github"
+        monkeypatch.setattr(settings, "source", "soft-serve")
+        assert dr._resolve_backend(settings) == "git-bug"
+
+    def test_inherit_means_no_injection(self, monkeypatch):
+        monkeypatch.setattr(settings, "task_store_backend", "inherit")
+        assert dr._resolve_backend(settings) == ""
+
+    def test_explicit_backend_wins(self, monkeypatch):
+        monkeypatch.setattr(settings, "task_store_backend", "git-bug")
+        monkeypatch.setattr(settings, "source", "github")
+        assert dr._resolve_backend(settings) == "git-bug"
+
+
+def test_github_source_sweeps_with_github_backend(swept, monkeypatch):
+    monkeypatch.setattr(settings, "source", "github")
+    monkeypatch.setattr(settings, "github_owners", ["example-org"])
+    monkeypatch.setattr(settings, "task_store_backend", "auto")
+    monkeypatch.setattr(
+        dr,
+        "list_github_repos",
+        lambda owners, **kw: [f"{o}/repo" for o in owners],
+    )
+    result, code = dr.sweep(log=lambda m: None)
+    assert code == 0
+    assert result.host == "github:example-org"
+    assert swept["agents"] == [("example-org/repo", "deps", "github")]
+
+
+def test_github_source_requires_owners(swept, monkeypatch):
+    monkeypatch.setattr(settings, "source", "github")
+    monkeypatch.setattr(settings, "github_owners", [])
+    result, code = dr.sweep(log=lambda m: None)
+    assert code == 2 and "SWEEP_GITHUB_OWNERS" in result.errors[0]
+
+
+def test_unknown_source_is_a_driver_failure(swept, monkeypatch):
+    monkeypatch.setattr(settings, "source", "gitlab")
+    result, code = dr.sweep(log=lambda m: None)
+    assert code == 2 and "gitlab" in result.errors[0]
+
+
+def test_run_agent_injects_github_task_store_repo(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["env"] = kw["env"]
+        return CompletedProcess(cmd, 0, stdout="# meta deps — branched\n", stderr="")
+
+    monkeypatch.setattr(dr.subprocess, "run", fake_run)
+    dr.run_agent(
+        "example-org/repo",
+        tmp_path,
+        "deps",
+        project="repo",
+        dry_run=True,
+        auto_merge=False,
+        backend="github",
+        timeout=60,
+    )
+    assert seen["env"]["TASK_STORE_BACKEND"] == "github"
+    assert seen["env"]["GITHUB_TASK_STORE_REPO"] == "example-org/repo"
+    assert "GIT_BUG_TASK_STORE_REPO_PATH" not in seen["env"]
+
+
+class TestPrune:
+    def _clone(self, path: Path) -> None:
+        (path / ".git").mkdir(parents=True)
+
+    def test_prunes_only_orphans_against_full_enumeration(self, tmp_path):
+        wd = tmp_path / "wd"
+        self._clone(wd / "a" / "kept")
+        self._clone(wd / "a" / "gone")
+        self._clone(wd / "flat-gone")
+        (wd / "a" / "not-a-clone").mkdir(parents=True)  # no .git — untouched
+        removed = dr.prune_workdir(wd, ["a/kept"])
+        assert sorted(removed) == ["a/gone", "flat-gone"]
+        assert (wd / "a" / "kept").exists()
+        assert (wd / "a" / "not-a-clone").exists()
+        assert not (wd / "a" / "gone").exists()
+
+    def test_sweep_prunes_against_enumeration_not_selection(self, swept, monkeypatch):
+        wd = settings.workdir
+        self._clone(wd / "a" / "stale")
+        monkeypatch.setattr(settings, "prune", True)
+        monkeypatch.setattr(settings, "include", ["a/one"])  # scoped run
+        result, _ = dr.sweep(log=lambda m: None)
+        # a/two and a/three were filtered out but ARE in the enumeration — never pruned;
+        # a/stale is absent from the enumeration — pruned even on a scoped run.
+        assert not (wd / "a" / "stale").exists()
+        assert result.skipped == ["a/three", "a/two"]
