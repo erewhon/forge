@@ -104,9 +104,7 @@ def test_list_rows_queries_project_and_normalizes(monkeypatch):
     pytest.importorskip("nous_mcp")  # patches inside nous_mcp — genuinely needs the extra
     seen = {}
 
-    monkeypatch.setattr(
-        "forge.task_worker.nous_client._read_db_content", lambda: {"db": "content"}
-    )
+    monkeypatch.setattr("forge.task_worker.nous_client._read_db_content", lambda: {"db": "content"})
 
     def fake_query(db_content, **kwargs):
         seen["db"] = db_content
@@ -129,9 +127,7 @@ def test_list_rows_queries_project_and_normalizes(monkeypatch):
 
 def test_in_progress_titles_filters_by_ref_prefix(monkeypatch):
     pytest.importorskip("nous_mcp")  # patches inside nous_mcp — genuinely needs the extra
-    monkeypatch.setattr(
-        "forge.task_worker.nous_client._read_db_content", lambda: {"db": "content"}
-    )
+    monkeypatch.setattr("forge.task_worker.nous_client._read_db_content", lambda: {"db": "content"})
     monkeypatch.setattr(
         "nous_mcp.workflow._query_tasks",
         lambda db_content, **kwargs: [

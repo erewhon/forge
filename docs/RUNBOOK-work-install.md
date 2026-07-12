@@ -30,6 +30,13 @@ export <PREFIX>_OPENAI_API_KEY=<key>
 Selecting `TASK_STORE_BACKEND=forge` (the Nous backend) without the extra fails fast with an
 install hint — that's the guard working.
 
+**Alternative: tasks in the repo itself.** `TASK_STORE_BACKEND=git-bug` stores tasks as
+[git-bug](https://github.com/git-bug/git-bug) bugs — git objects under `refs/bugs/*` that ride
+the same HTTP-git channel as the code (no tracker API, no server, offline-first; pinned against
+git-bug v0.10.1). Setup: install `git-bug`, run `git-bug user new` once in the repo, set
+`GIT_BUG_TASK_STORE_REPO_PATH=/path/to/repo`. Bug refs sync separately from code:
+`git bug push` / `git bug pull`.
+
 ## Models & executors
 
 **Router.** Forge's tiers (`coder`, `auto`, `auto-free`, `auto-full`, `research`) resolve through

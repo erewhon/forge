@@ -33,23 +33,50 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from forge.coding_pipeline.models import LeafRow
 from forge.shared.forge_emit import EmitOutcome, EmitSpec, EmitSummary
+
+# The portable encoding (meta block, status labels, deps-by-title) lives in
+# task_conventions so GitBugTaskStore shares it verbatim. Names are re-exported
+# here because this module defined them first.
+from forge.shared.task_conventions import (
+    AUTO_MODES as _AUTO_MODES,
+)
+from forge.shared.task_conventions import (
+    LABEL_TO_STATUS as _LABEL_TO_STATUS,
+)
+from forge.shared.task_conventions import (
+    STATUS_TO_LABEL as _STATUS_TO_LABEL,
+)
+from forge.shared.task_conventions import (
+    bool_null_true as _bool_null_true,
+)
+from forge.shared.task_conventions import (
+    format_meta_block as format_meta_block,
+)
+from forge.shared.task_conventions import (
+    mode_rank as _mode_rank,
+)
+from forge.shared.task_conventions import (
+    normalize_title as _normalize_title,
+)
+from forge.shared.task_conventions import (
+    parse_int as _int,
+)
+from forge.shared.task_conventions import (
+    parse_int_or_none as _int_or_none,
+)
+from forge.shared.task_conventions import (
+    parse_meta_block as parse_meta_block,
+)
+from forge.shared.task_conventions import (
+    set_meta_field as set_meta_field,
+)
+from forge.shared.task_conventions import (
+    split_deps as _split_deps,
+)
+from forge.shared.task_conventions import (
+    strip_meta_block as strip_meta_block,
+)
 from forge.task_worker.models import TaskInfo
-
-_AUTO_MODES = {"auto-ok", "auto-preferred"}
-
-# status <-> label. Done is represented by a *closed* issue (the label is optional bookkeeping).
-_STATUS_TO_LABEL = {
-    "spec needed": "status:spec-needed",
-    "ready": "status:ready",
-    "in progress": "status:in-progress",
-    "done": "status:done",
-}
-_LABEL_TO_STATUS = {
-    "status:spec-needed": "Spec Needed",
-    "status:ready": "Ready",
-    "status:in-progress": "In Progress",
-    "status:done": "Done",
-}
 
 # color (hex, no '#') + description for each status label; created idempotently by
 # ``ensure_labels`` because ``gh issue create --label`` fails on a label the repo lacks.
@@ -89,87 +116,6 @@ class GitHubTaskStoreSettings(BaseSettings):
 
 
 settings = GitHubTaskStoreSettings()
-
-
-# --- meta block (pure helpers) ----------------------------------------------
-
-
-def format_meta_block(fields: dict[str, str]) -> str:
-    """Render an ordered ``pipeline-meta`` HTML-comment block from string fields."""
-    lines = [_META_START]
-    for key in _META_KEYS:
-        if key in fields and fields[key] != "":
-            lines.append(f"{key}: {fields[key]}")
-    lines.append(_META_END)
-    return "\n".join(lines)
-
-
-def parse_meta_block(body: str) -> dict[str, str]:
-    """Parse the ``pipeline-meta`` block out of an issue body into a str->str dict."""
-    start = body.find(_META_START)
-    if start == -1:
-        return {}
-    end = body.find(_META_END, start + len(_META_START))
-    if end == -1:
-        return {}
-    inner = body[start + len(_META_START) : end]
-    meta: dict[str, str] = {}
-    for line in inner.splitlines():
-        line = line.strip()
-        if not line or ":" not in line:
-            continue
-        key, _, value = line.partition(":")
-        meta[key.strip()] = value.strip()
-    return meta
-
-
-def strip_meta_block(body: str) -> str:
-    """The issue body with its ``pipeline-meta`` block removed — the task spec itself."""
-    start = body.find(_META_START)
-    if start == -1:
-        return body.strip()
-    end = body.find(_META_END, start + len(_META_START))
-    if end == -1:
-        return body.strip()
-    remainder = body[:start] + body[end + len(_META_END) :]
-    return remainder.strip()
-
-
-def set_meta_field(body: str, key: str, value: str) -> str:
-    """Return *body* with one meta field updated (block + spec content preserved)."""
-    meta = parse_meta_block(body)
-    meta[key] = value
-    spec = strip_meta_block(body)
-    return f"{format_meta_block(meta)}\n\n{spec}" if spec else format_meta_block(meta)
-
-
-def _split_deps(raw: str) -> list[str]:
-    return [d.strip() for d in raw.split(",") if d.strip()]
-
-
-def _int(raw: str | None, default: int) -> int:
-    try:
-        return int(str(raw))
-    except (TypeError, ValueError):
-        return default
-
-
-def _int_or_none(raw: str | None) -> int | None:
-    try:
-        return int(str(raw))
-    except (TypeError, ValueError):
-        return None
-
-
-def _bool_null_true(raw: str | None) -> bool:
-    """null-as-true (matches Forge): missing requires_tests means tests ARE required."""
-    if raw is None:
-        return True
-    return str(raw).strip().lower() in {"true", "yes", "y", "1"}
-
-
-def _mode_rank(mode: str) -> int:
-    return 0 if mode.strip().lower() == "auto-preferred" else 1
 
 
 # --- the gh client seam -----------------------------------------------------
@@ -293,13 +239,6 @@ class SubprocessGhClient:
 
 
 # --- the store --------------------------------------------------------------
-
-
-def _normalize_title(name: str) -> str:
-    name = name.strip()
-    if name.lower().startswith("task: "):
-        name = name[6:].strip()
-    return name
 
 
 class _ReadOnlyWriter:

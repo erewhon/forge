@@ -8,7 +8,9 @@ bumping, testing loops, and an architect/worker coding pipeline.
 
 - **Where tasks go:** verbs that emit (`audit`/`testing`/`refactor`/`deps`, the pipeline) file into
   the configured task store — a [Nous](https://github.com/erewhon/nous) Forge notebook (needs the
-  `[nous]` extra), or GitHub issues with `TASK_STORE_BACKEND=github`.
+  `[nous]` extra), GitHub issues with `TASK_STORE_BACKEND=github`, or
+  [git-bug](https://github.com/git-bug/git-bug) bugs stored in the repo itself with
+  `TASK_STORE_BACKEND=git-bug` (tasks travel with the clone — no tracker API, no server).
 - **Models:** the review/analysis ensembles run against any OpenAI-compatible endpoint (point
   `*_OPENAI_BASE_URL`-style settings at your router); `edit` and `task`/`build` can also drive
   Claude/OpenCode per their model settings.

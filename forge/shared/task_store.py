@@ -219,4 +219,10 @@ def get_task_store() -> TaskStore:
         from forge.shared.github_task_store import GitHubTaskStore
 
         return GitHubTaskStore()
-    raise ValueError(f"unknown TASK_STORE_BACKEND {settings.backend!r} (known: 'forge', 'github')")
+    if backend == "git-bug":
+        from forge.shared.git_bug_task_store import GitBugTaskStore
+
+        return GitBugTaskStore()
+    raise ValueError(
+        f"unknown TASK_STORE_BACKEND {settings.backend!r} (known: 'forge', 'github', 'git-bug')"
+    )
