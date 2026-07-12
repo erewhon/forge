@@ -12,7 +12,7 @@ ExecStart=%h/.local/bin/forge sweep
 # Machine-local values (SWEEP_HOST, SWEEP_UPSTREAM_REMOTES, router endpoint, keys) live
 # in a gitignored env file; plain KEY=VALUE doubles as a systemd EnvironmentFile.
 # EnvironmentFile=%h/.config/forge-sweep/env
-Environment=PATH=%h/.local/bin:%h/go/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PATH=%h/.local/bin:%h/go/bin:%h/.cargo/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/bin:/usr/bin:/bin
 
 # One clone + two agents per repo; scale with the fleet.
 TimeoutStartSec=7200

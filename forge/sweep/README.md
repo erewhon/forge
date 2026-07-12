@@ -13,7 +13,7 @@ of GitHub owners.
    `reset --hard origin/<default>` on later sweeps (the workdir is a cache; anything of
    value was pushed by the agent that produced it)
 4. **Run agents per repo, each in its own subprocess** — `deps` for every repo with a
-   supported ecosystem (`uv.lock`/`go.mod`/`pnpm-lock.yaml`; mixed repos run deps once per
+   supported ecosystem (`uv.lock`/`go.mod`/`pnpm-lock.yaml`/`Cargo.lock`; mixed repos run deps once per
    ecosystem; anything else is a benign `skipped` row until
    more ecosystem adapters exist); `upstream` for repos with a configured upstream URL
    (`SWEEP_UPSTREAM_REMOTES`, since a fresh clone has no upstream remote). The subprocess

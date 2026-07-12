@@ -94,12 +94,16 @@ _LOCK_HEADER_RE = re.compile(r"^(?:---|\+\+\+) .*/?uv\.lock")
 _FILE_HEADER_RE = re.compile(r"^(?:diff --git |--- |\+\+\+ )")
 
 
-def _parse_lockfile_diff(diff_text: str) -> list[str]:
-    """Extract ``name old->new`` pairs from a unified diff of ``uv.lock``.
+def _parse_lockfile_diff(
+    diff_text: str, lock_header_re: re.Pattern[str] = _LOCK_HEADER_RE
+) -> list[str]:
+    """Extract ``name old->new`` pairs from a unified diff of a TOML-block lockfile.
 
     Walks the diff tracking the current package *name* and records removed vs
     added *version* lines per name.  A delta is emitted only when both an old
-    and a new version appear for the same name.
+    and a new version appear for the same name. ``lock_header_re`` selects which
+    file's hunks are read — uv.lock by default; Cargo.lock shares the exact
+    ``name = "..."`` / ``version = "..."`` block structure and passes its own.
     """
     deltas: list[str] = []
     in_lock_hunk = False
@@ -114,7 +118,7 @@ def _parse_lockfile_diff(diff_text: str) -> list[str]:
 
     for line in diff_text.splitlines():
         # Detect lock-file hunk header (--- a/uv.lock / +++ b/uv.lock)
-        if _LOCK_HEADER_RE.match(line):
+        if lock_header_re.match(line):
             _flush()
             in_lock_hunk = True
             continue

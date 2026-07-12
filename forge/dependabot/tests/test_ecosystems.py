@@ -58,12 +58,22 @@ class TestDetection:
             detect_ecosystem(tmp_path, override="go")
 
     def test_unknown_override_names_supported_ecosystems(self, tmp_path):
-        with pytest.raises(EcosystemError, match="go, pnpm, uv"):
-            detect_ecosystem(tmp_path, override="cargo")
+        with pytest.raises(EcosystemError, match="cargo, go, pnpm, uv"):
+            detect_ecosystem(tmp_path, override="maven")
 
     def test_pnpm_lock_selects_pnpm(self, tmp_path):
         (tmp_path / "pnpm-lock.yaml").touch()
         assert detect_ecosystem(tmp_path) == "pnpm"
+
+    def test_cargo_lock_selects_cargo(self, tmp_path):
+        (tmp_path / "Cargo.lock").touch()
+        assert detect_ecosystem(tmp_path) == "cargo"
+
+    def test_cargo_toml_alone_is_not_enough(self, tmp_path):
+        # A library that doesn't commit its lockfile has nothing meaningful to bump.
+        (tmp_path / "Cargo.toml").touch()
+        with pytest.raises(EcosystemError, match="no supported"):
+            detect_ecosystem(tmp_path)
 
 
 class TestPresentEcosystems:
@@ -96,6 +106,13 @@ class TestResolve:
         (tmp_path / "pnpm-lock.yaml").touch()
         eco = resolve_ecosystem(tmp_path)
         assert isinstance(eco, PnpmEcosystem) and eco.name == "pnpm"
+
+    def test_cargo_repo_resolves_to_cargo_adapter(self, tmp_path):
+        from forge.dependabot.ecosystems.cargo import CargoEcosystem
+
+        (tmp_path / "Cargo.lock").touch()
+        eco = resolve_ecosystem(tmp_path)
+        assert isinstance(eco, CargoEcosystem) and eco.name == "cargo"
 
 
 # ---------------------------------------------------------------------------

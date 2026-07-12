@@ -23,7 +23,8 @@ task, never a merge (fail-closed).
 
 Scan/bump/delta/audit/evidence live behind an adapter port (`ecosystems/`); the loop, gates,
 VCS actions, and advisory emission are ecosystem-neutral. Detection is by manifest —
-`uv.lock` → uv, `go.mod` → go, `pnpm-lock.yaml` → pnpm; a repo with several requires
+`uv.lock` → uv, `go.mod` → go, `pnpm-lock.yaml` → pnpm, `Cargo.lock` → cargo; a repo
+with several requires
 `--ecosystem` (or `DEPENDABOT_ECOSYSTEM`) — the fleet sweep instead runs once per present
 ecosystem. Backends:
 
@@ -45,6 +46,13 @@ ecosystem. Backends:
   (workspace members are audited but not bumped — v1 limitation); `pnpm update` rewrites
   the package.json range Dependabot-style, and both files are manifests. No npm-native
   provenance source yet, so pnpm bumps ride the advisory track by construction.
+- **cargo (Rust)** — scan via the crates.io sparse index (true latest incl. out-of-constraint
+  majors; `cargo update --dry-run` was rejected: whole-graph, stderr-only, in-constraint) /
+  `cargo update -p <name>@<current>` (precise pkgid, lock-only) / cargo-audit (RUSTSEC;
+  osv-scanner fallback). Direct deps come from the root Cargo.toml including
+  `[workspace.dependencies]`; member manifests are not scanned (v1). Keys on `Cargo.lock` —
+  libraries that don't commit a lockfile read as sweep skips. No crates.io evidence pass
+  yet, so Cargo bumps ride the advisory track by construction.
 
 ## Threshold policy
 

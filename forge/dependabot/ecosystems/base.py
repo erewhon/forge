@@ -61,7 +61,14 @@ class Ecosystem(Protocol):
 
 
 # Manifest markers, checked in this order. Detection requires exactly one match.
-_MARKERS: dict[str, str] = {"uv": "uv.lock", "go": "go.mod", "pnpm": "pnpm-lock.yaml"}
+# cargo keys on Cargo.lock (not Cargo.toml): a library that doesn't commit its lockfile
+# has nothing meaningful to bump and reads as a sweep "skipped" row.
+_MARKERS: dict[str, str] = {
+    "uv": "uv.lock",
+    "go": "go.mod",
+    "pnpm": "pnpm-lock.yaml",
+    "cargo": "Cargo.lock",
+}
 
 
 def present_ecosystems(repo: Path) -> list[str]:
@@ -110,6 +117,10 @@ def resolve_ecosystem(repo: Path, *, override: str | None = None) -> Ecosystem:
         from forge.dependabot.ecosystems.pnpm import PnpmEcosystem
 
         return PnpmEcosystem()
+    if name == "cargo":
+        from forge.dependabot.ecosystems.cargo import CargoEcosystem
+
+        return CargoEcosystem()
     from forge.dependabot.ecosystems.uv import UvEcosystem
 
     return UvEcosystem()
