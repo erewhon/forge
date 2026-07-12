@@ -147,3 +147,13 @@ def test_row_from_raw_normalizes_null_mode_and_priority():
     )
     assert bad_priority.priority == 99
     assert bad_priority.blocked and bad_priority.blocked_by == ["dep"]
+
+
+def test_journal_landed_overrides_a_rearmed_ready_row():
+    # A leaf the journal says landed must never redispatch, whatever Forge claims —
+    # a replan or a human re-arming a finished task re-runs merged work otherwise
+    # (deps-v2 wave 11, live).
+    rows = [_row("landed-leaf"), _row("fresh-leaf")]
+    plan = plan_wave("toy-epic", "Meta", wave_size=4, rows=rows, landed_titles={"landed-leaf"})
+    assert plan.dispatch == ["fresh-leaf"]
+    assert plan.done == 1

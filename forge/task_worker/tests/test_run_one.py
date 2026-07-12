@@ -264,7 +264,9 @@ def test_no_sandbox_kind_calls_factory_without_kind(wired, monkeypatch):
 
 
 def test_max_files_bail_reverts_before_reopening(wired, monkeypatch):
-    out = tw.run_one(_task(max_files=1))  # post-exec diff has 2 files
+    # requires_tests=False so the requires_tests floor (>=3) stays out of the way —
+    # this test is about the bail mechanics, not the floor.
+    out = tw.run_one(_task(max_files=1, requires_tests=False))  # post-exec diff has 2 files
     assert out.status == "failed"
     assert "max_files exceeded (2 > 1)" in out.reason
     assert out.changed_files == ["forge/x.py", "forge/tests/test_x.py"]
@@ -496,3 +498,11 @@ def test_linter_crash_fails_closed(wired, monkeypatch):
     out = tw.run_one(_task())
     assert out.status == "failed"
     assert "lint failed" in out.reason
+
+
+def test_requires_tests_floors_max_files_at_three(wired):
+    # A requires_tests leaf with max_files < 3 is structurally impossible (impl +
+    # test >= 2 files); the worker floors the effective budget so a too-tight
+    # decomposition can't revert correct work. The 2-file diff passes under the floor.
+    out = tw.run_one(_task(max_files=1, requires_tests=True))
+    assert "max_files exceeded" not in out.reason

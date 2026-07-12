@@ -238,11 +238,12 @@ def test_requires_tests_floors_max_files_to_3(monkeypatch):
     # floor applies to it too — assert it, don't just feed it in.
     assert by_title["no tests"].requires_tests is True
     assert by_title["no tests"].max_files == 3
-    # Manual leaves are exempt from the floor
+    # Manual leaves get the floor too: Manual-authored leaves are routinely re-armed
+    # to Auto-OK later (deps-v2, live) and carry their tight caps with them.
     manual = _leaf("manual needs tests", execution_mode="Manual", requires_tests=True, max_files=1)
     _mock_decompose(monkeypatch, [manual])
     out2 = arch.decompose(_proposal(approved=True), _inventory())
-    assert out2[0].max_files == 1
+    assert out2[0].max_files == 3
 
 
 def test_decompose_rejects_unknown_dep(monkeypatch):
@@ -456,3 +457,70 @@ def test_replan_failure_carries_model_raw_output(monkeypatch):
     with pytest.raises(ArchitectError) as exc:
         arch.replan(_proposal(approved=True), [_leaf("wobbly")], report, {"wobbly": 0})
     assert exc.value.raw == bad_json
+
+
+# --- replan: landed leaves are terminal (deps-v2 waves 10-11) ---------------------
+
+
+def test_replan_drops_respec_of_leaf_landed_this_wave(monkeypatch):
+    _envelope(
+        monkeypatch,
+        [arch.RespecAction(leaf_title="hero", revised=_leaf("hero"), rationale="tweak")],
+    )
+    # a confirmed finding forces the model consult; the respec target landed THIS wave
+    report = _report(outcomes=[_landed_leaf("hero")], findings=[_finding("real-one")])
+    actions = arch.replan(_proposal(approved=True), [_leaf("hero")], report, {})
+    assert actions == []
+
+
+def test_replan_drops_respec_of_historically_landed_leaf(monkeypatch):
+    _envelope(
+        monkeypatch,
+        [arch.RespecAction(leaf_title="old-hero", revised=_leaf("old-hero"), rationale="r")],
+    )
+    report = _report(outcomes=[_failed_leaf("other")])
+    actions = arch.replan(
+        _proposal(approved=True),
+        [_leaf("old-hero"), _leaf("other")],
+        report,
+        {"other": 1},
+        landed_titles={"old-hero"},
+    )
+    assert actions == []
+
+
+def test_replan_drops_fixup_with_unconfirmed_slug(monkeypatch):
+    # Fixups may only fix findings confirmed THIS wave — an invented slug defeats
+    # the ref-keyed dedup and refiles the same phantom under a new ref (deps-v2
+    # waves 17-18, live).
+    _envelope(monkeypatch, [arch.FixupAction(finding_slug="invented", leaf=_leaf("phantom"))])
+    report = _report(outcomes=[_landed_leaf("a")], findings=[_finding("real-one")])
+    actions = arch.replan(_proposal(approved=True), [_leaf("a")], report, {})
+    assert actions == []
+
+
+def test_replan_drops_integration_fix_when_suite_green(monkeypatch):
+    _envelope(monkeypatch, [arch.IntegrationFixAction(leaf=_leaf("untangle"))])
+    report = _report(outcomes=[_landed_leaf("a")], findings=[_finding("real-one")])
+    actions = arch.replan(_proposal(approved=True), [_leaf("a")], report, {})
+    assert actions == []
+
+
+# --- conservative tags: requires_tests headroom (deps-v2 waves 1-3) ---------------
+
+
+def test_requires_tests_leaf_gets_file_scope_headroom():
+    leaf = _leaf(
+        "tight",
+        requires_tests=True,
+        max_files=4,
+        file_scope=["a.py", "b.py", "c.py", "d.py", "tests/test_a.py"],
+    )
+    arch._apply_conservative_tags([leaf], _proposal(approved=True))
+    assert leaf.max_files == 6  # len(file_scope) + 1
+
+
+def test_requires_tests_headroom_leaves_generous_budgets_alone():
+    leaf = _leaf("roomy", requires_tests=True, max_files=8, file_scope=["a.py"])
+    arch._apply_conservative_tags([leaf], _proposal(approved=True))
+    assert leaf.max_files == 8

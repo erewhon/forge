@@ -76,7 +76,7 @@ def wired(monkeypatch, tmp_path):
     monkeypatch.setattr(orc, "plan_wave", lambda *a, **k: next(plans))
     monkeypatch.setattr(orc, "run_wave", lambda plan, repo, **k: [_done(t) for t in plan.dispatch])
     monkeypatch.setattr(orc, "verify_wave", lambda repo, *, wave, from_change, **k: _report(wave))
-    monkeypatch.setattr(orc, "replan", lambda f, t, r, a: [])
+    monkeypatch.setattr(orc, "replan", lambda f, t, r, a, **kw: [])
     monkeypatch.setattr(orc, "get_task_store", lambda: _FakeStore())
     monkeypatch.setattr(orc, "emit_fixup", lambda *a, **k: None)
     monkeypatch.setattr(orc, "ensure_epic_bookmark", lambda repo, slug, log: "pipeline/toy-epic")
@@ -142,7 +142,7 @@ def test_max_waves_bounds_the_run(wired, monkeypatch):
 
 def test_halt_action_stops_the_run(wired, monkeypatch):
     monkeypatch.setattr(
-        orc, "replan", lambda f, t, r, a: [HaltAction(reason="framing invalidated")]
+        orc, "replan", lambda f, t, r, a, **kw: [HaltAction(reason="framing invalidated")]
     )
     result = _run()
     assert result.status == "halted"
@@ -211,7 +211,7 @@ def test_suite_red_report_reaches_replan_and_loop_continues(wired, monkeypatch):
     monkeypatch.setattr(
         orc, "verify_wave", lambda repo, *, wave, from_change, **k: _report(wave, passed=False)
     )
-    monkeypatch.setattr(orc, "replan", lambda f, t, r, a: seen_reports.append(r) or [])
+    monkeypatch.setattr(orc, "replan", lambda f, t, r, a, **kw: seen_reports.append(r) or [])
     result = _run()
     assert result.status == "dry"  # second plan is dry: the loop continued past the red wave
     assert len(seen_reports) == 1
@@ -225,7 +225,7 @@ def test_replan_receives_attempt_counts_from_journal(wired, monkeypatch):
         lambda plan, repo, **k: [LeafOutcome(leaf="leaf-a", status="failed", reason="tests red")],
     )
     seen = {}
-    monkeypatch.setattr(orc, "replan", lambda f, t, r, a: seen.update(a) or [])
+    monkeypatch.setattr(orc, "replan", lambda f, t, r, a, **kw: seen.update(a) or [])
     monkeypatch.setattr(orc, "count_attempts_for_all", lambda d, titles: {t: 7 for t in titles})
     _run()
     assert seen == {"leaf-a": 7}
@@ -242,7 +242,7 @@ def test_replan_failure_degrades_to_deterministic_escalations(wired, monkeypatch
     )
     monkeypatch.setattr(orc, "count_attempts_for_all", lambda d, titles: {t: 99 for t in titles})
 
-    def boom(f, t, r, a):
+    def boom(f, t, r, a, **kw):
         raise orc.ArchitectError(
             "replan produced no usable actions: output failed validation",
             raw='{"actions": [{"kind": "fixup", "oops": true}]}',
@@ -273,7 +273,7 @@ def test_replan_failure_under_cap_degrades_to_no_actions(wired, monkeypatch):
         ],
     )
 
-    def boom(f, t, r, a):
+    def boom(f, t, r, a, **kw):
         raise orc.ArchitectError("output failed validation")
 
     monkeypatch.setattr(orc, "replan", boom)
@@ -288,7 +288,7 @@ def test_escalation_action_flips_task_to_spec_needed_and_manual(wired, monkeypat
     monkeypatch.setattr(
         orc,
         "replan",
-        lambda f, t, r, a: [EscalateAction(leaf_title="leaf-a", diagnostics="boom")],
+        lambda f, t, r, a, **kw: [EscalateAction(leaf_title="leaf-a", diagnostics="boom")],
     )
     _run()
     # Spec Needed removes worker eligibility; Manual keeps a human re-arm from
@@ -311,7 +311,7 @@ def test_fixup_action_emits_idempotently(wired, monkeypatch):
     monkeypatch.setattr(
         orc,
         "replan",
-        lambda f, t, r, a: [FixupAction(finding_slug="x", leaf=_leaf("fix the thing"))],
+        lambda f, t, r, a, **kw: [FixupAction(finding_slug="x", leaf=_leaf("fix the thing"))],
     )
     _run()
     # the finding's slug reaches emission — it keys the cross-replan-stable ref
@@ -324,7 +324,7 @@ def test_respec_action_reopens_with_revised_spec(wired, monkeypatch):
     monkeypatch.setattr(
         orc,
         "replan",
-        lambda f, t, r, a: [
+        lambda f, t, r, a, **kw: [
             RespecAction(leaf_title="leaf-a", revised=_leaf("leaf-a"), rationale="shrink")
         ],
     )
@@ -360,3 +360,43 @@ def test_wave_numbering_resumes_across_runs(wired, monkeypatch):
     result = _run()
     assert result.waves_run == 1
     assert (wired / "toy-epic" / "wave-0003.json").exists()
+
+
+# --- landed-noop settlement + fixup title dedup (deps-v2, live) --------------------
+
+
+def test_settle_landed_noops_marks_done_and_skips(tmp_path):
+    store = _FakeStore()
+    outcomes = [
+        LeafOutcome(leaf="hero", status="failed", reason="no file changes produced"),
+        LeafOutcome(leaf="fresh", status="failed", reason="tests failed: boom"),
+    ]
+    orc._settle_landed_noops(outcomes, {"hero"}, store=store, run_dir=tmp_path, log=lambda m: None)
+    assert outcomes[0].status == "skipped"  # neither landed nor failed for replan
+    assert outcomes[1].status == "failed"  # genuine failures untouched
+    assert store.writes and store.writes[0][:2] == ("hero", "Done")
+
+
+def test_settle_landed_noops_ignores_real_failures_of_landed_leaves(tmp_path):
+    store = _FakeStore()
+    outcomes = [LeafOutcome(leaf="hero", status="failed", reason="tests failed: boom")]
+    orc._settle_landed_noops(outcomes, {"hero"}, store=store, run_dir=tmp_path, log=lambda m: None)
+    assert outcomes[0].status == "failed"
+    assert store.writes == []
+
+
+def test_apply_actions_skips_duplicate_title_fixup(tmp_path, monkeypatch):
+    emitted: list[str] = []
+    monkeypatch.setattr(orc, "emit_fixup", lambda leaf, **k: emitted.append(leaf.title))
+    actions = [orc.FixupAction(finding_slug="s", leaf=_leaf("Fix The Thing"))]
+    halted = orc._apply_actions(
+        actions,
+        project="Meta",
+        epic_slug="e",
+        run_dir=tmp_path,
+        store=_FakeStore(),
+        log=lambda m: None,
+        existing_titles={"fix the thing"},
+    )
+    assert halted is False
+    assert emitted == []

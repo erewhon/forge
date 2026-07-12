@@ -297,3 +297,18 @@ class TestReconcile:
 
         reconcile("toy-epic", in_progress=fake_in_progress)
         assert seen == ["pipeline:toy-epic:"]
+
+
+class TestLandedTitles:
+    def test_reads_done_dispatches_only(self, tmp_path: Path):
+        from forge.coding_pipeline.journal import append_leaf_outcome, landed_titles
+
+        append_leaf_outcome(tmp_path, "won", LeafOutcome(leaf="won", status="done", commit_id="c"))
+        append_leaf_outcome(tmp_path, "lost", LeafOutcome(leaf="lost", status="failed", reason="x"))
+        append_leaf_outcome(tmp_path, "meh", LeafOutcome(leaf="meh", status="skipped"))
+        assert landed_titles(tmp_path) == {"won"}
+
+    def test_empty_without_journal(self, tmp_path: Path):
+        from forge.coding_pipeline.journal import landed_titles
+
+        assert landed_titles(tmp_path) == set()

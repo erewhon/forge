@@ -26,15 +26,11 @@ def test_same_file_defers_the_later_leaf():
 
 
 def test_dir_vs_file_prefix_overlap_defers():
-    batch, deferred = pick_disjoint(
-        [("a", ["forge/shared/"]), ("b", ["forge/shared/pool.py"])]
-    )
+    batch, deferred = pick_disjoint([("a", ["forge/shared/"]), ("b", ["forge/shared/pool.py"])])
     assert batch == ["a"]
     assert deferred == ["b"]
     # and the other direction
-    batch, deferred = pick_disjoint(
-        [("a", ["forge/shared/pool.py"]), ("b", ["forge/shared"])]
-    )
+    batch, deferred = pick_disjoint([("a", ["forge/shared/pool.py"]), ("b", ["forge/shared"])])
     assert batch == ["a"]
     assert deferred == ["b"]
 

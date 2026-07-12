@@ -291,6 +291,11 @@ def run_one(
         return _outcome("failed", f"post-exec VCS inspection failed: {e}", notes_written=nw)
 
     max_files = task.max_files if task.max_files is not None else settings.default_max_files
+    if task.requires_tests and max_files < 3:
+        # Belt-and-braces under the decomposition-side headroom rule: impl + test is
+        # already 2 files, so a requires_tests budget below 3 is structurally
+        # impossible and would only burn attempts (Observinator, 2026-07-09, live).
+        max_files = 3
     if len(changed) > max_files:
         print(f"Changed {len(changed)} files, max allowed {max_files}. Reverting.")
         _safe_revert(project_dir, "max-files-exceeded")

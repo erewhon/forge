@@ -40,9 +40,7 @@ def _change_id(repo: Path, rev: str) -> str:
 
 
 def _is_conflicted(repo: Path, rev: str) -> bool:
-    out = _run_jj(
-        ["log", "-r", rev, "--no-graph", "-T", 'if(conflict, "true", "false")'], cwd=repo
-    )
+    out = _run_jj(["log", "-r", rev, "--no-graph", "-T", 'if(conflict, "true", "false")'], cwd=repo)
     return out.stdout.strip() == "true"
 
 
@@ -119,9 +117,7 @@ def reconcile_wave(
                 "as a side head for forensics."
             )
             log(f"  reconcile: jj failure on {outcome.leaf} — demoting ({e})")
-            results.append(
-                _demote(outcome, f"reconcile jj failure: {e}", note, on_demote, log)
-            )
+            results.append(_demote(outcome, f"reconcile jj failure: {e}", note, on_demote, log))
             continue
         head = change
         results.append(outcome)
@@ -132,8 +128,7 @@ def reconcile_wave(
             _run_jj(["new", head], cwd=repo)
         except JJError as e:
             raise ReconcileError(
-                f"integrated chain built at {head} but repositioning the working copy "
-                f"failed: {e}"
+                f"integrated chain built at {head} but repositioning the working copy failed: {e}"
             ) from e
     return results
 

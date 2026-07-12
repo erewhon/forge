@@ -106,12 +106,18 @@ def plan_wave(
     wave_size: int,
     feature: str | None = None,
     rows: list[LeafRow] | None = None,
+    landed_titles: set[str] | frozenset[str] = frozenset(),
 ) -> WavePlan:
     """Compute the next wave's dispatch set and the epic's outstanding-work counts.
 
     ``rows`` is injectable for tests; the default reads Forge live, scoped by the
     epic's ref prefix (``feature`` narrows). Worker-ready semantics match the worker
     exactly: status=Ready AND execution_mode in (Auto-OK, Auto-Preferred) AND unblocked.
+
+    ``landed_titles`` (the journal's landed set) overrides Forge status: a leaf the
+    journal says landed is never dispatched again, whatever its row says — a replan
+    or a human re-arming a finished task must not cause a redispatch of merged work
+    (deps-v2 wave 11, live).
     """
     if rows is None:
         rows = fetch_epic_rows(project, epic_slug, feature=feature)
@@ -126,7 +132,7 @@ def plan_wave(
     for row in rows:
         status = row.status.strip().lower()
         mode = row.execution_mode.strip().lower()
-        if status == "done":
+        if status == "done" or row.task in landed_titles:
             done += 1
             continue
         if row.blocked:

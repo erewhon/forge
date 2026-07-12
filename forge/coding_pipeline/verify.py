@@ -87,8 +87,41 @@ Judge by TRACING the hunks against the claim, not by plausibility:
 - Reject when the trace refutes the claim (the guard or base case said to be missing is right
   there in the hunk), when the issue predates this diff, or when it is style, taste, or a
   hypothetical ("could be slow", "might want jitter").
+- When the referenced file's CURRENT CONTENT is provided below the diff, it is ground truth and
+  outranks the diff: a diff shows hunks, not the whole file, so a claim that something is
+  "missing" (an import, a guard, a fixture) is only real if it is absent from the current
+  content — not merely absent from the hunks. A claim the current content refutes is NOT real.
 
 Respond with ONLY a JSON object: {"real": true|false, "reason": str}"""
+
+
+_GROUND_TRUTH_CAP = 6000  # chars of the referenced file shown to the confirm seat
+
+
+def _file_ground_truth(repo: Path | None, file: str | None) -> str:
+    """The referenced file's current content, for the confirm prompt.
+
+    A diff-only confirm seat cannot refute "X is missing from F" claims — the hunks
+    legitimately don't show the rest of F (deps-v2: a 'missing import' phantom on a file
+    whose line 5 was that import survived confirmation and burned eight waves). Returns
+    an explicit does-not-exist note for dangling references, and empty string when there
+    is nothing useful to add.
+    """
+    if repo is None or not file:
+        return ""
+    path = repo / file
+    if not path.is_file():
+        return f"\n\nReferenced file {file} does NOT currently exist in the tree."
+    try:
+        content = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return ""
+    clipped = content[:_GROUND_TRUTH_CAP]
+    suffix = "\n[... truncated ...]" if len(content) > _GROUND_TRUTH_CAP else ""
+    return (
+        f"\n\nCurrent content of {file} (ground truth — outranks the diff for "
+        f'"missing X" claims):\n\n```\n{clipped}{suffix}\n```'
+    )
 
 
 class RawFinding(BaseModel):
@@ -299,8 +332,14 @@ def _majority_real(_finding: ReviewFinding, panel: PanelResult) -> bool:
     return len(panel.responses) > 0 and real_votes * 2 > len(panel.responses)
 
 
-def confirm_findings(diff: str, findings: list[ReviewFinding]) -> list[ReviewFinding]:
-    """The confirm vote: each finding faces the roster; ``confirmed`` set by strict majority."""
+def confirm_findings(
+    diff: str, findings: list[ReviewFinding], repo: Path | None = None
+) -> list[ReviewFinding]:
+    """The confirm vote: each finding faces the roster; ``confirmed`` set by strict majority.
+
+    ``repo`` lets the seat see the referenced file's current content alongside the diff —
+    ground truth for "missing X" claims the hunks can neither prove nor refute.
+    """
     if not findings:
         return []
     members = _roster_members(CONFIRM_SYSTEM)
@@ -312,6 +351,7 @@ def confirm_findings(diff: str, findings: list[ReviewFinding]) -> list[ReviewFin
         make_user=lambda f: (
             f"Finding: {f.summary}\nFile: {f.file or 'unspecified'} "
             f"(severity claimed: {f.severity})\n\nWave diff:\n\n{diff}"
+            f"{_file_ground_truth(repo, f.file)}"
         ),
         aggregate=_majority_real,
         floor=1,
@@ -356,7 +396,7 @@ def verify_wave(
         raw = collect_findings(diff)
         raw_count = len(raw)
         canonical, consolidation_ok, dropped = consolidate_findings(raw, existing_fixups)
-        findings = confirm_findings(diff, canonical)
+        findings = confirm_findings(diff, canonical, repo=repo)
 
     return WaveReport(
         wave=wave,

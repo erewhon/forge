@@ -136,7 +136,7 @@ def wired(monkeypatch):
     monkeypatch.setattr(v, "collect_findings", lambda diff: [_finding()])
     confirmed = _finding()
     confirmed.confirmed = True
-    monkeypatch.setattr(v, "confirm_findings", lambda diff, f: [confirmed])
+    monkeypatch.setattr(v, "confirm_findings", lambda diff, f, **kw: [confirmed])
 
 
 def test_verify_wave_green_path(wired):
@@ -345,3 +345,27 @@ def test_verify_wave_routes_findings_through_consolidation(wired, monkeypatch):
     assert report.consolidation_ok is True
     assert report.dropped_covered == ["dead-slug (covered by: Open fixup)"]
     assert len(report.findings) == 1  # confirm ran on the canonical set
+
+
+# --- confirm-seat ground truth (deps-v2 phantom-import finding) ---------------------
+
+
+def test_file_ground_truth_shows_current_content(tmp_path):
+    from forge.coding_pipeline.verify import _file_ground_truth
+
+    (tmp_path / "mod.py").write_text("from unittest.mock import MagicMock\n")
+    out = _file_ground_truth(tmp_path, "mod.py")
+    assert "MagicMock" in out and "ground truth" in out
+
+
+def test_file_ground_truth_flags_dangling_reference(tmp_path):
+    from forge.coding_pipeline.verify import _file_ground_truth
+
+    assert "does NOT currently exist" in _file_ground_truth(tmp_path, "gone.py")
+
+
+def test_file_ground_truth_silent_without_repo_or_file(tmp_path):
+    from forge.coding_pipeline.verify import _file_ground_truth
+
+    assert _file_ground_truth(None, "x.py") == ""
+    assert _file_ground_truth(tmp_path, None) == ""

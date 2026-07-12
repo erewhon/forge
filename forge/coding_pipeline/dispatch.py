@@ -408,8 +408,7 @@ def _run_concurrent(
 
         try:
             reconciled = {
-                o.leaf: o
-                for o in reconcile_wave(repo, base, landed, on_demote=_demote, log=log)
+                o.leaf: o for o in reconcile_wave(repo, base, landed, on_demote=_demote, log=log)
             }
         except ReconcileError as e:
             # Leaves DID run and Forge was updated — but the working copy never advanced,

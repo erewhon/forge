@@ -208,7 +208,11 @@ def test_bisect_attributes_first_red_and_repairs(jj, tmp_path):
     run_suite = _suite_script({"chg-b"})(jj)
     demotes: list[tuple[str, str]] = []
     result = rc.bisect_red(
-        tmp_path, "base0", _chain3(), run_suite, on_demote=lambda t, n: demotes.append((t, n)),
+        tmp_path,
+        "base0",
+        _chain3(),
+        run_suite,
+        on_demote=lambda t, n: demotes.append((t, n)),
         log=lambda m: None,
     )
     assert result is not None
@@ -257,7 +261,11 @@ def test_bisect_still_red_after_repair_demotes_anyway(jj, tmp_path):
     run_suite = _suite_script({"chg-b", "chg-c"})(jj)
     demotes: list[str] = []
     result = rc.bisect_red(
-        tmp_path, "base0", _chain3(), run_suite, on_demote=lambda t, n: demotes.append(t),
+        tmp_path,
+        "base0",
+        _chain3(),
+        run_suite,
+        on_demote=lambda t, n: demotes.append(t),
         log=lambda m: None,
     )
     assert result is not None
@@ -271,7 +279,11 @@ def test_bisect_jj_failure_fails_open(jj, tmp_path):
     run_suite = _suite_script({"chg-b"})(jj)
     demotes: list[str] = []
     result = rc.bisect_red(
-        tmp_path, "base0", _chain3(), run_suite, on_demote=lambda t, n: demotes.append(t),
+        tmp_path,
+        "base0",
+        _chain3(),
+        run_suite,
+        on_demote=lambda t, n: demotes.append(t),
         log=lambda m: None,
     )
     assert result is None
@@ -296,8 +308,13 @@ def _done_leaf(title: str) -> LeafOutcome:
 def test_apply_bisect_noop_when_suite_green(jj, tmp_path):
     report = _report(_done_leaf("A"), _done_leaf("B"), green=True)
     out = rc.apply_bisect(
-        report, repo=tmp_path, base_rev="base0", concurrency=3,
-        run_suite=lambda: (True, ""), on_demote=lambda t, n: None, log=lambda m: None,
+        report,
+        repo=tmp_path,
+        base_rev="base0",
+        concurrency=3,
+        run_suite=lambda: (True, ""),
+        on_demote=lambda t, n: None,
+        log=lambda m: None,
     )
     assert out is None
     assert jj.calls == []
@@ -306,8 +323,13 @@ def test_apply_bisect_noop_when_suite_green(jj, tmp_path):
 def test_apply_bisect_noop_for_serial_waves(jj, tmp_path):
     report = _report(_done_leaf("A"), _done_leaf("B"), green=False)
     out = rc.apply_bisect(
-        report, repo=tmp_path, base_rev="base0", concurrency=1,
-        run_suite=lambda: (True, ""), on_demote=lambda t, n: None, log=lambda m: None,
+        report,
+        repo=tmp_path,
+        base_rev="base0",
+        concurrency=1,
+        run_suite=lambda: (True, ""),
+        on_demote=lambda t, n: None,
+        log=lambda m: None,
     )
     assert out is None
     assert jj.calls == []
@@ -317,8 +339,13 @@ def test_apply_bisect_noop_for_single_landed_leaf(jj, tmp_path):
     failed = LeafOutcome(leaf="B", status="failed", reason="x")
     report = _report(_done_leaf("A"), failed, green=False)
     out = rc.apply_bisect(
-        report, repo=tmp_path, base_rev="base0", concurrency=3,
-        run_suite=lambda: (True, ""), on_demote=lambda t, n: None, log=lambda m: None,
+        report,
+        repo=tmp_path,
+        base_rev="base0",
+        concurrency=3,
+        run_suite=lambda: (True, ""),
+        on_demote=lambda t, n: None,
+        log=lambda m: None,
     )
     assert out is None  # one landed leaf IS the attribution already
 
@@ -335,8 +362,13 @@ def test_apply_bisect_rewrites_offender_and_suite(jj, tmp_path):
 
     demotes: list[str] = []
     out = rc.apply_bisect(
-        report, repo=tmp_path, base_rev="base0", concurrency=3,
-        run_suite=run_suite, on_demote=lambda t, n: demotes.append(t), log=lambda m: None,
+        report,
+        repo=tmp_path,
+        base_rev="base0",
+        concurrency=3,
+        run_suite=run_suite,
+        on_demote=lambda t, n: demotes.append(t),
+        log=lambda m: None,
     )
     assert out is not None and out.offender == "B"
     by_leaf = {o.leaf: o for o in report.outcomes}

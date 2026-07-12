@@ -229,9 +229,12 @@ max_files <= 5, model_tier="auto";
 - anything with design latitude, on a safety path, or novel: execution_mode="Manual";
 - an underspecified leaf: status="Spec Needed" and execution_mode="Manual".
 
-Auto-OK leaves always require tests. When requires_tests=true, max_files must be at least 3 \
-(implementation file + test file + one incidental file). Never set max_files=1 on a leaf that \
-needs tests — that is impossible by construction and will waste the worker's attempts.
+Auto-OK leaves always require tests. When requires_tests=true, set max_files to the number of \
+files the spec names PLUS headroom of at least one for the test file and one incidental (a \
+fixture, an __init__, a config touch) — at least (named files + 2), and never below 3. A budget \
+equal to the named-file count reverts correct work the moment it adds its own test. Never set \
+max_files=1 on a leaf that needs tests — that is impossible by construction and will waste the \
+worker's attempts.
 
 Ordering: priority encodes the approved value ordering — user-visible value first (priority 2-3), \
 infrastructure it depends on same, polish last (priority 5-6). Group related leaves under the \
@@ -341,6 +344,14 @@ def _apply_conservative_tags(leaves: list[LeafSpec], framing: FramingProposal) -
                 # 3 of 4 auto sessions made zero tool calls) — autonomous leaves get
                 # a tool-capable floor. Explicit auto-free/auto-full stand.
                 leaf.model_tier = settings.leaf_model_tier
+        if leaf.requires_tests and leaf.max_files is not None:
+            # Headroom floor: a test-bearing leaf needs its named files plus the test
+            # plus one incidental — a budget at the named-file count reverts correct
+            # work the moment it adds its own test (deps-v2 waves 1-3, live). Runs
+            # after the auto defaults so a defaulted cap gets file_scope headroom too.
+            floor = max(3, len(leaf.file_scope) + 1)
+            if leaf.max_files < floor:
+                leaf.max_files = floor
 
 
 def _apply_boundedness(leaves: list[LeafSpec]) -> None:
@@ -450,6 +461,12 @@ stage after a wave of automated work. You receive the approved framing, the curr
 wave report (what landed, what failed and why, the suite result, CONFIRMED review findings), \
 per-leaf attempt counts, and a list of leaves already escalated to a human — those are handled; \
 do not touch them.
+
+LANDED LEAVES ARE TERMINAL. A leaf listed as landed is merged work: never respec, escalate, or \
+re-queue it — a respec would re-arm a finished task for redispatch. If a landed leaf's output \
+seems wrong, that is a CONFIRMED-finding fixup or an integration_fix, never a respec of the \
+landed leaf. "fixup" actions must reference the finding_slug of a finding confirmed in THIS \
+wave report — fixups with invented or recycled slugs are discarded.
 
 Before choosing any action, LOCATE THE DEFECT'S LEVEL — the level decides the action kind:
 - LEAF: one leaf's own spec or attempt is wrong (its tests red for its own reasons, its scope \
@@ -568,6 +585,7 @@ def replan(
     tree: list[LeafSpec],
     report: WaveReport,
     attempts: dict[str, int],
+    landed_titles: set[str] | frozenset[str] = frozenset(),
 ) -> list[ReplanAction]:
     """A4: wave report → typed replan actions.
 
@@ -577,15 +595,24 @@ def replan(
     integration-red suite. New/rewritten leaves get the same conservative tagging floor
     as decomposition, and a replan that wants more new leaves than the emission cap
     halts instead (a replan that big means the framing is wrong).
+
+    Deterministic post-rules discard model actions the prompt forbids (deps-v2 run,
+    live): respec/escalate of a landed leaf (``landed_titles`` carries the journal's
+    history; the current wave's landings are read off the report) — landed is terminal,
+    a respec would re-arm finished work for redispatch — and fixups whose finding_slug
+    is not a finding confirmed in THIS wave (invented slugs defeat the ref-dedup that
+    keys on the slug), including integration fixes when the suite is green.
     """
     escalated = deterministic_escalations(report, attempts)
     escalated_titles = {e.leaf_title for e in escalated}
+    terminal_titles = set(landed_titles) | {o.leaf for o in report.landed}
 
     confirmed = [f for f in report.findings if f.confirmed]
     failed_under_cap = [o for o in report.failed if o.leaf not in escalated_titles]
     integration_red = bool(report.landed) and not report.suite_green
     if not confirmed and not failed_under_cap and not integration_red:
         return list(escalated)
+    confirmed_slugs = {f.slug for f in confirmed}
 
     result = structured(
         pool=_architect_pool(),
@@ -606,6 +633,12 @@ def replan(
             title = action.leaf_title
             if title in escalated_titles:
                 continue  # already human-owned; the model was told not to touch these
+            if title in terminal_titles:
+                continue  # landed is terminal; a respec would re-arm finished work
+        if isinstance(action, FixupAction) and action.finding_slug not in confirmed_slugs:
+            continue  # fixups may only fix findings confirmed THIS wave (stable-slug dedup)
+        if isinstance(action, IntegrationFixAction) and not integration_red:
+            continue  # integration fixes only exist when landed work turned the suite red
         if isinstance(action, FixupAction | IntegrationFixAction):
             creations += 1
             new_leaves.append(action.leaf)

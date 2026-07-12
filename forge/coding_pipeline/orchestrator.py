@@ -44,6 +44,7 @@ from forge.coding_pipeline.journal import (
     append_gate_result,
     append_replan_action,
     count_attempts_for_all,
+    landed_titles,
     next_wave_number,
     persist_wave,
     reconcile,
@@ -53,6 +54,7 @@ from forge.coding_pipeline.models import (
     FixupAction,
     HaltAction,
     IntegrationFixAction,
+    LeafOutcome,
     ReplanAction,
     RespecAction,
     SplitSubtreeAction,
@@ -83,6 +85,43 @@ class OrchestratorResult(BaseModel):
     notes: list[str] = []
 
 
+def _settle_landed_noops(
+    outcomes: list[LeafOutcome],
+    journal_landed: set[str],
+    *,
+    store: TaskStore,
+    run_dir: Path,
+    log: Callable[[str], None],
+) -> None:
+    """Convert a no-change failure on an already-landed leaf into completion.
+
+    A leaf the journal records as landed whose re-dispatch produced no file changes
+    is finished work wearing a failure label: its diff is already on the epic branch.
+    Mark the Forge task Done and flip the outcome to skipped so replan neither burns
+    an attempt nor escalates a completed leaf (deps-v2 wave 11, live). Mutates
+    ``outcomes`` in place.
+    """
+    for outcome in outcomes:
+        if (
+            outcome.status == "failed"
+            and outcome.leaf in journal_landed
+            and "no file changes" in outcome.reason
+        ):
+            store.update_status(
+                outcome.leaf,
+                "Done",
+                notes=(
+                    "Marked Done by the orchestrator: this leaf already landed on the "
+                    "epic branch (journal record) and its re-dispatch correctly produced "
+                    "no changes. The failure label was the redispatch's, not the work's."
+                ),
+            )
+            outcome.status = "skipped"
+            outcome.reason = "already landed; no-change re-dispatch settled as Done"
+            append_replan_action(run_dir, "landed-noop-settled", leaf=outcome.leaf)
+            log(f"already landed — settled as Done: {outcome.leaf}")
+
+
 def _apply_actions(
     actions: list[ReplanAction],
     *,
@@ -91,6 +130,7 @@ def _apply_actions(
     run_dir: Path,
     store: TaskStore,
     log: Callable[[str], None],
+    existing_titles: set[str] | frozenset[str] = frozenset(),
 ) -> bool:
     """Apply replan actions through the idempotent/append-only paths. Returns True on halt.
 
@@ -98,10 +138,21 @@ def _apply_actions(
     alone removes worker eligibility (the gate requires Ready), but without the mode
     flip a human re-arming the task to Ready would silently re-enter the auto pool —
     the design doc's "Spec Needed + Manual" is now what actually lands in Forge.
+
+    ``existing_titles`` (lowercased, the epic's current task titles) is the exact-title
+    dedup backstop under the ref-keyed dedup: a re-discovered finding filed under a new
+    slug must not create a same-title twin — duplicate titles break every title-resolving
+    task tool downstream (deps-v2 waves 17-26, live).
     """
     halted = False
     for action in actions:
         if isinstance(action, FixupAction | IntegrationFixAction):
+            if action.leaf.title.strip().lower() in existing_titles:
+                append_replan_action(
+                    run_dir, "fixup-dedup-skip", leaf=action.leaf.title, reason="duplicate title"
+                )
+                log(f"replan {action.kind}: title already filed in this epic — skipped")
+                continue
             # Fix-ups key their ref on the finding's slug (stable across replans);
             # integration fixes have no finding and fall back to the title slug.
             outcome = emit_fixup(
@@ -205,8 +256,16 @@ def run_epic(
     while result.waves_run < limit:
         # One Forge read per wave, shared by the planner and the epic-context builder.
         epic_rows = fetch_epic_rows(project, epic_slug, feature=feature)
+        # The journal's landed set is the terminal-work override for this wave: the
+        # planner never redispatches it, and replan may not respec/escalate it.
+        journal_landed = landed_titles(run_dir)
         plan = plan_wave(
-            epic_slug, project, wave_size=settings.wave_size, feature=feature, rows=epic_rows
+            epic_slug,
+            project,
+            wave_size=settings.wave_size,
+            feature=feature,
+            rows=epic_rows,
+            landed_titles=journal_landed,
         )
         if plan.dry:
             result.status = "dry"
@@ -271,6 +330,9 @@ def run_epic(
             repo, wave=wave_n, from_change=wave_start, existing_fixups=open_fixups
         )
         report.outcomes = outcomes
+        # journal_landed was read BEFORE this wave dispatched, so it holds only prior
+        # waves' landings — exactly the set a no-change "failure" should settle against.
+        _settle_landed_noops(report.outcomes, journal_landed, store=store, run_dir=run_dir, log=log)
         suite_tail = report.suite.output_tail if report.suite else ""
         append_gate_result(
             run_dir, "suite", report.suite_green, details="" if report.suite_green else suite_tail
@@ -314,7 +376,7 @@ def run_epic(
 
         attempts = count_attempts_for_all(run_dir, [o.leaf for o in report.failed])
         try:
-            actions = replan(framing, tree, report, attempts)
+            actions = replan(framing, tree, report, attempts, landed_titles=journal_landed)
         except ArchitectError as e:
             # A failed model replan must not kill the wave (e2e dry-run: it crashed the
             # run twice, losing the wave record while the journal kept counting
@@ -330,7 +392,13 @@ def run_epic(
             result.notes.append(f"replan degraded to deterministic escalations: {e}")
             log(result.notes[-1])
         halted = _apply_actions(
-            actions, project=project, epic_slug=epic_slug, run_dir=run_dir, store=store, log=log
+            actions,
+            project=project,
+            epic_slug=epic_slug,
+            run_dir=run_dir,
+            store=store,
+            log=log,
+            existing_titles={row.task.strip().lower() for row in epic_rows},
         )
 
         persist_wave(

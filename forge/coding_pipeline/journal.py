@@ -239,6 +239,32 @@ def count_attempts_for_all(
     return {title: count_attempts(run_dir, title) for title in leaf_titles}
 
 
+def landed_titles(run_dir: Path) -> set[str]:
+    """Titles of every leaf this epic's journal records as landed (dispatch status "done").
+
+    The journal is the source of truth for "this work is on the epic branch" — Forge
+    status is not: a replan or a human can re-arm a landed leaf's task to Ready, and the
+    planner/replanner use this set to treat landed leaves as terminal anyway (deps-v2
+    waves 10-11: a respec of a landed leaf re-dispatched finished work, and the worker's
+    no-change diagnostic then escalated the completed leaf to a human).
+    """
+    journal = _journal_path(run_dir)
+    if not journal.exists():
+        return set()
+    titles: set[str] = set()
+    for line in journal.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if rec.get("event") == "leaf_dispatch" and rec.get("status") == "done" and rec.get("leaf"):
+            titles.add(rec["leaf"])
+    return titles
+
+
 # ---------------------------------------------------------------------------
 # Reconciliation
 # ---------------------------------------------------------------------------
