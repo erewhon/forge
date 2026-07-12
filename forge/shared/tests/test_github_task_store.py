@@ -345,3 +345,62 @@ def test_construction_requires_repo(monkeypatch):
     monkeypatch.setattr(gh_store.settings, "repo", "")
     with pytest.raises(ValueError, match="GITHUB_TASK_STORE_REPO"):
         GitHubTaskStore()
+
+
+# --- least agency: GhReader / GhWriter split ----------------------------------------
+
+
+class _ReaderOnlyGh:
+    """A GhReader and nothing more — proves the read paths never touch write surface."""
+
+    def __init__(self, gh: _FakeGh) -> None:
+        self._gh = gh
+
+    def list_issues(self, *, state: str, label: str | None = None):
+        return self._gh.list_issues(state=state, label=label)
+
+
+def _read_only_store() -> tuple[GitHubTaskStore, _FakeGh]:
+    gh = _FakeGh()
+    return GitHubTaskStore(reader=_ReaderOnlyGh(gh), project="Meta"), gh
+
+
+def test_every_read_path_works_with_a_reader_only_client():
+    store, gh = _read_only_store()
+    _make(gh, "leaf-a", status="Ready", mode="Auto-OK")
+    _make(gh, "leaf-b", status="In Progress", ref="pipeline:toy:leaf-b")
+
+    assert store.find_task("leaf-a").task == "leaf-a"
+    assert store.next_ready(["Meta"]).task == "leaf-a"
+    assert {r.task for r in store.list_rows("Meta")} == {"leaf-a", "leaf-b"}
+    assert store.worker_gate("leaf-a") == ""
+    assert "leaf-a" in store.get_spec("leaf-a")
+    assert store.in_progress_titles("pipeline:toy:") == ["leaf-b"]
+
+
+def test_read_only_store_write_fails_fast_with_the_reason():
+    store, gh = _read_only_store()
+    _make(gh, "leaf-a", status="Ready")
+    with pytest.raises(PermissionError, match="read-only.*edit_labels"):
+        store.update_status("leaf-a", "Done")
+    with pytest.raises(PermissionError, match="read-only"):
+        store.ensure_labels()
+
+
+def test_gh_and_reader_are_mutually_exclusive():
+    gh = _FakeGh()
+    with pytest.raises(ValueError, match="not both"):
+        GitHubTaskStore(gh=gh, reader=_ReaderOnlyGh(gh), project="Meta")
+
+
+def test_read_only_emit_dry_run_works_but_create_fails_fast():
+    # emit's dedup listing is a read; dry-run never writes, so it must succeed on a
+    # reader-only store — the write capability is only demanded when actually creating.
+    from forge.shared.forge_emit import EmitSpec
+
+    store, gh = _read_only_store()
+    spec = EmitSpec(external_ref="x:1", title="t", content="c", task_type="chore")
+    summary = store.emit([spec], project="Meta", dry_run=True)
+    assert len(summary.planned) == 1
+    with pytest.raises(PermissionError, match="read-only"):
+        store.emit([spec], project="Meta")

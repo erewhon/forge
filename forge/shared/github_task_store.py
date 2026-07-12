@@ -184,11 +184,20 @@ class _Issue:
     labels: list[str]
 
 
-class GhClient(Protocol):
-    """The GitHub operations the store needs, bound to one repo. The real impl shells out to
-    ``gh``; tests supply an in-memory fake."""
+class GhReader(Protocol):
+    """The read-only GitHub surface, bound to one repo — everything a component that only
+    queries issues needs. Kept disjoint from ``GhWriter`` (least agency, Zero Trust Part IV
+    Phase 5): a read-path consumer handed a ``GhReader`` structurally cannot close, relabel,
+    or comment on issues, because the capability is not in its hands."""
 
     def list_issues(self, *, state: str, label: str | None = None) -> list[_Issue]: ...
+
+
+class GhWriter(Protocol):
+    """The write-capable GitHub surface — only the emit / status-update path holds one.
+    Deliberately does NOT extend ``GhReader``: a writer is never silently handed read surface
+    it didn't ask for, and vice versa."""
+
     def create_issue(self, *, title: str, body: str, labels: list[str]) -> int: ...
     def edit_labels(self, number: int, *, add: list[str], remove: list[str]) -> None: ...
     def edit_body(self, number: int, body: str) -> None: ...
@@ -196,6 +205,13 @@ class GhClient(Protocol):
     def reopen_issue(self, number: int) -> None: ...
     def comment(self, number: int, body: str) -> None: ...
     def ensure_label(self, name: str, *, color: str, description: str) -> None: ...
+
+
+class GhClient(GhReader, GhWriter, Protocol):
+    """The full GitHub surface: both narrow interfaces. The real impl shells out to ``gh``;
+    tests supply an in-memory fake. Prefer typing collaborators as ``GhReader`` or
+    ``GhWriter`` — this combined Protocol exists for the store itself and for callers that
+    genuinely hold both capabilities."""
 
 
 class SubprocessGhClient:
@@ -286,16 +302,49 @@ def _normalize_title(name: str) -> str:
     return name
 
 
-class GitHubTaskStore:
-    """``TaskStore`` over GitHub issues in one repo. See the module docstring for the mapping."""
+class _ReadOnlyWriter:
+    """The writer seat of a store constructed without write capability: every write fails
+    fast with the reason, instead of an AttributeError deep in a `gh` call. Least agency is
+    only real if the missing capability is *visibly* missing."""
 
-    def __init__(self, gh: GhClient | None = None, *, project: str | None = None) -> None:
+    def __getattr__(self, name: str):
+        raise PermissionError(
+            f"this GitHubTaskStore is read-only (constructed with a GhReader and no "
+            f"GhWriter) — write operation {name!r} is not available"
+        )
+
+
+class GitHubTaskStore:
+    """``TaskStore`` over GitHub issues in one repo. See the module docstring for the mapping.
+
+    The store holds both capability seams but wires each method to the narrowest one:
+    read paths go through ``self._reader`` (a ``GhReader``), the emit / status-update path
+    through ``self._writer`` (a ``GhWriter``). Construct with ``gh=`` for both capabilities
+    (the default ``SubprocessGhClient`` satisfies both), or with ``reader=`` alone for a
+    read-only store whose write methods fail fast with ``PermissionError``."""
+
+    def __init__(
+        self,
+        gh: GhClient | None = None,
+        *,
+        reader: GhReader | None = None,
+        writer: GhWriter | None = None,
+        project: str | None = None,
+    ) -> None:
         repo = settings.repo.strip()
-        if gh is None and not repo:
-            raise ValueError(
-                "GITHUB_TASK_STORE_REPO must be set (owner/repo) for the github backend"
-            )
-        self._gh: GhClient = gh or SubprocessGhClient(repo, list_limit=settings.list_limit)
+        if gh is None and reader is None and writer is None:
+            if not repo:
+                raise ValueError(
+                    "GITHUB_TASK_STORE_REPO must be set (owner/repo) for the github backend"
+                )
+            gh = SubprocessGhClient(repo, list_limit=settings.list_limit)
+        if gh is not None and (reader is not None or writer is not None):
+            raise ValueError("pass either gh= (both capabilities) or reader=/writer=, not both")
+        resolved_reader = reader if reader is not None else gh
+        if resolved_reader is None:
+            raise ValueError("a GhReader is required: every store operation reads issues")
+        self._reader: GhReader = resolved_reader
+        self._writer: GhWriter = writer if writer is not None else (gh or _ReadOnlyWriter())
         self.project = project or settings.project.strip() or (repo.split("/")[-1] if repo else "")
 
     # --- read helpers ----------------------------------------------------
@@ -348,7 +397,7 @@ class GitHubTaskStore:
 
     def _find_issue(self, name: str) -> _Issue | None:
         title = _normalize_title(name).lower()
-        for issue in self._gh.list_issues(state="all"):
+        for issue in self._reader.list_issues(state="all"):
             if issue.title.strip().lower() == title:
                 return issue
         return None
@@ -363,7 +412,7 @@ class GitHubTaskStore:
         one-time bootstrap step for a fresh work repo.
         """
         for name, (color, description) in _STATUS_LABEL_STYLE.items():
-            self._gh.ensure_label(name, color=color, description=description)
+            self._writer.ensure_label(name, color=color, description=description)
 
     def emit(
         self,
@@ -380,7 +429,7 @@ class GitHubTaskStore:
     ) -> EmitSummary:
         existing = {
             ref
-            for issue in self._gh.list_issues(state="all")
+            for issue in self._reader.list_issues(state="all")
             if (ref := parse_meta_block(issue.body).get("external_ref", "").strip())
         }
         cap = max_per_run if max_per_run is not None else settings.max_per_run
@@ -415,7 +464,7 @@ class GitHubTaskStore:
                 continue
             body = self._issue_body(spec, mode=eff_mode, phase=eff_phase, priority=eff_priority)
             label = _STATUS_TO_LABEL.get(eff_status.strip().lower())
-            number = self._gh.create_issue(
+            number = self._writer.create_issue(
                 title=spec.title, body=body, labels=[label] if label else []
             )
             summary.created.append(EmitOutcome(ref, spec.title, "created", str(number)))
@@ -454,23 +503,23 @@ class GitHubTaskStore:
         target = status.strip()
         status_labels = [lbl for lbl in issue.labels if lbl.startswith("status:")]
         if target.lower() == "done":
-            self._gh.edit_labels(issue.number, add=[], remove=status_labels)
-            self._gh.close_issue(issue.number)
+            self._writer.edit_labels(issue.number, add=[], remove=status_labels)
+            self._writer.close_issue(issue.number)
         else:
             if issue.state == "closed":
-                self._gh.reopen_issue(issue.number)
+                self._writer.reopen_issue(issue.number)
             new_label = _STATUS_TO_LABEL.get(target.lower())
-            self._gh.edit_labels(
+            self._writer.edit_labels(
                 issue.number,
                 add=[new_label] if new_label else [],
                 remove=[lbl for lbl in status_labels if lbl != new_label],
             )
         if execution_mode is not None:
-            self._gh.edit_body(
+            self._writer.edit_body(
                 issue.number, set_meta_field(issue.body, "execution_mode", execution_mode)
             )
         if notes:
-            self._gh.comment(
+            self._writer.comment(
                 issue.number, f"**{date.today().isoformat()} — Status: {status}**\n\n{notes}"
             )
 
@@ -483,7 +532,7 @@ class GitHubTaskStore:
     def next_ready(self, projects: list[str]) -> TaskInfo | None:
         if projects and self.project.lower() not in {p.lower() for p in projects}:
             return None
-        issues = self._gh.list_issues(state="all")
+        issues = self._reader.list_issues(state="all")
         done_titles = {i.title for i in issues if self._status_of(i) == "Done"}
         candidates: list[_Issue] = []
         for issue in issues:
@@ -507,7 +556,7 @@ class GitHubTaskStore:
         from forge.task_worker.nous_client import _gate_reason
 
         title = _normalize_title(name)
-        rows = {r.task: r for r in self._leaf_rows(self._gh.list_issues(state="all"))}
+        rows = {r.task: r for r in self._leaf_rows(self._reader.list_issues(state="all"))}
         row = rows.get(title)
         if row is None:
             return f"task {title!r} not found in the issue tracker"
@@ -517,7 +566,7 @@ class GitHubTaskStore:
         issue = self._find_issue(name)
         if issue is None:
             raise ValueError(f"issue not found for task {name!r}")
-        rows = {r.task: r for r in self._leaf_rows(self._gh.list_issues(state="all"))}
+        rows = {r.task: r for r in self._leaf_rows(self._reader.list_issues(state="all"))}
         row = rows.get(issue.title)
         meta = parse_meta_block(issue.body)
         status = self._status_of(issue)
@@ -563,7 +612,7 @@ class GitHubTaskStore:
     def list_rows(
         self, project: str, *, feature: str | None = None, include_done: bool = True
     ) -> list[LeafRow]:
-        issues = self._gh.list_issues(state="all")
+        issues = self._reader.list_issues(state="all")
         rows = self._leaf_rows(issues)
         if feature is not None:
             by_title = {i.title: parse_meta_block(i.body).get("feature", "") for i in issues}
@@ -573,7 +622,7 @@ class GitHubTaskStore:
         return rows
 
     def in_progress_titles(self, ref_prefix: str) -> list[str]:
-        issues = self._gh.list_issues(state="open", label=_STATUS_TO_LABEL["in progress"])
+        issues = self._reader.list_issues(state="open", label=_STATUS_TO_LABEL["in progress"])
         return [
             issue.title
             for issue in issues
