@@ -367,3 +367,61 @@ def test_jj_push_argv_has_no_allow_new(monkeypatch):
     cmd = captured[0]
     assert "--bookmark" in cmd
     assert "--allow-new" not in cmd
+
+
+# --- diff-literacy manifest (gate-local-seat-diff-literacy) -------------------------
+
+
+def test_diff_manifest_counts_per_file():
+    diff = (
+        "diff --git a/pkg/mod.py b/pkg/mod.py\n"
+        "--- a/pkg/mod.py\n"
+        "+++ b/pkg/mod.py\n"
+        "@@ -1,2 +1,3 @@\n"
+        " keep\n"
+        "+added one\n"
+        "+added two\n"
+        "-removed\n"
+        "diff --git a/pkg/tests/test_mod.py b/pkg/tests/test_mod.py\n"
+        "--- /dev/null\n"
+        "+++ b/pkg/tests/test_mod.py\n"
+        "@@ -0,0 +1,1 @@\n"
+        "+def test_x(): ...\n"
+    )
+    manifest = ve.diff_manifest(diff)
+    assert "2 file(s)" in manifest
+    assert "- pkg/mod.py: +2/-1" in manifest
+    assert "- pkg/tests/test_mod.py: +1/-0" in manifest
+    assert "unchanged, not missing" in manifest
+
+
+def test_diff_manifest_empty_for_empty_diff():
+    assert ve.diff_manifest("") == ""
+
+
+def test_single_pass_gate_prepends_manifest(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_signoff(diff_text, **kwargs):
+        seen["body"] = diff_text
+        return SignoffResult(approved=True, attempted=2, approvals=2)
+
+    monkeypatch.setattr(ve, "full_quorum_signoff", fake_signoff)
+    monkeypatch.setattr(
+        ve,
+        "epic_diff",
+        lambda repo, slug, main="main": (
+            "diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-a\n+b\n"
+        ),
+    )
+    ve.run_epic_gate(tmp_path, "toy", _framing(), seats=[object(), object()])
+    assert seen["body"].startswith("## File manifest")
+    assert "- x.py: +1/-1" in seen["body"]
+    assert "diff --git a/x.py" in seen["body"]  # the diff itself still follows
+
+
+def test_signoff_prompt_carries_diff_literacy_rules():
+    for prompt in (ve.EPIC_SIGNOFF_SYSTEM, ve.EPIC_MAP_SYSTEM):
+        assert "omits unchanged lines" in prompt
+    assert "DIFF LITERACY" in ve.EPIC_SIGNOFF_SYSTEM
+    assert "manifest" in ve.EPIC_SIGNOFF_SYSTEM

@@ -38,13 +38,28 @@ per-wave reviews already ran. Approve for handoff to a human merger ONLY if ALL 
 - No surprising dependency-manifest or lockfile changes (new dependencies need human eyes).
 - Tests accompany the behavior they claim to cover and do not weaken existing coverage.
 
+DIFF LITERACY — read this before writing any blocker:
+- The diff you receive is the COMPLETE change set. Unified diff format omits unchanged lines
+  and unchanged files BY DESIGN; that is not truncation. Never claim the diff is "truncated"
+  or "incomplete", and never claim code, tests, or files are "missing", merely because they
+  are not visible in the hunks — absent from the diff means UNCHANGED, not absent from the repo.
+- A file manifest (every file this diff touches, with change counts) precedes the diff. Judge
+  completeness against that manifest only. A file listed there carries its changes in full.
+- Safety checks, call sites, imports, and logic outside the hunks still exist as unchanged
+  context. Every blocker must cite lines the diff actually shows or a manifest mismatch —
+  never code you cannot see.
+
 Be strict: this is the last automated check before a human merges to main. If anything is
-uncertain, do NOT approve.
+uncertain, do NOT approve — but "uncertain" means evidence in the diff you cannot reconcile,
+not code the diff format legitimately omits.
 
 Respond with ONLY a JSON object: {"approve": true|false, "blockers": ["..."], "notes": "..."}"""
 
 EPIC_MAP_SYSTEM = """You are summarizing ONE slice of a large epic diff for a merge gatekeeper \
-who cannot read the whole diff. Report, factually and compactly:
+who cannot read the whole diff. Unified diff format omits unchanged lines and files BY DESIGN — \
+never report code, tests, or files as "missing" or the slice as "truncated" because something is \
+not visible in the hunks: absent from this slice means unchanged, or carried in another slice. \
+Report, factually and compactly:
 - What this slice changes (files, behavior) in a few bullets.
 - RED FLAGS the gatekeeper must know about: dependency-manifest or lockfile changes, deleted or \
 weakened tests, half-migrations (old and new paths both live), contradictory edits, debug \
@@ -159,6 +174,42 @@ def epic_diff(repo: Path, epic_slug: str, *, main: str = "main") -> str:
     return res.stdout
 
 
+def diff_manifest(diff: str) -> str:
+    """A per-file change-count manifest parsed from the unified diff itself.
+
+    Prepended to gate prompts as the completeness ground truth: seats judge "is anything
+    missing" against this list instead of guessing from hunk visibility — the local seat's
+    live failure mode was reporting unchanged (hence invisible) code as missing/truncated
+    (concurrent-workers gate runs 3-4; deps-v2 gate round 3)."""
+    files: dict[str, tuple[int, int]] = {}
+    current: str | None = None
+    for line in diff.splitlines():
+        if line.startswith("diff --git "):
+            # `diff --git a/<path> b/<path>` — take the b/ side (post-change name).
+            b_side = line.split(" b/", 1)
+            current = b_side[1] if len(b_side) == 2 else line.removeprefix("diff --git ")
+            files.setdefault(current, (0, 0))
+        elif current and line.startswith("+") and not line.startswith("+++"):
+            added, removed = files[current]
+            files[current] = (added + 1, removed)
+        elif current and line.startswith("-") and not line.startswith("---"):
+            added, removed = files[current]
+            files[current] = (added, removed + 1)
+    if not files:
+        return ""
+    lines = [
+        f"## File manifest — the COMPLETE change set ({len(files)} file(s)); "
+        "anything not listed here is unchanged, not missing"
+    ]
+    lines += [f"- {path}: +{a}/-{r}" for path, (a, r) in sorted(files.items())]
+    return "\n".join(lines)
+
+
+def _with_manifest(diff: str) -> str:
+    manifest = diff_manifest(diff)
+    return f"{manifest}\n\n{diff}" if manifest else diff
+
+
 def _default_seats() -> list[SignoffSeat]:
     from forge.pr_review_ensemble.providers import build_reviewer_slots
 
@@ -248,6 +299,7 @@ def _map_reduce_gate(
         for i, (c, r) in enumerate(zip(chunks, results))
     )
     result = full_quorum_signoff(
+        f"{diff_manifest(diff)}\n\n"
         f"(per-slice gatekeeper summaries of the full epic diff — {len(chunks)} slices, "
         f"all present)\n\n{body}",
         seats=seats,
@@ -286,7 +338,7 @@ def run_epic_gate(
     if len(diff) > settings.epic_gate_max_diff_chars:
         return _map_reduce_gate(diff, epic_slug, framing, resolved)
     result = full_quorum_signoff(
-        diff,
+        _with_manifest(diff),
         seats=resolved,
         system=EPIC_SIGNOFF_SYSTEM,
         ref=epic_branch(epic_slug),
