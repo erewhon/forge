@@ -88,6 +88,13 @@ REGISTRY: list[AgentCommand] = [
         exposes_mcp=False,
     ),
     AgentCommand(
+        name="queue",
+        summary="Backlog report: non-done tasks per project, worker-readiness resolved.",
+        module="forge.queue.main",
+        # Read-only, but agents already have richer task queries via the Nous MCP; CLI-only.
+        exposes_mcp=False,
+    ),
+    AgentCommand(
         name="build",
         summary="Coding pipeline: plan, run, and inspect epic builds.",
         module="forge.coding_pipeline.main",

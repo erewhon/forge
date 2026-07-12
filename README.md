@@ -40,6 +40,7 @@ bumping, testing loops, and an architect/worker coding pipeline.
 |---|---|
 | `forge edit --prompt "convert callbacks to async" --repo ~/src/foo --models "claude-opus-4-8,opencode:glm-5.1"` | Same prompt, N models (2–26), compare the diffs |
 | `forge task --project Gaol` | Autonomous worker: pick the top ready task, run it in the sandbox, commit (`--dry-run` executes then reverts) |
+| `forge queue --auto` | Backlog report: non-done tasks grouped by project, worker dispatch gate resolved per row; `--auto` narrows to Auto-OK/Auto-Preferred tasks, `--project` to one project |
 | `forge build plan --epic <slug> --project Meta --repo <path>` | Coding pipeline A0+A1 framing; `--approve` unlocks decompose + emit |
 | `forge build run --epic <slug> --project Meta --repo <path>` | Orchestrator wave loop (dispatch → verify → replan); `--concurrency N` |
 | `forge build gate --epic <slug> --repo <path>` | Final full-quorum epic sign-off (a human merges after) |

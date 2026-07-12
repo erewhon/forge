@@ -19,6 +19,7 @@ EXPECTED_VERBS = {
     "refactor",
     "code-review",
     "task",
+    "queue",
     "build",
     "evals",
     "deps",
@@ -27,7 +28,7 @@ EXPECTED_VERBS = {
 }
 
 
-def test_registry_is_exactly_the_fourteen_forge_verbs():
+def test_registry_is_exactly_the_fifteen_forge_verbs():
     assert {cmd.name for cmd in registry.REGISTRY} == EXPECTED_VERBS
 
 

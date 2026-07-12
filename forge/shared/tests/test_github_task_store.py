@@ -404,3 +404,24 @@ def test_read_only_emit_dry_run_works_but_create_fails_fast():
     assert len(summary.planned) == 1
     with pytest.raises(PermissionError, match="read-only"):
         store.emit([spec], project="Meta")
+
+
+def test_queue_filters_done_and_carries_project_feature_blockers():
+    store, gh = _store()
+    _make(gh, "shipped", status="Done", feature="A")
+    _make(gh, "free", status="Ready", mode="Auto-OK", feature="A")
+    _make(gh, "stuck", status="Ready", mode="Manual", deps="free", feature="B")
+    rows = {r.task: r for r in store.queue()}
+    assert set(rows) == {"free", "stuck"}  # Done rows never appear
+    assert rows["free"].project == "Meta"
+    assert rows["free"].feature == "A"
+    assert rows["free"].is_dispatchable
+    assert rows["stuck"].blocked and rows["stuck"].blocked_by == ["free"]
+    assert not rows["stuck"].is_dispatchable
+
+
+def test_queue_is_single_project():
+    store, gh = _store()
+    _make(gh, "leaf", status="Ready")
+    assert store.queue(project="meta")  # case-insensitive match on the store's project
+    assert store.queue(project="Other") == []

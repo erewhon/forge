@@ -32,6 +32,7 @@ from typing import Protocol
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from forge.coding_pipeline.models import LeafRow
+from forge.queue.models import QueueRow
 from forge.shared.forge_emit import EmitOutcome, EmitSpec, EmitSummary
 
 # The portable encoding (meta block, status labels, deps-by-title) lives in
@@ -567,4 +568,26 @@ class GitHubTaskStore:
             for issue in issues
             if issue.title.strip()
             and parse_meta_block(issue.body).get("external_ref", "").startswith(ref_prefix)
+        ]
+
+    def queue(self, *, project: str | None = None) -> list[QueueRow]:
+        # Single-project store: one repo == one project, so any other name is empty.
+        if project is not None and project.lower() != self.project.lower():
+            return []
+        issues = self._reader.list_issues(state="all")
+        metas = {i.title: parse_meta_block(i.body) for i in issues}
+        return [
+            QueueRow(
+                project=self.project,
+                task=row.task,
+                status=row.status,
+                execution_mode=row.execution_mode,
+                priority=row.priority,
+                blocked=row.blocked,
+                blocked_by=row.blocked_by,
+                feature=metas.get(row.task, {}).get("feature", ""),
+                model_tier=metas.get(row.task, {}).get("model_tier", ""),
+            )
+            for row in self._leaf_rows(issues)
+            if row.status != "Done" and row.task.strip()
         ]

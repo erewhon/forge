@@ -6,11 +6,12 @@ logic. ``ForgeTaskStore`` (the default) delegates to the existing Nous-backed fu
 unchanged; a ``GitHubTaskStore`` (issues) is the planned second adapter for running the
 harness at work. ``get_task_store()`` selects one by config (env ``TASK_STORE_BACKEND``).
 
-The surface is small and closed — seven operations cover every Forge touch the harness
+The surface is small and closed — eight operations cover every Forge touch the harness
 makes:
 
     write:  emit, update_status
-    read:   find_task, next_ready, get_spec, worker_gate, list_rows, in_progress_titles
+    read:   find_task, next_ready, get_spec, worker_gate, list_rows, in_progress_titles,
+            queue
 
 Layering note: this module lives in ``forge.shared`` because both the pipeline and the
 worker depend on it, but ``ForgeTaskStore`` is *definitionally* the Nous adapter, so it
@@ -36,6 +37,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 if TYPE_CHECKING:
     from forge.coding_pipeline.models import LeafRow
+    from forge.queue.models import QueueRow
     from forge.shared.forge_emit import EmitSpec, EmitSummary
     from forge.task_worker.models import TaskInfo
 
@@ -106,6 +108,12 @@ class TaskStore(Protocol):
 
     def in_progress_titles(self, ref_prefix: str) -> list[str]:
         """Titles of In Progress tasks whose external_ref starts with ``ref_prefix``."""
+        ...
+
+    def queue(self, *, project: str | None = None) -> list[QueueRow]:
+        """Every non-done task (``project`` narrows; None = all projects the store holds),
+        with autonomy mode and blocked state resolved. Single-project backends (GitHub,
+        git-bug) hold exactly one project and return [] when asked about another."""
         ...
 
 
@@ -201,6 +209,43 @@ class ForgeTaskStore:
             if str(r.get("task", "")).strip()
             and str(r.get("external_ref", "") or "").startswith(ref_prefix)
         ]
+
+    def queue(self, *, project: str | None = None) -> list[QueueRow]:
+        # One cross-project query; blocked resolution matches list_rows exactly. Row
+        # normalization mirrors waves._row_from_raw (null-as-manual, bad priority → 99)
+        # but keeps project/feature/model_tier, which LeafRow deliberately drops.
+        from forge.queue.models import QueueRow
+        from forge.task_worker.nous_client import _read_db_content, require_nous
+
+        require_nous()
+        from nous_mcp.workflow import _is_task_blocked, _query_tasks
+
+        db_content = _read_db_content()
+        raw_rows = _query_tasks(db_content, project=project, include_done=False, limit=None)
+        rows: list[QueueRow] = []
+        for raw in raw_rows:
+            task = str(raw.get("task", "")).strip()
+            if not task:
+                continue
+            blocked, blocking = _is_task_blocked(raw, db_content)
+            try:
+                priority = int(raw.get("priority", 99))
+            except (TypeError, ValueError):
+                priority = 99
+            rows.append(
+                QueueRow(
+                    project=str(raw.get("project", "") or ""),
+                    task=task,
+                    status=str(raw.get("status", "") or ""),
+                    execution_mode=str(raw.get("execution_mode") or "Manual"),
+                    priority=priority,
+                    blocked=blocked,
+                    blocked_by=list(blocking),
+                    feature=str(raw.get("feature", "") or ""),
+                    model_tier=str(raw.get("model_tier", "") or ""),
+                )
+            )
+        return rows
 
 
 def get_task_store() -> TaskStore:

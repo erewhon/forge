@@ -139,3 +139,47 @@ def test_in_progress_titles_filters_by_ref_prefix(monkeypatch):
     )
     titles = ForgeTaskStore().in_progress_titles("pipeline:toy-epic:")
     assert titles == ["in-epic"]
+
+
+def test_queue_queries_cross_project_and_normalizes(monkeypatch):
+    pytest.importorskip("nous_mcp")  # patches inside nous_mcp — genuinely needs the extra
+    seen = {}
+
+    monkeypatch.setattr("forge.task_worker.nous_client._read_db_content", lambda: {"db": "content"})
+
+    def fake_query(db_content, **kwargs):
+        seen["db"] = db_content
+        seen.update(kwargs)
+        return [
+            {
+                "task": "auto-leaf",
+                "project": "Meta",
+                "status": "Ready",
+                "execution_mode": "Auto-OK",
+                "priority": 3,
+                "feature": "F",
+                "model_tier": "auto",
+            },
+            # null-as-manual, unparseable priority → 99, blocked comes from _is_task_blocked
+            {"task": "bare-leaf", "project": "Nous", "status": "Spec Needed", "priority": "x"},
+            {"task": "   "},  # nameless rows are dropped
+        ]
+
+    monkeypatch.setattr("nous_mcp.workflow._query_tasks", fake_query)
+    monkeypatch.setattr(
+        "nous_mcp.workflow._is_task_blocked",
+        lambda raw, db: (True, ["dep-1"]) if raw["task"] == "bare-leaf" else (False, []),
+    )
+
+    rows = {r.task: r for r in ForgeTaskStore().queue(project="Meta")}
+    assert seen["db"] == {"db": "content"}
+    assert seen["project"] == "Meta"
+    assert seen["include_done"] is False
+    assert set(rows) == {"auto-leaf", "bare-leaf"}
+    auto = rows["auto-leaf"]
+    assert (auto.project, auto.feature, auto.model_tier) == ("Meta", "F", "auto")
+    assert auto.is_dispatchable
+    bare = rows["bare-leaf"]
+    assert bare.execution_mode == "Manual"
+    assert bare.priority == 99
+    assert bare.blocked and bare.blocked_by == ["dep-1"]
