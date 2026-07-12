@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -49,17 +49,45 @@ def _blocked() -> SignoffResult:
     )
 
 
+class _StubEcosystem:
+    """Adapter stand-in routing each call to a per-method mock, so tests keep their
+    ``loop["scan_outdated"]``-style handles across the ecosystem port."""
+
+    name = "uv"
+
+    def __init__(self, mocks: dict[str, MagicMock]) -> None:
+        self._mocks = mocks
+
+    def scan_outdated(self, repo):
+        return self._mocks["scan_outdated"](repo)
+
+    def apply_bump(self, repo, candidate):
+        return self._mocks["apply_bump"](repo, candidate)
+
+    def lockfile_delta(self, repo):
+        return self._mocks["lockfile_delta"](repo)
+
+    def run_audit(self, repo):
+        return self._mocks["run_audit"](repo)
+
+    def collect_evidence(self, candidate, findings, lock_delta, **kw):
+        return self._mocks["collect_evidence"](candidate, findings, lock_delta, **kw)
+
+
 @pytest.fixture
 def loop(monkeypatch, tmp_path):
     """Patch every collaborator to a happy-path default; tests override per-case."""
+    eco_mocks = {
+        "scan_outdated": MagicMock(return_value=[_candidate()]),
+        "run_audit": MagicMock(return_value=[]),
+        "apply_bump": MagicMock(return_value=["uv.lock"]),
+        "lockfile_delta": MagicMock(return_value=["idna 3.11->3.15"]),
+        "collect_evidence": MagicMock(side_effect=lambda c, f, d, **kw: _evidence(c)),
+    }
     mocks = {
         "detect_vcs": patch.object(ab, "detect_vcs", return_value="jj"),
-        "scan_outdated": patch.object(ab, "scan_outdated", return_value=[_candidate()]),
-        "run_audit": patch.object(ab, "run_audit", return_value=[]),
-        "apply_bump": patch.object(ab, "apply_bump", return_value=["uv.lock"]),
-        "lockfile_delta": patch.object(ab, "lockfile_delta", return_value=["idna 3.11->3.15"]),
-        "collect_evidence": patch.object(
-            ab, "collect_evidence", side_effect=lambda c, f, d, **kw: _evidence(c)
+        "resolve_ecosystem": patch.object(
+            ab, "resolve_ecosystem", return_value=_StubEcosystem(eco_mocks)
         ),
         "classify_manifest_only": patch.object(
             ab,
@@ -79,6 +107,7 @@ def loop(monkeypatch, tmp_path):
     }
     monkeypatch.setattr(ab.settings, "auto_log_path", tmp_path / "auto.jsonl")
     started = {name: p.start() for name, p in mocks.items()}
+    started.update(eco_mocks)
     yield started
     for p in mocks.values():
         p.stop()

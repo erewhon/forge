@@ -58,6 +58,10 @@ class EvidenceBundle(BaseModel):
     reachable: bool | None = None
     lockfile_changes: list[str] = Field(default_factory=list)
     complete: bool = False
+    # Set by adapters that KNOW why their evidence is incomplete (e.g. an ecosystem with no
+    # provenance source wired) — becomes the advisory task's headline instead of the generic
+    # "evidence incomplete" text. None means the incompleteness is a runtime fetch failure.
+    incomplete_reason: str | None = None
 
 
 BumpStatus = Literal["merged", "branched", "advisory", "no-candidates", "planned", "error"]

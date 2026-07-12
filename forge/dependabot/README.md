@@ -6,10 +6,10 @@ Dependency bumper: scan, bump, gate, and auto-merge clean low-risk bumps.
 
 `meta deps` runs the scan → bump → gate → act loop on the current repository:
 
-1. **Scan** — finds outdated direct dependencies via `uv`
-2. **Audit** — runs pip-audit against the current lockfile
+1. **Scan** — finds outdated direct dependencies
+2. **Audit** — runs a known-vulnerability scan repo-wide
 3. **Pick** — selects the first patch/minor candidate (major bumps go straight to advisory)
-4. **Bump** — applies `uv lock -P <name>` for the candidate (manifest+lockfile only)
+4. **Bump** — applies the candidate as a manifest+lockfile-only working-copy change
 5. **Gate** — three checks, all must pass for auto-merge:
    - **Manifest-only** — only dependency manifests/lockfiles changed
    - **Green suite** — the test suite passes against the bumped lock
@@ -18,6 +18,26 @@ Dependency bumper: scan, bump, gate, and auto-merge clean low-risk bumps.
 
 Policy-ineligible candidates and gate misses fall through to an advisory branch plus a Forge
 task, never a merge (fail-closed).
+
+## Ecosystems
+
+Scan/bump/delta/audit/evidence live behind an adapter port (`ecosystems/`); the loop, gates,
+VCS actions, and advisory emission are ecosystem-neutral. Detection is by manifest —
+`uv.lock` → uv, `go.mod` → go; a repo with both requires `--ecosystem` (or
+`DEPENDABOT_ECOSYSTEM`). Backends:
+
+- **uv (Python)** — `uv tree --outdated` / `uv lock -P <name>` / pip-audit, plus the full
+  PyPI evidence bundle (yanked, release age, typosquat, maintainer change, install scripts,
+  Scorecard, PEP 740 attestation).
+- **go** — `go list -u -m -json all` / `go get <mod>@<ver>` + `go mod tidy` /
+  `govulncheck -scan package -json ./...` (osv-scanner fallback; neither installed fails
+  closed). There is **no Go-native provenance source wired yet**, so evidence is incomplete
+  by construction and every Go bump rides the advisory track — with
+  `TASK_STORE_BACKEND=git-bug` the advisory files straight into the target repo. Two Go
+  behaviors to expect on the branch: minimum-version-selection ripple (bumping a module can
+  raise its own requirements' minimums), and a one-time `go mod tidy` cleanup on repos whose
+  go.mod carried stale `// indirect` annotations. The `--redundancy-report` sub-mode remains
+  uv-only.
 
 ## Threshold policy
 

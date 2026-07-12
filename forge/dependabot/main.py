@@ -56,7 +56,15 @@ def main(argv: list[str] | None = None) -> int:
         "--redundancy-report",
         action="store_true",
         default=False,
-        help="Print a read-only markdown report of overlapping-purpose dependency clusters",
+        help="Print a read-only markdown report of overlapping-purpose dependency clusters "
+        "(uv repos only)",
+    )
+    parser.add_argument(
+        "--ecosystem",
+        choices=("uv", "go"),
+        default=None,
+        help="Force the dependency ecosystem (default: auto-detect from uv.lock / go.mod; "
+        "env: DEPENDABOT_ECOSYSTEM)",
     )
     args = parser.parse_args(argv)
 
@@ -79,6 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         project=args.project,
         auto_merge=args.auto_merge,
         dry_run=args.dry_run,
+        ecosystem=args.ecosystem,
     )
 
     print(render_bump(result))

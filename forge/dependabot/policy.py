@@ -35,7 +35,9 @@ def auto_eligible(
     if c.delta not in ("patch", "minor"):
         return False, f"version delta is {c.delta} — only patch/minor bumps auto-merge in v1"
     if not evidence.complete:
-        return False, "evidence incomplete (a PyPI fetch or the lockfile delta is missing)"
+        return False, evidence.incomplete_reason or (
+            "evidence incomplete (a PyPI fetch or the lockfile delta is missing)"
+        )
     if evidence.target_yanked is None:
         return False, "yanked status undeterminable — treated as incomplete evidence"
     if evidence.target_yanked:

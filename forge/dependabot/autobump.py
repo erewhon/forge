@@ -17,9 +17,8 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
-from forge.dependabot.audit import run_audit
-from forge.dependabot.bump import apply_bump, lockfile_delta
 from forge.dependabot.config import settings
+from forge.dependabot.ecosystems import EcosystemError, resolve_ecosystem
 from forge.dependabot.emit import emit_advisory
 from forge.dependabot.models import (
     BumpCandidate,
@@ -28,8 +27,6 @@ from forge.dependabot.models import (
 )
 from forge.dependabot.policy import auto_eligible
 from forge.dependabot.prompts import SUPPLY_CHAIN_SIGNOFF, render_evidence
-from forge.dependabot.scan import scan_outdated
-from forge.dependabot.supply_chain import collect_evidence
 from forge.shared.automerge import (
     advance_main,
     classify_manifest_only,
@@ -84,6 +81,7 @@ def auto_bump(
     project: str | None = None,
     auto_merge: bool = False,
     dry_run: bool = False,
+    ecosystem: str | None = None,
     log: Callable[[str], None] = print,
 ) -> BumpResult:
     """Run the scan → bump → gate → act loop once (one candidate, one branch).
@@ -91,18 +89,27 @@ def auto_bump(
     Default action pushes a ``deps/<name>-<version>`` branch; ``auto_merge`` also advances
     main WHEN every gate approves. Policy-ineligible candidates and gate misses end in the
     advisory action: the bump is pushed as a branch, a Forge task is filed (when ``project``
-    is set), and nothing merges. ``dry_run`` stops after candidate selection.
+    is set), and nothing merges. ``dry_run`` stops after candidate selection. ``ecosystem``
+    forces a backend ("uv"/"go"); the default detects one from the repo's manifests.
     """
     vcs = detect_vcs(repo_path)
     if vcs not in ("jj", "git"):
         return BumpResult(status="error", reason=f"no jj/git repo at {repo_path}")
 
-    candidates = scan_outdated(repo_path)
+    try:
+        eco = resolve_ecosystem(repo_path, override=ecosystem or settings.ecosystem or None)
+    except EcosystemError as e:
+        return BumpResult(status="error", reason=str(e))
+
+    candidates = eco.scan_outdated(repo_path)
     if not candidates:
         log("no outdated direct dependencies — nothing to bump")
         return BumpResult(status="no-candidates")
-    findings = run_audit(repo_path)
-    log(f"{len(candidates)} outdated candidate(s); {len(findings)} audit finding(s) repo-wide")
+    findings = eco.run_audit(repo_path)
+    log(
+        f"{len(candidates)} outdated candidate(s) via {eco.name}; "
+        f"{len(findings)} audit finding(s) repo-wide"
+    )
 
     candidate, pre_eligible = _pick(candidates)
     branch = _branch_for(candidate)
@@ -134,8 +141,8 @@ def auto_bump(
     # loop reparks here so the bump branch stays a side head, never the mainline's parent.
     base = working_copy_base(repo_path)
 
-    # 1. Apply the bump (manifest+lockfile-only by construction of `uv lock -P`).
-    changed = apply_bump(repo_path, candidate)
+    # 1. Apply the bump (manifest+lockfile-only by construction of the adapter's command).
+    changed = eco.apply_bump(repo_path, candidate)
     if not changed:
         log(f"{candidate.name}: constraints already pin it — nothing to bump")
         return BumpResult(
@@ -146,8 +153,8 @@ def auto_bump(
 
     # 2. Evidence + policy — the deterministic dial runs before any LLM. repo_root wires the
     # reachability signal; without it `reachable` is None on every run and demotion never fires.
-    evidence = collect_evidence(
-        candidate, findings, lockfile_delta(repo_path), repo_root=repo_path
+    evidence = eco.collect_evidence(
+        candidate, findings, eco.lockfile_delta(repo_path), repo_root=repo_path
     )
 
     def _advisory(reason: str, *, passed: bool | None = None, so=None) -> BumpResult:

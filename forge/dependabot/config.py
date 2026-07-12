@@ -9,6 +9,8 @@ class DependabotSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="DEPENDABOT_")
 
     branch_prefix: str = "deps"
+    # "" auto-detects by manifest (uv.lock -> uv, go.mod -> go); "uv"/"go" forces a backend.
+    ecosystem: str = ""
     auto_log_path: Path = Path(__file__).parent / "logs" / "auto.jsonl"
 
     signoff_max_tokens: int = 4096
