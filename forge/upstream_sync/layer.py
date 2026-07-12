@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from forge.upstream_sync.gitops import git
+from forge.shared.gitops import git
 from forge.upstream_sync.models import LayerManifest
 
 

@@ -112,4 +112,11 @@ REGISTRY: list[AgentCommand] = [
         # CLI-only like deps: it pushes branches to real remotes.
         exposes_mcp=False,
     ),
+    AgentCommand(
+        name="sweep",
+        summary="Fleet sweep: run deps/upstream across every repo on a Soft Serve instance.",
+        module="forge.sweep.main",
+        # CLI-only: it clones repos and spawns agents that push to real remotes.
+        exposes_mcp=False,
+    ),
 ]

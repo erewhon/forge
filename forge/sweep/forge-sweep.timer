@@ -1,0 +1,10 @@
+[Unit]
+Description=Forge fleet sweep (nightly 04:47, before the dependabot bumper's 05:37 run)
+
+[Timer]
+OnCalendar=*-*-* 04:47:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

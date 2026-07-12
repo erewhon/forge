@@ -23,10 +23,11 @@ EXPECTED_VERBS = {
     "evals",
     "deps",
     "upstream",
+    "sweep",
 }
 
 
-def test_registry_is_exactly_the_thirteen_forge_verbs():
+def test_registry_is_exactly_the_fourteen_forge_verbs():
     assert {cmd.name for cmd in registry.REGISTRY} == EXPECTED_VERBS
 
 

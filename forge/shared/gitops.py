@@ -1,4 +1,4 @@
-"""Thin git plumbing for the sync loop — everything runs against explicit refs and paths.
+"""Thin git plumbing shared by the fleet agents — explicit refs and paths, no cwd magic.
 
 The agent NEVER touches the caller's working copy: merge work happens in a temporary
 ``git worktree`` (created here, always removed), so a dirty checkout — or a jj-colocated

@@ -26,10 +26,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from forge.shared.automerge import log_decision
+from forge.shared.gitops import GitError, detect_branch, git, git_ok, temporary_worktree
 from forge.task_worker.tester import run_tests
 from forge.upstream_sync.config import settings
 from forge.upstream_sync.emit import emit_advisory
-from forge.upstream_sync.gitops import GitError, detect_branch, git, git_ok, temporary_worktree
 from forge.upstream_sync.layer import compute_layer
 from forge.upstream_sync.models import SyncResult
 from forge.upstream_sync.seat import collision_verdict

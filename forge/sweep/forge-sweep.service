@@ -1,0 +1,28 @@
+[Unit]
+Description=Forge fleet sweep - run deps/upstream agents across a Soft Serve instance
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# TEMPLATE: this in-repo unit uses neutral placeholder paths. The installed copy
+# (e.g. ~/.config/systemd/user/forge-sweep.service) is machine-local — edit THAT copy
+# with your real checkout path, host, and env; do not point systemd at this file.
+ExecStart=%h/.local/bin/forge sweep
+# Machine-local values (SWEEP_HOST, SWEEP_UPSTREAM_REMOTES, router endpoint, keys) live
+# in a gitignored env file; plain KEY=VALUE doubles as a systemd EnvironmentFile.
+# EnvironmentFile=%h/.config/forge-sweep/env
+Environment=PATH=%h/.local/bin:%h/go/bin:/usr/local/bin:/usr/bin:/bin
+
+# One clone + two agents per repo; scale with the fleet.
+TimeoutStartSec=7200
+
+# Exit codes: 0 = sweep completed (per-repo advisories/errors are rows in the summary and
+# in forge/sweep/logs/sweep.jsonl); 2 = driver-level failure (enumeration, workdir).
+
+# NO sandboxing, deliberately — same finding as dependabot-bumper.service (2026-07-06):
+# user-unit sandboxing breaks gaol's sudo watchdog and ssh pushes. Trusted first-party
+# automation; the agents' own fail-closed gates are the containment.
+
+[Install]
+WantedBy=default.target
