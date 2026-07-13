@@ -5,7 +5,9 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-ProviderName = Literal["anthropic", "local", "opencode_zen"]
+# A free-form seat label (e.g. "sonnet-5", "glm", "m3") — the roster is per-model now, not keyed by
+# a fixed provider family, so this is a plain string rather than a closed Literal.
+ProviderName = str
 ProviderStatus = Literal["ok", "timeout", "error", "skipped"]
 QuorumState = Literal["full", "degraded", "failed"]
 

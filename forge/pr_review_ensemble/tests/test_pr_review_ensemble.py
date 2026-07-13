@@ -191,20 +191,20 @@ def test_status_mapping():
 # --- aggregator rotation -----------------------------------------------------
 
 
-def test_aggregator_rotation_excludes_inactive_local_last():
-    # preferred="anthropic" (default) is inactive here -> rotation falls to zen, then local last.
-    slots = [skip_slot("anthropic"), fake_slot("local"), fake_slot("opencode_zen")]
+def test_aggregator_rotation_excludes_inactive():
+    # preferred="sonnet-5" (default) is inactive here -> rotation falls to glm then m3.
+    slots = [skip_slot("sonnet-5"), fake_slot("glm"), fake_slot("m3")]
     agg = build_aggregator(slots, pr_ref="PR", n_reviews=2)
-    assert [e.label for e in agg.pool.executors] == ["opencode_zen:m", "local:m"]
+    assert [e.label for e in agg.pool.executors] == ["glm:m", "m3:m"]
 
 
 def test_aggregator_promotes_configured_preferred(monkeypatch):
-    monkeypatch.setattr(settings, "aggregator_provider", "local")
-    slots = [fake_slot("anthropic"), fake_slot("local"), fake_slot("opencode_zen")]
+    monkeypatch.setattr(settings, "aggregator_provider", "m3")
+    slots = [fake_slot("sonnet-5"), fake_slot("glm"), fake_slot("m3")]
     agg = build_aggregator(slots, pr_ref="PR", n_reviews=3)
     labels = [e.label for e in agg.pool.executors]
-    assert labels[0] == "local:m"
-    assert set(labels) == {"local:m", "anthropic:m", "opencode_zen:m"}
+    assert labels[0] == "m3:m"
+    assert set(labels) == {"m3:m", "sonnet-5:m", "glm:m"}
 
 
 # --- render + log ------------------------------------------------------------

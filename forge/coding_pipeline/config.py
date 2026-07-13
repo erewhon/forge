@@ -83,7 +83,7 @@ class CodingPipelineSettings(BaseSettings):
     # Slice summaries are mechanical, so the map pool tries this seat first (failover to the
     # rest) instead of spending metered tokens on every slice. The reduce verdict is still the
     # full cross-family quorum — every seat, unanimous.
-    epic_gate_map_preferred: str = "local"
+    epic_gate_map_preferred: str = "m3"
 
     def llm_cfg(self) -> LLMConfig:
         return LLMConfig(

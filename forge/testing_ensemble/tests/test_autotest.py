@@ -233,7 +233,9 @@ def test_signoff_seats_shared_gate_from_active_slots(monkeypatch):
     monkeypatch.setattr(at, "full_quorum_signoff", fake_gate)
     at._signoff("DIFF", pr_ref="auto-tests/foo")
     assert [s.provider for s in captured["seats"]] == ["anthropic", "local"]
-    assert [s.executor for s in captured["seats"]] == ["e1", "e3"]
+    # The seat's executor is now the whole failover Pool (not just the primary), so a down primary
+    # fails over to its backup instead of dropping the seat.
+    assert [s.executor for s in captured["seats"]] == [slots[0].pool, slots[2].pool]
     assert captured["system"] == at._SIGNOFF_SYSTEM
     assert captured["ref"] == "auto-tests/foo"
     assert "ONLY test files" in captured["context"]

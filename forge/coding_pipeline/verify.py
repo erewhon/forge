@@ -200,7 +200,9 @@ def stable_slug(file: str | None, summary: str) -> str:
 
 def _roster_members(system: str) -> list[PanelMember]:
     return [
-        PanelMember(executor=slot.pool.executors[0], system=system, label=slot.provider)
+        # The whole failover Pool (Pool.run is Executor-compatible) so a down primary fails over
+        # to its backup instead of dropping the seat.
+        PanelMember(executor=slot.pool, system=system, label=slot.provider)
         for slot in build_reviewer_slots()
         if slot.active
     ]

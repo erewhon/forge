@@ -21,14 +21,17 @@ class PRReviewEnsembleSettings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_max_tokens: int = 4096
 
-    # Local LLM router (OpenAI-compatible, e.g. a LiteLLM proxy)
+    # The local LLM router (OpenAI-compatible LiteLLM proxy) — now the shared endpoint for the
+    # WHOLE roster (glm/m3/kimi/coder all resolve here, and sonnet is proxied through it too), so
+    # creds live once, server-side. .env points this at localhost:4010.
     local_enabled: bool = True
     local_base_url: str = "http://localhost:4000/v1"
     local_api_key: str = ""
-    local_model: str = "coder"
+    local_model: str = "coder"  # (legacy; the roster now names models directly in providers.py)
     local_max_tokens: int = 4096
 
-    # OpenCode Zen (configure via env vars; gracefully skipped if api key empty)
+    # Legacy OpenCode-Zen-direct fields — no longer used: zen models (glm/m3/kimi) now ride the
+    # router above, so no separate Zen endpoint/key is needed. Kept for back-compat with old .env.
     opencode_zen_enabled: bool = True
     opencode_zen_base_url: str = "https://opencode.ai/zen/v1"
     opencode_zen_api_key: str = ""
@@ -36,10 +39,10 @@ class PRReviewEnsembleSettings(BaseSettings):
     opencode_zen_max_tokens: int = 4096
 
     # Aggregator: preferred synthesizer, tried first. The aggregator runs through a failover
-    # Pool whose rotation is [preferred, then anthropic -> opencode_zen -> local]; if every
-    # member is down, AggregateCombiner falls back to deterministic concatenation. "local" is
-    # the structural break-glass (always reachable), so it sits last in the rotation.
-    aggregator_provider: str = "anthropic"
+    # Pool whose rotation is [preferred, then ROTATION_ORDER]; if every member is down,
+    # AggregateCombiner falls back to deterministic concatenation. Sonnet is the strongest
+    # synthesizer, so it leads by default.
+    aggregator_provider: str = "sonnet-5"
     aggregator_max_tokens: int = 4096
 
     # Runner

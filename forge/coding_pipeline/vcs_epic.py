@@ -213,8 +213,10 @@ def _with_manifest(diff: str) -> str:
 def _default_seats() -> list[SignoffSeat]:
     from forge.pr_review_ensemble.providers import build_reviewer_slots
 
+    # Pass the whole failover Pool as the seat's executor (Pool.run is Executor-compatible), so a
+    # seat's backup is pulled in when its primary is down instead of the seat going mute.
     return [
-        SignoffSeat(provider=slot.provider, executor=slot.pool.executors[0])
+        SignoffSeat(provider=slot.provider, executor=slot.pool)
         for slot in build_reviewer_slots()
         if slot.active
     ]

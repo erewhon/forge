@@ -58,7 +58,7 @@ Respond with ONLY a JSON object: {"approve": true|false, "blockers": ["..."], "n
 def _signoff(diff_text: str, *, pr_ref: str) -> SignoffResult:
     """Seat the shared full-quorum gate from pr_review's active provider roster."""
     seats = [
-        SignoffSeat(provider=s.provider, executor=s.pool.executors[0])
+        SignoffSeat(provider=s.provider, executor=s.pool)  # whole Pool = per-seat failover
         for s in build_reviewer_slots()
         if s.active
     ]

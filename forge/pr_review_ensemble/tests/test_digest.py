@@ -208,10 +208,10 @@ def test_map_reduce_caps_chunks(monkeypatch):
 
 
 def test_build_digest_pool_rotation_excludes_inactive(monkeypatch):
-    monkeypatch.setattr(settings, "aggregator_provider", "anthropic")  # preferred, inactive here
-    slots = [_slot("anthropic", active=False), _slot("local"), _slot("opencode_zen")]
+    monkeypatch.setattr(settings, "aggregator_provider", "sonnet-5")  # preferred, inactive here
+    slots = [_slot("sonnet-5", active=False), _slot("glm"), _slot("m3")]
     pool = build_digest_pool(slots)
-    assert [e.label for e in pool.executors] == ["opencode_zen:m", "local:m"]
+    assert [e.label for e in pool.executors] == ["glm:m", "m3:m"]
 
 
 def _result(**kw) -> DigestResult:
