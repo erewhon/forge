@@ -21,10 +21,16 @@ from pathlib import Path
 from forge.coding_pipeline.config import settings
 from forge.coding_pipeline.models import FramingProposal
 from forge.shared.ensemble import Pool, Prompt, map_items
+from forge.shared.git_notes import GitError, write_note
 from forge.shared.signoff import SignoffResult, SignoffSeat, full_quorum_signoff
 from forge.task_worker.vcs import VCSError, detect_vcs
 
 _TIMEOUT = 30
+
+#: Note namespace for epic gate verdicts; git stores it at ``refs/notes/pipeline/gate``.
+GATE_NOTE_REF = "pipeline/gate"
+#: All pipeline provenance lives under this ref hierarchy; pushed as one refspec.
+_NOTES_REFSPEC = "refs/notes/pipeline/*:refs/notes/pipeline/*"
 
 EPIC_SIGNOFF_SYSTEM = """You are the FINAL merge gatekeeper for an epic built by an automated \
 coding pipeline. The diff is the epic's ENTIRE accumulated change set; per-leaf tests and \
@@ -128,6 +134,28 @@ def _push_branch(repo: Path, vcs: str, branch: str, log: Callable[[str], None]) 
     return True
 
 
+def push_pipeline_notes(repo: Path, *, log: Callable[[str], None] = print) -> bool:
+    """Best-effort push of ``refs/notes/pipeline/*`` to origin.
+
+    Notes never ride a branch push (nor a ``jj git push``), so they need their own refspec and
+    are pushed with plain git regardless of the working VCS — a jj-colocated repo is git
+    underneath. A push failure is a warning, not an error, matching the bookmark-push contract.
+    When no pipeline notes exist yet this is a silent no-op, so folding it into the checkpoint
+    push never emits spurious "no matching refs" warnings.
+    """
+    have = _run(["git", "for-each-ref", "--format=%(refname)", "refs/notes/pipeline"], repo)
+    if have.returncode != 0 or not have.stdout.strip():
+        return True  # nothing to push yet
+    res = _run(["git", "push", "origin", _NOTES_REFSPEC], repo)
+    if res.returncode != 0:
+        log(
+            f"warning: push of pipeline notes failed (will retry next checkpoint): "
+            f"{res.stderr.strip()}"
+        )
+        return False
+    return True
+
+
 def ensure_epic_bookmark(
     repo: Path, epic_slug: str, *, push: bool = True, log: Callable[[str], None] = print
 ) -> str:
@@ -142,6 +170,7 @@ def ensure_epic_bookmark(
         log(f"created epic bookmark {branch}")
         if push:
             _push_branch(repo, vcs, branch, log)
+            push_pipeline_notes(repo, log=log)
     return branch
 
 
@@ -156,6 +185,7 @@ def update_epic_bookmark(
     _set_branch_to_tip(repo, vcs, branch)
     if push:
         _push_branch(repo, vcs, branch, log)
+        push_pipeline_notes(repo, log=log)
     return branch
 
 
@@ -382,3 +412,70 @@ def render_epic_gate(result: SignoffResult, epic_slug: str, *, tip: str = "") ->
             note = f" — {seat.reason}" if seat.approve is not None and seat.reason else ""
             lines.append(f"  - {seat.provider}: {verdict}{note}")
     return "\n".join(lines)
+
+
+def gate_note_payload(
+    epic_slug: str,
+    result: SignoffResult,
+    framing: FramingProposal,
+    *,
+    timestamp: str,
+) -> dict:
+    """Build the versioned-JSON provenance record for an epic gate verdict.
+
+    Carries the quorum outcome and every seat's individual verdict so a clone can reconstruct
+    *why* the epic was (or was not) approved, plus the approved framing's slug/goal for context.
+    ``timestamp`` is supplied by the caller — the library never reads the clock — and no secrets
+    are included (seat reasons/blockers only, which already land in Forge notes).
+    """
+    return {
+        "schema": 1,
+        "kind": "gate",
+        "epic_slug": epic_slug,
+        "framing_epic_slug": framing.epic_slug,
+        "restated_goal": framing.restated_goal,
+        "approved": result.approved,
+        "strategy": result.strategy,
+        "attempted": result.attempted,
+        "approvals": result.approvals,
+        "providers": list(result.providers),
+        "blockers": list(result.blockers),
+        "reason": result.reason,
+        "seats": [
+            {"provider": s.provider, "approve": s.approve, "reason": s.reason} for s in result.seats
+        ],
+        "timestamp": timestamp,
+    }
+
+
+def write_gate_note(
+    repo: Path,
+    epic_slug: str,
+    result: SignoffResult,
+    framing: FramingProposal,
+    *,
+    timestamp: str,
+    push: bool = True,
+    log: Callable[[str], None] = print,
+) -> str | None:
+    """Record the epic gate verdict as a git note on the epic tip, then best-effort push it.
+
+    Written for BOTH approved and blocked verdicts — a blocked verdict on a branch is provenance
+    too. Returns the tip commit the note landed on, or ``None`` when nothing was written (no epic
+    branch exists yet, or git refused): provenance is best-effort and NEVER fails the gate. The
+    caller passes ``timestamp`` (this module does not read the clock).
+    """
+    branch = epic_branch(epic_slug)
+    tip = _run(["git", "rev-parse", "--verify", "--quiet", branch], repo).stdout.strip()
+    if not tip:
+        log(f"warning: no {branch} tip to attach gate provenance to; skipping note")
+        return None
+    payload = gate_note_payload(epic_slug, result, framing, timestamp=timestamp)
+    try:
+        write_note(repo, GATE_NOTE_REF, tip, payload)
+    except GitError as exc:
+        log(f"warning: writing gate provenance note failed: {exc}")
+        return None
+    if push:
+        push_pipeline_notes(repo, log=log)
+    return tip

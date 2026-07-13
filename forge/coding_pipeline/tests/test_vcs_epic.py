@@ -12,6 +12,7 @@ import pytest
 from forge.coding_pipeline import vcs_epic as ve
 from forge.coding_pipeline.models import FramingProposal
 from forge.shared.ensemble import ExecResult, ExecStatus, FailureClass, Prompt
+from forge.shared.git_notes import read_note
 from forge.shared.signoff import SeatVerdict, SignoffResult, SignoffSeat
 
 
@@ -425,3 +426,100 @@ def test_signoff_prompt_carries_diff_literacy_rules():
         assert "omits unchanged lines" in prompt
     assert "DIFF LITERACY" in ve.EPIC_SIGNOFF_SYSTEM
     assert "manifest" in ve.EPIC_SIGNOFF_SYSTEM
+
+
+# --- gate provenance notes ------------------------------------------------------------
+
+
+def _approved_result() -> SignoffResult:
+    return SignoffResult(
+        approved=True,
+        attempted=2,
+        approvals=2,
+        providers=["anthropic", "local"],
+        reason="",
+        seats=[
+            SeatVerdict(provider="anthropic", approve=True, reason="looks coherent"),
+            SeatVerdict(provider="local", approve=True, reason=""),
+        ],
+        strategy="single pass (diff 1200 chars)",
+    )
+
+
+def _blocked_result() -> SignoffResult:
+    return SignoffResult(
+        approved=False,
+        attempted=2,
+        approvals=1,
+        providers=["anthropic", "local"],
+        blockers=["half-migrated call site in x.py"],
+        reason="one dissent",
+        seats=[
+            SeatVerdict(provider="anthropic", approve=True, reason=""),
+            SeatVerdict(provider="local", approve=False, reason="half migration"),
+        ],
+    )
+
+
+def test_write_gate_note_records_verdict_on_the_epic_tip(repo):
+    branch = ve.ensure_epic_bookmark(repo, "toy", push=False, log=lambda m: None)
+    tip = ve.write_gate_note(
+        repo, "toy", _approved_result(), _framing(),
+        timestamp="2026-07-13T00:00:00+00:00", push=False, log=lambda m: None,
+    )
+    assert tip == _git(repo, "rev-parse", branch)
+
+    payload = read_note(repo, ve.GATE_NOTE_REF, tip)
+    assert payload["schema"] == 1
+    assert payload["kind"] == "gate"
+    assert payload["epic_slug"] == "toy"
+    assert payload["approved"] is True
+    assert payload["restated_goal"] == "restated goal"
+    assert payload["framing_epic_slug"] == "toy"
+    assert payload["providers"] == ["anthropic", "local"]
+    assert payload["timestamp"] == "2026-07-13T00:00:00+00:00"
+    assert payload["seats"] == [
+        {"provider": "anthropic", "approve": True, "reason": "looks coherent"},
+        {"provider": "local", "approve": True, "reason": ""},
+    ]
+
+
+def test_write_gate_note_records_blocked_verdicts_too(repo):
+    ve.ensure_epic_bookmark(repo, "toy", push=False, log=lambda m: None)
+    tip = ve.write_gate_note(
+        repo, "toy", _blocked_result(), _framing(),
+        timestamp="2026-07-13T00:00:00+00:00", push=False, log=lambda m: None,
+    )
+    payload = read_note(repo, ve.GATE_NOTE_REF, tip)
+    assert payload["approved"] is False
+    assert payload["blockers"] == ["half-migrated call site in x.py"]
+    assert payload["reason"] == "one dissent"
+
+
+def test_write_gate_note_without_epic_branch_warns_and_skips(repo):
+    warnings: list[str] = []
+    tip = ve.write_gate_note(
+        repo, "toy", _approved_result(), _framing(),
+        timestamp="2026-07-13T00:00:00+00:00", push=False, log=warnings.append,
+    )
+    assert tip is None
+    assert any("no pipeline/toy tip" in w for w in warnings)
+
+
+def test_write_gate_note_push_failure_is_a_warning_not_an_error(repo):
+    # A real note is written; the push (no remote) degrades to a warning and the note still lands.
+    ve.ensure_epic_bookmark(repo, "toy", push=False, log=lambda m: None)
+    warnings: list[str] = []
+    tip = ve.write_gate_note(
+        repo, "toy", _approved_result(), _framing(),
+        timestamp="2026-07-13T00:00:00+00:00", push=True, log=warnings.append,
+    )
+    assert tip is not None
+    assert read_note(repo, ve.GATE_NOTE_REF, tip)["approved"] is True
+    assert any("pipeline notes" in w for w in warnings)
+
+
+def test_push_pipeline_notes_is_a_silent_noop_when_no_notes_exist(repo):
+    warnings: list[str] = []
+    assert ve.push_pipeline_notes(repo, log=warnings.append) is True
+    assert warnings == []

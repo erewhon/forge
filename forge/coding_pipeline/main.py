@@ -262,13 +262,24 @@ def _cmd_gate(argv: list[str]) -> int:
     parser.add_argument("--main", default="main", help="The mainline branch/bookmark name.")
     args = parser.parse_args(argv)
 
+    from datetime import UTC, datetime
+
     from forge.coding_pipeline.journal import append_gate_result
-    from forge.coding_pipeline.vcs_epic import render_epic_gate, run_epic_gate
+    from forge.coding_pipeline.vcs_epic import render_epic_gate, run_epic_gate, write_gate_note
 
     run_dir = settings.runs_dir / args.epic_slug
     framing = require_approved_framing(run_dir)
 
     result = run_epic_gate(Path.cwd(), args.epic_slug, framing, main=args.main)
+    # Record the verdict into the target repo as clone-portable provenance (best-effort — a
+    # failure here never changes the gate's exit status).
+    write_gate_note(
+        Path.cwd(),
+        args.epic_slug,
+        result,
+        framing,
+        timestamp=datetime.now(tz=UTC).isoformat(),
+    )
     append_gate_result(
         run_dir,
         "epic-signoff",
