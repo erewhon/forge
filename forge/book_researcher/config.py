@@ -23,8 +23,8 @@ class BookResearcherSettings(BaseSettings):
     # OpenAI-compatible models (used when llm_backend == "openai")
     openai_base_url: str = "http://localhost:4000/v1"
     openai_api_key: str = ""
-    research_model: str = "research"  # 27B model, VPN-routed for privacy
-    synthesis_model: str = "coder"  # planning, verification, synthesis
+    research_model: str = "research"  # router alias -> self-hosted model (local, private)
+    synthesis_model: str = "coder"  # planning, verification, synthesis (also self-hosted)
 
     # Anthropic models (fallback when llm_backend == "anthropic")
     anthropic_model: str = "claude-sonnet-4-6"
@@ -37,7 +37,9 @@ class BookResearcherSettings(BaseSettings):
     # Adversarial verification panel (ensemble harness consumer #3): instead of one verifier, fan
     # out these diverse router models — each scores + challenges adversarially; scores are median-
     # aggregated (robust to a lenient/harsh outlier) and the challenges drive the next sprint. The
-    # panel always runs through the router, even when llm_backend="anthropic".
+    # panel always runs through the router, even when llm_backend="anthropic". Privacy caveat: coder
+    # is self-hosted, but qwen3.6-plus/glm-5.1 are external (cloud) backends, so findings leave the
+    # local-lab in this step — research_model gathering stays local, verification does not.
     verifier_panel_models: list[str] = ["coder", "qwen3.6-plus", "glm-5.1"]
     verifier_panel_floor: int = 2  # min members that must respond+parse, else degrade
 

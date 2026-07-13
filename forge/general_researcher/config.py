@@ -19,8 +19,8 @@ class GeneralResearcherSettings(BaseSettings):
     llm_backend: Literal["openai", "anthropic"] = "openai"
     openai_base_url: str = "http://localhost:4000/v1"
     openai_api_key: str = ""
-    research_model: str = "research"
-    synthesis_model: str = "coder"
+    research_model: str = "research"  # router alias -> self-hosted model (local, private)
+    synthesis_model: str = "coder"  # planning/synthesis (also self-hosted)
     anthropic_model: str = "claude-sonnet-4-6"
 
     max_sprints_per_run: int = 5
@@ -31,7 +31,9 @@ class GeneralResearcherSettings(BaseSettings):
     # (harness consumer #3) — each scores + challenges adversarially, then scores are median-
     # aggregated (robust to a lenient/harsh outlier) and the challenges drive the next sprint. The
     # panel always runs through the router (which has a key and hosts the diverse models), even when
-    # llm_backend="anthropic".
+    # llm_backend="anthropic". Privacy caveat: coder is self-hosted, but qwen3.6-plus/glm-5.1 are
+    # external (cloud) backends, so findings leave the local-lab during verification/synthesis — only
+    # research_model gathering stays local.
     verifier_panel_models: list[str] = ["coder", "qwen3.6-plus", "glm-5.1"]
     verifier_panel_floor: int = 2  # min members that must respond+parse, else degrade
 
