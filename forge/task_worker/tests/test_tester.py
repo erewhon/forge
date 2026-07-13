@@ -120,6 +120,35 @@ def test_timed_out_build_exit_124_flagged_killed(tmp_path):
     assert "exit 124" in output and "KILLED" in output
 
 
+def test_go_test_failure_surfaces_failing_test_name_from_mid_output(tmp_path):
+    # `go test ./...` prints the failing package's `--- FAIL: Name` early, then streams
+    # trailing `ok` lines from slower passing packages; a plain tail keeps the `ok`s and
+    # loses the test name (the Observinator test-gate escape). The digest must recover it.
+    go_test_out = (
+        "--- FAIL: TestAnalyzer_FingerprintOverCollides_KnownBug (0.00s)\n"
+        "    stacktrace_test.go:42: expected distinct fingerprints, got collision\n"
+        "FAIL\n"
+        "github.com/erewhon/observinator/pkg/analysis  0.02s\n"
+        + "\n".join(f"ok  github.com/erewhon/observinator/pkg/p{i}  0.01s" for i in range(60))
+        + "\nFAIL\n"
+    )
+    sb = _ScriptedSandbox([(0, "", ""), (1, go_test_out, "")])  # build ok, test fails
+    passed, output = tester.run_tests(_repo(tmp_path, go=True), sandbox=sb)
+    assert passed is False
+    assert "TestAnalyzer_FingerprintOverCollides_KnownBug" in output
+    assert "stacktrace_test.go:42" in output
+
+
+def test_failure_digest_empty_for_compile_error_leaves_tail_intact(tmp_path):
+    # A compile error has no test-failure markers -> digest is empty and the tail (which
+    # already carries the compiler diagnostics) is used unchanged.
+    sb = _ScriptedSandbox([(1, "", "pkg/x.go:3:2: undefined: foo\n")])
+    ok, output, ran = tester.run_build(_repo(tmp_path, go=True), sandbox=sb)
+    assert (ok, ran) == (False, True)
+    assert "undefined: foo" in output
+    assert "--- failing ---" not in output
+
+
 def test_real_compile_error_gets_exit_code_but_not_kill_hint(tmp_path):
     # A genuine build failure has diagnostics and a normal exit code — it must NOT be
     # mislabeled as a kill; the exit code is recorded and the container-health hint absent.

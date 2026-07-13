@@ -61,6 +61,35 @@ def _no_meaningful_output(combined: str) -> bool:
     return True
 
 
+# A failing test's location detail: `foo_test.go:42:`, `foo.rs:42:`, `test_x.py::test_y`.
+_FAIL_LOC_RE = re.compile(r"_test\.(?:go|py|rs):\d+|::[\w\[\]-]+\s")
+
+
+def _failure_digest(text: str, max_lines: int = 25, max_chars: int = 800) -> str:
+    """High-signal 'what failed' lines gathered from ANYWHERE in the output, so the failing
+    test name survives even when a plain tail would drop it. ``go test ./...`` prints a
+    failing package's ``--- FAIL: Name`` early, then streams trailing ``ok`` lines from
+    slower passing packages — the tail keeps the ``ok``s, not the FAIL (the Observinator
+    test-gate escape, 2026-07-13). Empty when no failure markers match (e.g. a compile
+    error, whose diagnostics the tail already carries)."""
+    picked: list[str] = []
+    for raw in _ANSI_RE.sub("", text).splitlines():
+        line = raw.rstrip()
+        s = line.strip()
+        if not s or s.startswith("[dx]"):
+            continue
+        if (
+            s.startswith(("--- FAIL", "=== FAIL", "--- ERROR", "panic:", "thread '", "E "))
+            or "FAILED" in s
+            or "panicked" in s
+            or _FAIL_LOC_RE.search(s)
+        ):
+            picked.append(line)
+            if len(picked) >= max_lines:
+                break
+    return "\n".join(picked)[:max_chars]
+
+
 def _has_justfile_test_recipe(repo_path: Path) -> bool:
     """Return True if Justfile exists with a `test` recipe."""
     for name in ("Justfile", "justfile", ".justfile"):
@@ -135,6 +164,11 @@ def _run_cmds(sandbox: Sandbox, cmds: list[list[str]]) -> tuple[bool, str]:
         combined = (result.stdout or "") + "\n" + (result.stderr or "")
         outputs.append(f"$ {' '.join(cmd)}\n{combined}")
         if result.returncode != 0:
+            # Surface the failing test/assertion lines (which `go test ./...` prints mid-
+            # stream) at the END, so main's tail keeps them instead of trailing `ok` lines.
+            digest = _failure_digest(combined)
+            if digest:
+                outputs.append(f"--- failing ---\n{digest}")
             outputs.append(f"[{_describe_exit(result.returncode)}]")
             note = _tail("\n".join(outputs))
             if _is_kill(result.returncode) or _no_meaningful_output(combined):
