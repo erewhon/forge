@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from forge.task_worker.config import settings
-from forge.task_worker.dx import check_dx_ready, dx_run
+from forge.task_worker.dx import check_disk_free, check_dx_ready, dx_run
 
 
 @runtime_checkable
@@ -55,12 +55,22 @@ class GaolDxSandbox:
     # after the container-side SIGTERM.
     _HOST_GRACE_S = 60
     _KILL_AFTER_S = 30
+    # Refuse to start work on a near-full container: a full disk makes `go build` thrash
+    # and overrun the gate timeout, then rolls the leaf back with an empty note that reads
+    # as a compile failure (the Observinator escape). Skip-with-cause beats misattribution.
+    _MIN_FREE_MB = 2048
 
     def __init__(self, repo: Path) -> None:
         self.repo = repo
 
     def preflight(self) -> tuple[bool, str]:
-        return check_dx_ready(self.repo)
+        ready, status = check_dx_ready(self.repo)
+        if not ready:
+            return ready, status
+        disk_ok, disk_status = check_disk_free(self.repo, self._MIN_FREE_MB)
+        if not disk_ok:
+            return False, disk_status
+        return True, f"{status}; {disk_status}"
 
     def run(self, cmd: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
         # The timeout must die INSIDE the container: killing the host-side gaol client

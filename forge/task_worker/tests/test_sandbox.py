@@ -53,6 +53,7 @@ def test_fake_satisfies_protocol(tmp_path):
 
 def test_gaol_dx_delegates_to_dx_helpers(tmp_path, monkeypatch):
     monkeypatch.setattr(sb, "check_dx_ready", lambda repo: (True, "dx status: running"))
+    monkeypatch.setattr(sb, "check_disk_free", lambda repo, floor: (True, "disk ok: 9000 MiB free"))
     seen = {}
 
     def fake_dx_run(repo, cmd, timeout):
@@ -61,7 +62,8 @@ def test_gaol_dx_delegates_to_dx_helpers(tmp_path, monkeypatch):
 
     monkeypatch.setattr(sb, "dx_run", fake_dx_run)
     box = GaolDxSandbox(tmp_path)
-    assert box.preflight() == (True, "dx status: running")
+    # preflight composes the container status with the disk-space status
+    assert box.preflight() == (True, "dx status: running; disk ok: 9000 MiB free")
     result = box.run(["echo", "hi"], timeout=5)
     assert result.stdout == "done"
     assert seen["repo"] == tmp_path
@@ -70,6 +72,35 @@ def test_gaol_dx_delegates_to_dx_helpers(tmp_path, monkeypatch):
     assert seen["cmd"] == ["timeout", "--kill-after=30", "5s", "echo", "hi"]
     # host-side kill is a delayed backstop — it must never fire before the inner timeout
     assert seen["timeout"] == 5 + GaolDxSandbox._HOST_GRACE_S
+
+
+def test_gaol_dx_preflight_refuses_when_disk_low(tmp_path, monkeypatch):
+    # A near-full container must be refused BEFORE work starts, so the leaf is skipped with
+    # the real cause named — not run, killed at the gate, and blamed for the empty output.
+    monkeypatch.setattr(sb, "check_dx_ready", lambda repo: (True, "dx status: running"))
+    monkeypatch.setattr(
+        sb,
+        "check_disk_free",
+        lambda repo, floor: (False, "container disk low: 300 MiB free (< 2048 MiB floor)"),
+    )
+    ready, status = GaolDxSandbox(tmp_path).preflight()
+    assert not ready
+    assert "container disk low" in status
+
+
+def test_gaol_dx_preflight_skips_disk_when_container_not_ready(tmp_path, monkeypatch):
+    # If the container isn't up, report that — don't probe disk against a dead container.
+    monkeypatch.setattr(sb, "check_dx_ready", lambda repo: (False, "dx status: stopped"))
+    called = {"disk": False}
+
+    def _disk(repo, floor):
+        called["disk"] = True
+        return True, "disk ok"
+
+    monkeypatch.setattr(sb, "check_disk_free", _disk)
+    ready, status = GaolDxSandbox(tmp_path).preflight()
+    assert (ready, status) == (False, "dx status: stopped")
+    assert called["disk"] is False
 
 
 def test_gaol_dx_run_tests_delegates_to_tester(tmp_path, monkeypatch):

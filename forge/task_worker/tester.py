@@ -6,6 +6,7 @@ commands run inside the sandbox so they see the right toolchain.
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -15,6 +16,49 @@ if TYPE_CHECKING:
 
 _TEST_TIMEOUT = 300  # 5 min
 _OUTPUT_TAIL = 1000
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+# Appended to a failure note when a command was killed with no diagnostics — so an
+# infra kill (timeout/OOM/full disk) is never misread as the leaf's code failing to
+# build (the Observinator escape, 2026-07-13: a full nspawn pool made `go build` overrun
+# the 300s gate and the note showed only the sandbox banner).
+_KILLED_HINT = (
+    "\n\n(No diagnostics captured — the command was KILLED before it could report, NOT a "
+    "compile/test failure. Suspect the sandbox: build timeout, OOM, or a full container "
+    "disk. Investigate container health, not the leaf's code.)"
+)
+
+
+def _describe_exit(code: int) -> str:
+    """Label a non-zero exit, naming the timeout/kill signatures that otherwise reach the
+    failure note as an empty body. A ``timeout``-wrapped command that overruns exits 124
+    (SIGTERM) or 137 (128+SIGKILL) with NO diagnostics — indistinguishable from a compile
+    failure unless the code is named."""
+    if code == 124:
+        return "exit 124 — KILLED (command timed out)"
+    if code == 137:
+        return "exit 137 — KILLED (SIGKILL: timeout --kill-after, or OOM)"
+    if code == 143:
+        return "exit 143 — KILLED (SIGTERM)"
+    if code > 128:
+        return f"exit {code} — killed by signal {code - 128}"
+    return f"exit {code}"
+
+
+def _is_kill(code: int) -> bool:
+    # coreutils `timeout`: 124 timed out, 137 = 128+SIGKILL (--kill-after), 143 = 128+SIGTERM.
+    return code in (124, 137, 143) or code > 128
+
+
+def _no_meaningful_output(combined: str) -> bool:
+    """True when a command emitted nothing but the sandbox's own ``[dx] Running:`` banner —
+    the fingerprint of a process killed before it could report (no compiler/test output)."""
+    for line in _ANSI_RE.sub("", combined).splitlines():
+        s = line.strip()
+        if s and not s.startswith("[dx]"):
+            return False
+    return True
 
 
 def _has_justfile_test_recipe(repo_path: Path) -> bool:
@@ -69,8 +113,10 @@ def _tail(text: str, n: int = _OUTPUT_TAIL) -> str:
 def _run_cmds(sandbox: Sandbox, cmds: list[list[str]]) -> tuple[bool, str]:
     """Run each command in sequence, stopping at the first failure.
 
-    Returns (passed, output_tail). A non-zero exit, timeout, or missing
-    toolchain all fail closed.
+    Returns (passed, output_tail). A non-zero exit, timeout, or missing toolchain all
+    fail closed. Every failure records the interpreted exit code, and a kill with no
+    output appends an explicit hint — so an infra kill is never mistaken for a code
+    failure in the task note (the Observinator escape).
     """
     outputs: list[str] = []
     for cmd in cmds:
@@ -80,7 +126,7 @@ def _run_cmds(sandbox: Sandbox, cmds: list[list[str]]) -> tuple[bool, str]:
             out = (e.stdout or "") if isinstance(e.stdout, str) else ""
             err = (e.stderr or "") if isinstance(e.stderr, str) else ""
             outputs.append(f"$ {' '.join(cmd)}\nTIMEOUT after {_TEST_TIMEOUT}s\n{out}\n{err}")
-            return False, _tail("\n".join(outputs))
+            return False, _tail("\n".join(outputs)) + _KILLED_HINT
         except FileNotFoundError as e:
             return False, f"gaol binary not found: {e}"
         except Exception as e:  # noqa: BLE001
@@ -89,7 +135,11 @@ def _run_cmds(sandbox: Sandbox, cmds: list[list[str]]) -> tuple[bool, str]:
         combined = (result.stdout or "") + "\n" + (result.stderr or "")
         outputs.append(f"$ {' '.join(cmd)}\n{combined}")
         if result.returncode != 0:
-            return False, _tail("\n".join(outputs))
+            outputs.append(f"[{_describe_exit(result.returncode)}]")
+            note = _tail("\n".join(outputs))
+            if _is_kill(result.returncode) or _no_meaningful_output(combined):
+                note += _KILLED_HINT
+            return False, note
 
     return True, _tail("\n".join(outputs))
 

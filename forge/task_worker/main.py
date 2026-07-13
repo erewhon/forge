@@ -345,7 +345,7 @@ def run_one(
         nw = _safe_status(
             task.task,
             "Ready",
-            notes=f"Worker static checks failed:\n\n{_tail(build_output, 500)}",
+            notes=f"Worker static checks failed:\n\n{_tail(build_output, 1500)}",
         )
         return _outcome(
             "failed",
@@ -400,7 +400,7 @@ def run_one(
             nw = _safe_status(
                 task.task,
                 "Ready",
-                notes=f"Worker tests failed:\n\n{_tail(test_output, 500)}",
+                notes=f"Worker tests failed:\n\n{_tail(test_output, 1500)}",
             )
             return _outcome(
                 "failed",

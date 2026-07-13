@@ -23,6 +23,20 @@ class FakeSandbox:
         return SimpleNamespace(returncode=rc, stdout=f"rc={rc}", stderr="")
 
 
+class _ScriptedSandbox:
+    """Returns scripted (returncode, stdout, stderr) tuples per call, in order — lets a
+    test drive the exact output a killed vs. failing command produces."""
+
+    def __init__(self, results: list[tuple[int, str, str]]):
+        self.results = list(results)
+        self.commands: list[list[str]] = []
+
+    def run(self, cmd, *, timeout):
+        self.commands.append(cmd)
+        rc, out, err = self.results.pop(0)
+        return SimpleNamespace(returncode=rc, stdout=out, stderr=err)
+
+
 def _repo(tmp_path: Path, *, go: bool = False, pkg_scripts: dict | None = None) -> Path:
     if go:
         (tmp_path / "go.mod").write_text("module example.com/x\n\ngo 1.24\n")
@@ -87,6 +101,34 @@ def test_run_build_go_failure_blocks(tmp_path):
     ok, _, ran = tester.run_build(_repo(tmp_path, go=True), sandbox=sb)
     assert ok is False
     assert ran is True
+
+
+def test_killed_build_is_labeled_and_flagged_as_infra(tmp_path):
+    # A `timeout`-SIGKILLed build exits 137 with no diagnostics; the note must say KILLED
+    # and point at container health, not read as a compile failure (the Observinator escape).
+    sb = _ScriptedSandbox([(137, "", "")])
+    ok, output, ran = tester.run_build(_repo(tmp_path, go=True), sandbox=sb)
+    assert (ok, ran) == (False, True)
+    assert "KILLED" in output
+    assert "container" in output.lower()
+
+
+def test_timed_out_build_exit_124_flagged_killed(tmp_path):
+    sb = _ScriptedSandbox([(124, "", "")])
+    ok, output, ran = tester.run_build(_repo(tmp_path, go=True), sandbox=sb)
+    assert (ok, ran) == (False, True)
+    assert "exit 124" in output and "KILLED" in output
+
+
+def test_real_compile_error_gets_exit_code_but_not_kill_hint(tmp_path):
+    # A genuine build failure has diagnostics and a normal exit code — it must NOT be
+    # mislabeled as a kill; the exit code is recorded and the container-health hint absent.
+    sb = _ScriptedSandbox([(1, "", "pkg/x.go:3:2: undefined: foo\n")])
+    ok, output, ran = tester.run_build(_repo(tmp_path, go=True), sandbox=sb)
+    assert (ok, ran) == (False, True)
+    assert "undefined: foo" in output
+    assert "exit 1" in output
+    assert "KILLED" not in output
 
 
 def test_run_build_noop_for_non_compiled_project(tmp_path):
