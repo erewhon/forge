@@ -333,6 +333,7 @@ class GitHubTaskStore:
             max_files=_int_or_none(meta.get("max_files")),
             requires_tests=_bool_null_true(meta.get("requires_tests")),
             deps=_split_deps(meta.get("depends_on", "")),
+            external_ref=meta.get("external_ref", ""),
         )
 
     def _find_issue(self, name: str) -> _Issue | None:

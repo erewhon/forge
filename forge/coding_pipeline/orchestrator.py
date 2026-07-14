@@ -312,6 +312,7 @@ def run_epic(
                 journal_dir=run_dir,
                 preamble_for=_preamble,
                 concurrency=concurrency,
+                wave=wave_n,
                 log=log,
             )
         except DispatchError as e:

@@ -272,6 +272,7 @@ class GitBugTaskStore:
             max_files=parse_int_or_none(meta.get("max_files")),
             requires_tests=bool_null_true(meta.get("requires_tests")),
             deps=split_deps(meta.get("depends_on", "")),
+            external_ref=meta.get("external_ref", ""),
         )
 
     def _find_bug(self, name: str) -> _Bug | None:

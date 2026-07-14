@@ -167,6 +167,7 @@ def run_wave(
     preamble_for: Callable[[TaskInfo], str] | None = None,
     fetch_spec: Callable[[str], str] | None = None,
     concurrency: int | None = None,
+    wave: int = 0,
     log: Callable[[str], None] = print,
 ) -> list[LeafOutcome]:
     """Dispatch ``plan.dispatch``; return one ``LeafOutcome`` per leaf, in plan order.
@@ -197,7 +198,7 @@ def run_wave(
         if reason:
             raise DispatchError(f"wave preflight failed: {reason}")
         with repo_lock(repo):
-            return _run_serial(
+            outcomes = _run_serial(
                 plan,
                 repo,
                 journal_dir=journal_dir,
@@ -207,22 +208,58 @@ def run_wave(
                 fetch_spec=fetch_spec,
                 log=log,
             )
+    else:
+        reason = _preflight(repo, "gaol-run-once")
+        if reason:
+            raise DispatchError(f"wave preflight failed: {reason}")
+        with repo_lock(repo):
+            outcomes = _run_concurrent(
+                plan,
+                repo,
+                journal_dir=journal_dir,
+                run_leaf=run_leaf,
+                find=find,
+                preamble_for=preamble_for,
+                fetch_spec=fetch_spec,
+                cap=cap,
+                log=log,
+            )
 
-    reason = _preflight(repo, "gaol-run-once")
-    if reason:
-        raise DispatchError(f"wave preflight failed: {reason}")
-    with repo_lock(repo):
-        return _run_concurrent(
-            plan,
+    # Repo-native provenance: one git note per LANDED leaf, on the FINAL (post-reconcile) commit.
+    # This runs after both dispatch paths, so commit ids are settled; it is best-effort and never
+    # raises. Notes ride the refs/notes/pipeline/* checkpoint push.
+    _record_provenance(repo, outcomes, find=find, fetch_spec=fetch_spec, wave=wave, log=log)
+    return outcomes
+
+
+def _record_provenance(
+    repo: Path,
+    outcomes: list[LeafOutcome],
+    *,
+    find: Callable[[str], TaskInfo | None],
+    fetch_spec: Callable[[str], str],
+    wave: int,
+    log: Callable[[str], None],
+) -> None:
+    """Write leaf provenance notes for the wave. The clock is read here (the dispatch edge), not
+    in the provenance library, and the whole thing is swallowed on error — provenance must never
+    turn a completed wave into a failed one."""
+    from datetime import UTC, datetime
+
+    from forge.coding_pipeline.provenance import record_leaf_provenance
+
+    try:
+        record_leaf_provenance(
             repo,
-            journal_dir=journal_dir,
-            run_leaf=run_leaf,
+            outcomes,
             find=find,
-            preamble_for=preamble_for,
             fetch_spec=fetch_spec,
-            cap=cap,
+            wave=wave,
+            timestamp=datetime.now(tz=UTC).isoformat(),
             log=log,
         )
+    except Exception as exc:  # noqa: BLE001 — provenance is never a wave gate
+        log(f"warning: recording wave provenance failed: {exc}")
 
 
 def _run_serial(

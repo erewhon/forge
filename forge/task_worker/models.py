@@ -22,6 +22,7 @@ class TaskInfo(BaseModel):
     # null-as-true for safety: if unset, assume tests are required
     requires_tests: bool = True
     deps: list[str] = Field(default_factory=list)
+    external_ref: str = ""  # e.g. pipeline:{epic}:{leaf}; ties a landed commit back to its task
 
 
 class ExecutionResult(BaseModel):

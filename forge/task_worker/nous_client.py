@@ -117,6 +117,7 @@ def _task_from_raw(raw: dict) -> TaskInfo:
         max_files=raw.get("max_files"),
         requires_tests=_requires_tests_flag(raw.get("requires_tests", "")),
         deps=list(raw.get("deps", [])),
+        external_ref=str(raw.get("external_ref", "") or ""),
     )
 
 
