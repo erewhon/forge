@@ -403,3 +403,45 @@ def test_apply_actions_skips_duplicate_title_fixup(tmp_path, monkeypatch):
     )
     assert halted is False
     assert emitted == []
+
+
+# --- token budget guard ---------------------------------------------------------------
+
+
+def test_budget_exhaustion_parks_the_run_before_dispatch(wired, monkeypatch):
+    monkeypatch.setattr(orc.settings, "epic_token_budget", 100)
+    run_dir = wired / "toy-epic"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    # prior waves/runs already spent past the budget — the ledger resumes that total on load
+    (run_dir / "usage.json").write_text('{"input_tokens": 80, "output_tokens": 40, "calls": 5}')
+
+    result = _run()
+    assert result.status == "budget-exhausted"
+    assert result.waves_run == 0  # parked at the wave boundary, nothing dispatched
+    assert result.total_tokens == 120
+    assert any("budget exhausted" in n for n in result.notes)
+    # fail-closed marker in the journal, resumable (raise the budget and re-run)
+    journal = (run_dir / "journal.jsonl").read_text()
+    assert '"event": "budget_exhausted"' in journal
+    assert '"parked": true' in journal
+
+
+def test_under_budget_runs_normally(wired, monkeypatch):
+    monkeypatch.setattr(orc.settings, "epic_token_budget", 10_000)
+    result = _run()
+    assert result.status == "dry"  # the normal one-wave-then-dry path is untouched
+    assert result.waves_run == 1
+
+
+def test_spend_is_reported_at_completion(wired, monkeypatch):
+    from forge.shared import usage as usage_mod
+
+    def dispatch_and_spend(plan, repo, **k):
+        usage_mod.record_usage(600, 150)  # a wave's ensemble spend hits the ambient ledger
+        return [_done(t) for t in plan.dispatch]
+
+    monkeypatch.setattr(orc, "run_wave", dispatch_and_spend)
+    result = _run()
+    assert result.status == "dry"
+    assert result.total_tokens == 750
+    assert any("pipeline API spend: 750 tokens" in n for n in result.notes)

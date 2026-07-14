@@ -14,6 +14,7 @@ from typing import Protocol, runtime_checkable
 
 from forge.shared.ensemble.classify import classify
 from forge.shared.ensemble.models import ExecResult, ExecStatus, FailureClass, Prompt
+from forge.shared.usage import record_usage
 
 
 @runtime_checkable
@@ -91,6 +92,9 @@ class ApiExecutor:
                     messages=[{"role": "user", "content": prompt.user}],
                     **sampling,
                 )
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                record_usage(getattr(usage, "input_tokens", 0), getattr(usage, "output_tokens", 0))
             for block in response.content:
                 if block.type == "text":
                     return block.text
@@ -106,4 +110,7 @@ class ApiExecutor:
             response = await client.chat.completions.create(
                 model=self.model, max_tokens=prompt.max_tokens, messages=messages, **sampling
             )
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            record_usage(getattr(usage, "prompt_tokens", 0), getattr(usage, "completion_tokens", 0))
         return response.choices[0].message.content or ""

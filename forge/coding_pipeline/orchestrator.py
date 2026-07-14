@@ -40,6 +40,7 @@ from forge.coding_pipeline.context import build_leaf_context
 from forge.coding_pipeline.dispatch import DispatchError, run_wave
 from forge.coding_pipeline.emit import emit_fixup
 from forge.coding_pipeline.journal import (
+    append_budget_exhausted,
     append_escalation,
     append_gate_result,
     append_replan_action,
@@ -68,11 +69,19 @@ from forge.coding_pipeline.vcs_epic import ensure_epic_bookmark, update_epic_boo
 from forge.coding_pipeline.verify import verify_wave, wave_start_rev
 from forge.coding_pipeline.waves import fetch_epic_rows, fetch_feature_rows, plan_wave
 from forge.shared.task_store import TaskStore, get_task_store
+from forge.shared.usage import UsageLedger, active_ledger
 from forge.task_worker.tester import run_tests
 from forge.task_worker.vcs import VCSError, get_changed_files
 
 ExitStatus = Literal[
-    "dry", "waiting-on-human", "planned", "wave-gate", "max-waves", "halted", "aborted"
+    "dry",
+    "waiting-on-human",
+    "planned",
+    "wave-gate",
+    "max-waves",
+    "halted",
+    "aborted",
+    "budget-exhausted",
 ]
 
 
@@ -85,6 +94,7 @@ class OrchestratorResult(BaseModel):
     waves_run: int = 0
     dispatched: list[str] = []
     notes: list[str] = []
+    total_tokens: int = 0  # the run's cumulative pipeline API spend (see UsageLedger)
 
 
 def _settle_landed_noops(
@@ -224,6 +234,48 @@ def run_epic(
     concurrency: int | None = None,
     log: Callable[[str], None] = print,
 ) -> OrchestratorResult:
+    """Run the epic under a token ledger, then report cumulative spend.
+
+    Thin wrapper: it binds an ambient :class:`UsageLedger` (persisted at ``<run_dir>/usage.json``,
+    so an epic's spend accumulates across waves and resumes across invocations) for the duration of
+    the run, so every in-process LLM call underneath counts, then stamps the total onto the result.
+    The wave loop and its budget guard live in :func:`_run_epic`."""
+    ledger = UsageLedger(settings.runs_dir / epic_slug / "usage.json")
+    with active_ledger(ledger):
+        result = _run_epic(
+            project=project,
+            epic_slug=epic_slug,
+            repo=repo,
+            feature=feature,
+            max_waves=max_waves,
+            wave_gate=wave_gate,
+            dry_run=dry_run,
+            concurrency=concurrency,
+            ledger=ledger,
+            log=log,
+        )
+    result.total_tokens = ledger.usage.total_tokens
+    if ledger.usage.total_tokens and result.status != "budget-exhausted":
+        result.notes.append(
+            f"pipeline API spend: {ledger.usage.total_tokens} tokens across "
+            f"{ledger.usage.calls} calls"
+        )
+    return result
+
+
+def _run_epic(
+    *,
+    project: str,
+    epic_slug: str,
+    repo: Path,
+    feature: str | None = None,
+    max_waves: int | None = None,
+    wave_gate: bool = False,
+    dry_run: bool = False,
+    concurrency: int | None = None,
+    ledger: UsageLedger,
+    log: Callable[[str], None] = print,
+) -> OrchestratorResult:
     """Run up to ``max_waves`` waves of the epic; re-run to continue (numbering resumes).
 
     Scope is the whole epic (external_ref prefix ``pipeline:{epic_slug}:`` — every
@@ -265,6 +317,21 @@ def run_epic(
         mirror_framing(repo, run_dir, epic_slug, log=log)
 
     while result.waves_run < limit:
+        # Spend guard (checked at each wave boundary, before more work): an attempt cap bounds
+        # retries, not cost. Fail closed — park with a journal entry, resumable (the ledger and
+        # tasks persist; a re-run reloads the spent total and parks again until the budget lifts).
+        budget = settings.epic_token_budget
+        if budget is not None and ledger.usage.total_tokens >= budget:
+            result.status = "budget-exhausted"
+            used = ledger.usage.total_tokens
+            append_budget_exhausted(run_dir, used=used, budget=budget, waves_run=result.waves_run)
+            result.notes.append(
+                f"token budget exhausted: {used}/{budget} tokens spent after "
+                f"{result.waves_run} wave(s) — parked (resumable; raise the budget to continue)"
+            )
+            log(result.notes[-1])
+            return result
+
         # One Forge read per wave, shared by the planner and the epic-context builder.
         epic_rows = fetch_epic_rows(project, epic_slug, feature=feature)
         # The journal's landed set is the terminal-work override for this wave: the

@@ -244,7 +244,9 @@ def _cmd_run(argv: list[str]) -> int:
     )
 
     _print_orchestrator_result(result)
-    return 0 if result.status != "aborted" else 1
+    # A budget park is a fail-closed stop needing a human decision (raise the budget or accept the
+    # spend) — surface it as non-zero like an abort, so a driving loop halts rather than re-running.
+    return 0 if result.status not in ("aborted", "budget-exhausted") else 1
 
 
 # ---------------------------------------------------------------------------
@@ -419,6 +421,8 @@ def _print_orchestrator_result(result: OrchestratorResult) -> None:
     print(f"\nStatus: {result.status}")
     print(f"  Epic: {result.epic_slug}")
     print(f"  Waves run: {result.waves_run}")
+    if result.total_tokens:
+        print(f"  Pipeline API spend: {result.total_tokens} tokens")
     for note in result.notes:
         print(f"  - {note}")
 

@@ -24,6 +24,14 @@ class CodingPipelineSettings(BaseSettings):
     wave_size: int = 4
     max_leaf_attempts: int = 2
 
+    # Spend bound, in the pipeline's own API tokens (architect replan + wave review), accumulated
+    # across an epic's waves and runs and checked at each wave boundary. Attempt caps alone don't
+    # bound spend — one attempt's thinking-token budget can be arbitrarily expensive. None disables
+    # the guard: local-only runs (auto-free) usually want that, cloud tiers want a real ceiling.
+    # NOTE: the out-of-process worker (opencode) spend is not visible here; this bounds the loop's
+    # own reasoning spend, which is where an unbounded loop runs away.
+    epic_token_budget: int | None = None
+
     # Leaves in flight per wave. 1 = the serial path (no workspaces, dx sandbox). Above 1,
     # leaves fan out into per-leaf jj workspaces under run-once sandboxes and integrate
     # through the serial reconcile barrier. Default 3 since the deliberate-conflict smoke

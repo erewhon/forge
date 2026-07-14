@@ -174,6 +174,27 @@ def append_leaf_context(
     return _journal_path(run_dir)
 
 
+def append_budget_exhausted(
+    run_dir: Path,
+    *,
+    used: int,
+    budget: int,
+    waves_run: int,
+) -> Path:
+    """Record that the run parked because its token budget is spent — a fail-closed, resumable
+    stop, distinct from success or the wave limit. The entry makes the spend part of the run's
+    story (and rides into the epic provenance ref with the mirrored run dir)."""
+    record: dict[str, Any] = {
+        "event": "budget_exhausted",
+        "used_tokens": used,
+        "budget_tokens": budget,
+        "waves_run": waves_run,
+        "parked": True,
+    }
+    log_decision(record, _journal_path(run_dir))
+    return _journal_path(run_dir)
+
+
 def append_escalation(
     run_dir: Path,
     leaf_title: str,
