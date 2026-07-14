@@ -445,3 +445,41 @@ def test_spend_is_reported_at_completion(wired, monkeypatch):
     assert result.status == "dry"
     assert result.total_tokens == 750
     assert any("pipeline API spend: 750 tokens" in n for n in result.notes)
+
+
+# --- hill-climbing: repeated failure classes propose lessons --------------------------
+
+
+def test_recurring_failure_proposes_a_lesson(tmp_path):
+    from forge.coding_pipeline.journal import append_leaf_outcome
+    from forge.coding_pipeline.models import LeafOutcome
+    from forge.shared.lessons import proposed_lessons, read_lessons
+
+    for leaf in ("a", "b"):
+        append_leaf_outcome(
+            tmp_path,
+            leaf,
+            LeafOutcome(leaf=leaf, status="failed", reason="gate: ruff import-order"),
+        )
+    orc._propose_repo_lessons(tmp_path, log=lambda m: None)
+
+    props = proposed_lessons(tmp_path)
+    assert len(props) == 1 and "2×" in props[0]
+    assert '"event": "lesson_proposed"' in (tmp_path / "journal.jsonl").read_text()
+    assert read_lessons(tmp_path) == ""  # proposal only — the active file is never silently written
+
+    # idempotent: a second pass over the same journal proposes nothing new
+    orc._propose_repo_lessons(tmp_path, log=lambda m: None)
+    assert proposed_lessons(tmp_path) == props
+
+
+def test_single_failure_proposes_nothing(tmp_path):
+    from forge.coding_pipeline.journal import append_leaf_outcome
+    from forge.coding_pipeline.models import LeafOutcome
+    from forge.shared.lessons import proposed_lessons
+
+    append_leaf_outcome(
+        tmp_path, "a", LeafOutcome(leaf="a", status="failed", reason="one-off failure")
+    )
+    orc._propose_repo_lessons(tmp_path, log=lambda m: None)
+    assert proposed_lessons(tmp_path) == []

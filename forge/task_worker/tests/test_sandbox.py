@@ -426,3 +426,25 @@ def test_executor_refusal_at_end_of_long_transcript_fires(tmp_path):
         _task(), "SPEC", tmp_path, "auto", 60, sandbox=box
     )
     assert not ok and blocked
+
+
+# --- rules layer: the repo's lessons ride in every worker prompt ----------------------
+
+
+def test_write_spec_injects_repo_lessons_when_present(tmp_path):
+    from forge.shared.lessons import append_lesson
+
+    append_lesson(tmp_path, "always pin the toolchain version")
+    spec_path = ex._write_spec(tmp_path, _task(), "DO THE TASK")
+    content = spec_path.read_text()
+    assert "always pin the toolchain version" in content
+    assert "READ FIRST" in content
+    # lessons come before the task body so the worker reads them first
+    assert content.index("always pin the toolchain version") < content.index("DO THE TASK")
+
+
+def test_write_spec_without_lessons_has_no_preamble(tmp_path):
+    spec_path = ex._write_spec(tmp_path, _task(), "DO THE TASK")
+    content = spec_path.read_text()
+    assert "READ FIRST" not in content
+    assert content.startswith(ex._SPEC_HEADER)

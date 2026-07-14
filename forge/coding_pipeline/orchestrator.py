@@ -43,12 +43,14 @@ from forge.coding_pipeline.journal import (
     append_budget_exhausted,
     append_escalation,
     append_gate_result,
+    append_lesson_proposed,
     append_replan_action,
     count_attempts_for_all,
     landed_titles,
     next_wave_number,
     persist_wave,
     reconcile,
+    recurring_failures,
     stuck_leaves,
 )
 from forge.coding_pipeline.journal_mirror import hydrate_run_dir, mirror_framing, mirror_run_dir
@@ -68,6 +70,7 @@ from forge.coding_pipeline.reconcile import apply_bisect
 from forge.coding_pipeline.vcs_epic import ensure_epic_bookmark, update_epic_bookmark
 from forge.coding_pipeline.verify import verify_wave, wave_start_rev
 from forge.coding_pipeline.waves import fetch_epic_rows, fetch_feature_rows, plan_wave
+from forge.shared.lessons import draft_lesson, propose_lesson
 from forge.shared.task_store import TaskStore, get_task_store
 from forge.shared.usage import UsageLedger, active_ledger
 from forge.task_worker.tester import run_tests
@@ -95,6 +98,20 @@ class OrchestratorResult(BaseModel):
     dispatched: list[str] = []
     notes: list[str] = []
     total_tokens: int = 0  # the run's cumulative pipeline API spend (see UsageLedger)
+
+
+def _propose_repo_lessons(run_dir: Path, *, log: Callable[[str], None]) -> None:
+    """Hill-climbing hook: for each failure class the epic has hit twice, draft a one-line lesson
+    and record it as a PROPOSAL (visible artifact + journal) — never a silent append to the active
+    lessons file. Best-effort; a proposal failure must not disturb the wave."""
+    try:
+        for signature, count, reason in recurring_failures(run_dir):
+            lesson = draft_lesson(reason, count=count)
+            if propose_lesson(run_dir, lesson):  # new (deduped against earlier proposals)
+                append_lesson_proposed(run_dir, lesson, signature=signature, count=count)
+                log(f"proposed lesson (failure class seen {count}×): {lesson}")
+    except Exception as exc:  # noqa: BLE001 — the rules layer never breaks the loop
+        log(f"warning: lesson proposal failed: {exc}")
 
 
 def _settle_landed_noops(
@@ -485,6 +502,11 @@ def _run_epic(
             log=log,
             existing_titles={row.task.strip().lower() for row in epic_rows},
         )
+
+        # Hill-climbing (rules layer): a failure class the loop has now hit twice becomes a
+        # PROPOSED lesson — a visible artifact a human promotes into the repo's lessons file.
+        # Before persist_wave so the proposal rides into the wave's provenance snapshot.
+        _propose_repo_lessons(run_dir, log=log)
 
         persist_wave(
             settings.runs_dir,

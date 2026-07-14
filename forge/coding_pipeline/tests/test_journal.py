@@ -21,6 +21,7 @@ from forge.coding_pipeline.journal import (
     load_wave,
     persist_wave,
     reconcile,
+    recurring_failures,
     stuck_leaves,
 )
 from forge.coding_pipeline.models import LeafOutcome, SuiteResult, WaveRecord, WaveReport
@@ -388,3 +389,37 @@ class TestStuckLeaves:
 
     def test_no_journal_is_not_stuck(self, tmp_path: Path):
         assert stuck_leaves(tmp_path, ["x"]) == set()
+
+
+class TestRecurringFailures:
+    def _fail(self, run_dir: Path, leaf: str, reason: str) -> None:
+        append_leaf_outcome(run_dir, leaf, LeafOutcome(leaf=leaf, status="failed", reason=reason))
+
+    def test_signature_seen_twice_recurs_across_leaves(self, run_dir: Path):
+        # same failure MODE (only volatile detail — the line number — differs) on two leaves
+        self._fail(run_dir, "a", "gate: ruff import-order on line 12")
+        self._fail(run_dir, "b", "gate: ruff import-order on line 88")
+        recurring = recurring_failures(run_dir)
+        assert len(recurring) == 1
+        sig, count, reason = recurring[0]
+        assert count == 2
+        assert sig == failure_signature("gate: ruff import-order on line 12")
+        assert reason == "gate: ruff import-order on line 12"  # first-seen representative
+
+    def test_single_occurrence_is_not_recurring(self, run_dir: Path):
+        self._fail(run_dir, "a", "import error")
+        self._fail(run_dir, "b", "different failure entirely")
+        assert recurring_failures(run_dir) == []
+
+    def test_done_outcomes_are_ignored(self, run_dir: Path):
+        self._fail(run_dir, "a", "boom")
+        append_leaf_outcome(run_dir, "a", LeafOutcome(leaf="a", status="done", commit_id="c"))
+        assert recurring_failures(run_dir) == []
+
+    def test_sorted_most_frequent_first(self, run_dir: Path):
+        for _ in range(3):
+            self._fail(run_dir, "x", "frequent failure")
+        for _ in range(2):
+            self._fail(run_dir, "y", "less frequent failure")
+        counts = [c for _, c, _ in recurring_failures(run_dir)]
+        assert counts == [3, 2]

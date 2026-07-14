@@ -82,10 +82,16 @@ def _write_spec(project_dir: Path, task: TaskInfo, spec: str) -> Path:
     if not gitignore.exists():
         gitignore.write_text("*\n", encoding="utf-8")
 
+    # The rules layer: the repo's durable lessons ride at the top of EVERY worker prompt (this is
+    # the one path every worker run — pipeline or standalone — goes through). Absent file = "".
+    from forge.shared.lessons import read_lessons, render_lessons_preamble
+
+    preamble = render_lessons_preamble(read_lessons(project_dir))
+
     # Unique filename so concurrent workers don't stomp (future-proofing).
     fname = f"spec-{task.id}-{uuid.uuid4().hex[:8]}.md"
     spec_path = spec_dir / fname
-    spec_path.write_text(_SPEC_HEADER + spec, encoding="utf-8")
+    spec_path.write_text(preamble + _SPEC_HEADER + spec, encoding="utf-8")
     return spec_path
 
 

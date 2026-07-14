@@ -195,6 +195,20 @@ def append_budget_exhausted(
     return _journal_path(run_dir)
 
 
+def append_lesson_proposed(run_dir: Path, lesson: str, *, signature: str, count: int) -> Path:
+    """Record that the hill-climbing hook proposed a durable lesson from a recurring failure class
+    — the machine-facing trace of the rules-layer update, alongside the human-facing proposals
+    artifact."""
+    record: dict[str, Any] = {
+        "event": "lesson_proposed",
+        "lesson": lesson,
+        "signature": signature,
+        "count": count,
+    }
+    log_decision(record, _journal_path(run_dir))
+    return _journal_path(run_dir)
+
+
 def append_escalation(
     run_dir: Path,
     leaf_title: str,
@@ -322,6 +336,23 @@ def stuck_leaves(run_dir: Path, leaf_titles: list[str]) -> set[str]:
         # A success breaks the no-progress streak; a failure contributes its signature ("" if none).
         sigs[leaf].append(None if rec.get("status") == "done" else (rec.get("failure_sig") or ""))
     return {leaf for leaf, seq in sigs.items() if len(seq) >= 2 and seq[-1] and seq[-1] == seq[-2]}
+
+
+def recurring_failures(run_dir: Path, *, min_count: int = 2) -> list[tuple[str, int, str]]:
+    """Failure classes the loop has hit ``>= min_count`` times this epic — the hill-climbing
+    trigger for the rules layer. Groups journalled failures by signature and returns
+    ``(signature, count, representative_reason)`` for each recurring class, most-frequent first.
+    The representative reason is the first-seen one, for drafting a human-readable lesson."""
+    counts: dict[str, int] = {}
+    first_reason: dict[str, str] = {}
+    for rec in _iter_dispatch_records(run_dir):
+        sig = rec.get("failure_sig")
+        if not sig or rec.get("status") == "done":
+            continue
+        counts[sig] = counts.get(sig, 0) + 1
+        first_reason.setdefault(sig, str(rec.get("reason", "")))
+    recurring = [(sig, n, first_reason[sig]) for sig, n in counts.items() if n >= min_count]
+    return sorted(recurring, key=lambda t: t[1], reverse=True)
 
 
 def landed_titles(run_dir: Path) -> set[str]:
