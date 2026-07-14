@@ -82,6 +82,7 @@ def wired(monkeypatch, tmp_path):
     monkeypatch.setattr(orc, "ensure_epic_bookmark", lambda repo, slug, log: "pipeline/toy-epic")
     monkeypatch.setattr(orc, "update_epic_bookmark", lambda repo, slug, log: "pipeline/toy-epic")
     monkeypatch.setattr(orc, "mirror_run_dir", lambda *a, **k: "mirror-commit")
+    monkeypatch.setattr(orc, "mirror_framing", lambda *a, **k: "framing-commit")
     monkeypatch.setattr(orc, "hydrate_run_dir", lambda *a, **k: False)
     return tmp_path
 

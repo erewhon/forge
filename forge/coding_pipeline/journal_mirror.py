@@ -76,6 +76,62 @@ def _git_bytes(repo: Path, *args: str) -> bytes:
     return res.stdout
 
 
+def _append_snapshot(repo: Path, ref: str, files: list[Path], message: str) -> str:
+    """Append one commit to *ref* whose flat tree snapshots *files*; return the new commit sha.
+
+    The commit parents the current ref tip (none for the first commit), keeping the chain
+    append-only. Raises :class:`MirrorError` on any plumbing failure — callers guard.
+    """
+    tree_lines = []
+    for path in files:
+        blob = _git(repo, "hash-object", "-w", "--", str(path))
+        tree_lines.append(f"100644 blob {blob}\t{path.name}")
+    tree = _git(repo, "mktree", stdin="\n".join(tree_lines) + "\n")
+    parent = _git(repo, "rev-parse", "--verify", "--quiet", ref, check=False)
+    commit_args = ["commit-tree", tree, "-m", message]
+    if parent:
+        commit_args += ["-p", parent]
+    commit = _git(repo, *commit_args)
+    # CAS update: guard against a lost update (the single-orchestrator invariant already holds,
+    # but "" = must-not-exist / parent = must-still-be-tip keeps the chain honest).
+    _git(repo, "update-ref", ref, commit, parent)
+    return commit
+
+
+def mirror_framing(
+    repo: Path,
+    run_dir: Path,
+    epic_slug: str,
+    *,
+    message: str = "epic start: approved framing",
+    log: Callable[[str], None] = print,
+) -> str | None:
+    """Record the approved framing (``framing.json`` + ``framing.md`` when present) as a commit on
+    ``refs/pipeline/<epic>`` — the human-authorized constitution for the epic.
+
+    Called at epic START, before any wave, so the authorization is the chain's FIRST commit and
+    provably precedes the work. Idempotent on content: a plain resume whose framing already sits in
+    the chain is a no-op, while a RE-APPROVED (edited) framing differs and appends a fresh commit —
+    the history of what was approved when is the point, so it is never rewritten in place. Returns
+    the commit sha, or ``None`` when there is no framing to record or it is already current.
+    Best-effort — warns, never raises.
+    """
+    framing = run_dir / "framing.json"
+    if not framing.is_file():
+        return None
+    files = [framing, *(p for p in [run_dir / "framing.md"] if p.is_file())]
+    ref = epic_ref(epic_slug)
+    try:
+        # Skip if the chain tip already carries this exact framing (unchanged resume).
+        current = _git(repo, "show", f"{ref}:framing.json", check=False)
+        if current and current == framing.read_text().strip():
+            return None
+        return _append_snapshot(repo, ref, files, message)
+    except (MirrorError, OSError) as exc:
+        log(f"warning: recording approved framing to {ref} failed: {exc}")
+        return None
+
+
 def mirror_run_dir(
     repo: Path,
     run_dir: Path,
@@ -98,20 +154,7 @@ def mirror_run_dir(
         return None
     ref = epic_ref(epic_slug)
     try:
-        tree_lines = []
-        for path in files:
-            blob = _git(repo, "hash-object", "-w", "--", str(path))
-            tree_lines.append(f"100644 blob {blob}\t{path.name}")
-        tree = _git(repo, "mktree", stdin="\n".join(tree_lines) + "\n")
-        parent = _git(repo, "rev-parse", "--verify", "--quiet", ref, check=False)
-        commit_args = ["commit-tree", tree, "-m", message]
-        if parent:
-            commit_args += ["-p", parent]
-        commit = _git(repo, *commit_args)
-        # CAS update: guard against a lost update (the single-orchestrator invariant already
-        # holds, but "" = must-not-exist / parent = must-still-be-tip keeps the chain honest).
-        _git(repo, "update-ref", ref, commit, parent)
-        return commit
+        return _append_snapshot(repo, ref, files, message)
     except (MirrorError, OSError) as exc:
         log(f"warning: mirroring run dir to {ref} failed (will retry next wave): {exc}")
         return None

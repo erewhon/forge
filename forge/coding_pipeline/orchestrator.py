@@ -49,7 +49,7 @@ from forge.coding_pipeline.journal import (
     persist_wave,
     reconcile,
 )
-from forge.coding_pipeline.journal_mirror import hydrate_run_dir, mirror_run_dir
+from forge.coding_pipeline.journal_mirror import hydrate_run_dir, mirror_framing, mirror_run_dir
 from forge.coding_pipeline.models import (
     EscalateAction,
     FixupAction,
@@ -258,6 +258,10 @@ def run_epic(
             result.notes.append(f"epic bookmark setup failed: {e}")
             log(result.notes[-1])
             return result
+        # Record the approved framing as the FIRST commit of refs/pipeline/<epic>, before any
+        # wave — so the repo carries proof that a human authorized this scope before work began.
+        # Best-effort; a re-approved framing appends rather than rewrites.
+        mirror_framing(repo, run_dir, epic_slug, log=log)
 
     while result.waves_run < limit:
         # One Forge read per wave, shared by the planner and the epic-context builder.

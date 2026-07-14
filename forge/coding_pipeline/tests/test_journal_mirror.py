@@ -139,3 +139,66 @@ def test_mirror_then_hydrate_round_trips(repo: Path, tmp_path: Path):
     assert {p.name for p in fresh.iterdir()} == {p.name for p in source.iterdir()}
     for p in source.iterdir():
         assert (fresh / p.name).read_bytes() == p.read_bytes()
+
+
+# --- approved framing as the chain's first commit -------------------------------------
+
+
+def _framing_run_dir(tmp_path: Path, *, approved: bool = True) -> Path:
+    d = tmp_path / "runs" / "toy"
+    d.mkdir(parents=True)
+    (d / "framing.json").write_text(f'{{"epic_slug": "toy", "approved": {str(approved).lower()}}}')
+    (d / "framing.md").write_text("# Framing\nApproved scope.\n")
+    return d
+
+
+def test_framing_is_the_first_commit_and_a_wave_never_precedes_it(repo: Path, tmp_path: Path):
+    run_dir = _framing_run_dir(tmp_path)
+    first = jm.mirror_framing(repo, run_dir, "toy", log=lambda m: None)
+    assert first == _git(repo, "rev-parse", "refs/pipeline/toy")
+    # the first commit carries the approved framing (both files), with no parent
+    assert '"approved": true' in _git(repo, "show", "refs/pipeline/toy:framing.json")
+    assert _git(repo, "show", "refs/pipeline/toy:framing.md").startswith("# Framing")
+    assert "approved framing" in _git(repo, "log", "-1", "--format=%s", "refs/pipeline/toy")
+    assert _git(repo, "log", "-1", "--format=%P", "refs/pipeline/toy") == ""  # root commit
+
+    # a subsequent wave commit lands ON TOP — the framing stays the chain root
+    run_dir.joinpath("journal.jsonl").write_text('{"event": "x"}\n')
+    jm.mirror_run_dir(repo, run_dir, "toy", message="wave 1", log=lambda m: None)
+    root = _git(repo, "rev-list", "--max-parents=0", "refs/pipeline/toy")
+    assert root == first
+    assert '"approved": true' in _git(repo, "show", f"{root}:framing.json")
+
+
+def test_unchanged_framing_is_not_recorded_twice(repo: Path, tmp_path: Path):
+    run_dir = _framing_run_dir(tmp_path)
+    jm.mirror_framing(repo, run_dir, "toy", log=lambda m: None)
+    second = jm.mirror_framing(repo, run_dir, "toy", log=lambda m: None)  # plain resume
+    assert second is None
+    assert _git(repo, "rev-list", "--count", "refs/pipeline/toy") == "1"
+
+
+def test_reapproved_framing_appends_rather_than_rewrites(repo: Path, tmp_path: Path):
+    run_dir = _framing_run_dir(tmp_path)
+    first = jm.mirror_framing(repo, run_dir, "toy", log=lambda m: None)
+    # a mid-epic re-approval edits framing.json (e.g. rescoped) and re-approves
+    run_dir.joinpath("framing.json").write_text('{"epic_slug": "toy", "approved": true, "rev": 2}')
+    second = jm.mirror_framing(repo, run_dir, "toy", log=lambda m: None)
+
+    assert second is not None and second != first
+    assert _git(repo, "rev-list", "--count", "refs/pipeline/toy") == "2"
+    assert (
+        _git(repo, "rev-parse", "refs/pipeline/toy~1") == first
+    )  # history preserved, not rewritten
+    assert '"rev": 2' in _git(repo, "show", "refs/pipeline/toy:framing.json")
+    assert '"rev"' not in _git(
+        repo, "show", f"{first}:framing.json"
+    )  # the old approval still stands
+
+
+def test_mirror_framing_without_framing_json_is_a_noop(repo: Path, tmp_path: Path):
+    bare = tmp_path / "runs" / "bare"
+    bare.mkdir(parents=True)
+    (bare / "journal.jsonl").write_text('{"event": "x"}\n')
+    assert jm.mirror_framing(repo, bare, "bare", log=lambda m: None) is None
+    assert not _git(repo, "for-each-ref", "refs/pipeline")
