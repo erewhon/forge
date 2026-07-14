@@ -109,10 +109,32 @@ def _run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, capture_output=True, text=True, timeout=_TIMEOUT, cwd=cwd)
 
 
+def _branch_ref(epic_slug: str) -> str:
+    """The epic branch as a FULLY-QUALIFIED git ref. The bare name (``pipeline/<epic>``) is
+    ambiguous once the journal mirror ref ``refs/pipeline/<epic>`` exists — git's revision rules
+    resolve ``refs/<name>`` before ``refs/heads/<name>``, so a bare rev-parse would silently pick
+    the mirror commit over the branch tip. jj exports bookmarks to ``refs/heads`` in a colocated
+    repo, so this qualifies both VCS backends."""
+    return f"refs/heads/{epic_branch(epic_slug)}"
+
+
+def epic_tip(repo: Path, epic_slug: str) -> str:
+    """Resolve the epic branch tip to a git commit sha, or ``""`` when the branch does not exist.
+    Uses the fully-qualified branch ref so a coexisting ``refs/pipeline/<epic>`` mirror ref can
+    never be resolved by mistake."""
+    return _run(
+        ["git", "rev-parse", "--verify", "--quiet", _branch_ref(epic_slug)], repo
+    ).stdout.strip()
+
+
 def _branch_exists(repo: Path, vcs: str, branch: str) -> bool:
     if vcs == "jj":
         return _run(["jj", "log", "--no-graph", "-r", branch, "-T", '""'], repo).returncode == 0
-    return _run(["git", "rev-parse", "--verify", "--quiet", branch], repo).returncode == 0
+    # Fully-qualified: a coexisting refs/pipeline/<epic> mirror ref must not read as the branch.
+    return (
+        _run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"], repo).returncode
+        == 0
+    )
 
 
 def _set_branch_to_tip(repo: Path, vcs: str, branch: str) -> None:
@@ -205,7 +227,7 @@ def epic_diff(repo: Path, epic_slug: str, *, main: str = "main") -> str:
     if vcs == "jj":
         res = _run(["jj", "diff", "--no-pager", "--git", "--from", main, "--to", branch], repo)
     elif vcs == "git":
-        res = _run(["git", "diff", f"{main}...{branch}"], repo)
+        res = _run(["git", "diff", f"{main}...refs/heads/{branch}"], repo)
     else:
         raise VCSError(f"No VCS detected in {repo}")
     if res.returncode != 0:
@@ -475,7 +497,7 @@ def write_gate_note(
     caller passes ``timestamp`` (this module does not read the clock).
     """
     branch = epic_branch(epic_slug)
-    tip = _run(["git", "rev-parse", "--verify", "--quiet", branch], repo).stdout.strip()
+    tip = epic_tip(repo, epic_slug)
     if not tip:
         log(f"warning: no {branch} tip to attach gate provenance to; skipping note")
         return None

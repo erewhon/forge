@@ -506,6 +506,33 @@ def test_write_gate_note_records_blocked_verdicts_too(repo):
     assert payload["reason"] == "one dissent"
 
 
+def test_gate_note_targets_the_branch_not_a_colliding_mirror_ref(repo):
+    # The journal mirror ref refs/pipeline/toy collides by name with the epic branch pipeline/toy.
+    # git resolves refs/<name> before refs/heads/<name>, so the gate tip must be resolved via the
+    # fully-qualified branch ref — otherwise the note attaches to the mirror commit, not the code.
+    branch_tip = _git(repo, "rev-parse", "HEAD")
+    ve.ensure_epic_bookmark(repo, "toy", push=False, log=lambda m: None)
+    # a DISTINCT commit that the (colliding) mirror ref points at
+    (repo / "journal.jsonl").write_text('{"event": "x"}\n')
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "wave 1 mirror snapshot")
+    mirror_commit = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "update-ref", "refs/pipeline/toy", mirror_commit)
+    assert mirror_commit != branch_tip
+
+    tip = ve.write_gate_note(
+        repo,
+        "toy",
+        _approved_result(),
+        _framing(),
+        timestamp="2026-07-13T00:00:00+00:00",
+        push=False,
+        log=lambda m: None,
+    )
+    assert tip == branch_tip  # the epic branch tip, NOT the mirror commit
+    assert read_note(repo, ve.GATE_NOTE_REF, branch_tip)["approved"] is True
+
+
 def test_write_gate_note_without_epic_branch_warns_and_skips(repo):
     warnings: list[str] = []
     tip = ve.write_gate_note(
