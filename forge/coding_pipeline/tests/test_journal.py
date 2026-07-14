@@ -17,9 +17,11 @@ from forge.coding_pipeline.journal import (
     append_replan_action,
     count_attempts,
     count_attempts_for_all,
+    failure_signature,
     load_wave,
     persist_wave,
     reconcile,
+    stuck_leaves,
 )
 from forge.coding_pipeline.models import LeafOutcome, SuiteResult, WaveRecord, WaveReport
 from forge.task_worker.nous_client import nous_available
@@ -312,3 +314,77 @@ class TestLandedTitles:
         from forge.coding_pipeline.journal import landed_titles
 
         assert landed_titles(tmp_path) == set()
+
+
+# ---------------------------------------------------------------------------
+# Failure signatures & the no-progress (Ralph-loop) guard
+# ---------------------------------------------------------------------------
+
+
+class TestFailureSignature:
+    def test_same_reason_signs_identically(self):
+        assert failure_signature("model reported BLOCKED: cannot import x") == failure_signature(
+            "model reported BLOCKED: cannot import x"
+        )
+
+    def test_different_failure_modes_differ(self):
+        assert failure_signature("tests red: test_parse failed") != failure_signature(
+            "opencode failed: timeout"
+        )
+
+    def test_volatile_detail_is_normalized_away(self):
+        # line numbers, durations, temp paths, and shas differ per run but the mode is the same
+        a = "tests red at /tmp/abc123/repo/test_x.py:42 after 3.1s (deadbeef)"
+        b = "tests red at /tmp/zzz999/repo/test_x.py:87 after 9.7s (cafef00d)"
+        assert failure_signature(a) == failure_signature(b)
+
+    def test_blank_reason_has_no_signature(self):
+        assert failure_signature("") == ""
+        assert failure_signature("   \n") == ""
+
+
+class TestFailureSigJournalling:
+    def test_failed_outcome_records_a_signature(self, run_dir: Path):
+        append_leaf_outcome(run_dir, "x", LeafOutcome(leaf="x", status="failed", reason="boom"))
+        rec = json.loads(run_dir.joinpath("journal.jsonl").read_text().strip())
+        assert rec["failure_sig"] == failure_signature("boom")
+
+    def test_done_outcome_has_no_signature(self, run_dir: Path):
+        append_leaf_outcome(run_dir, "x", LeafOutcome(leaf="x", status="done", commit_id="c"))
+        rec = json.loads(run_dir.joinpath("journal.jsonl").read_text().strip())
+        assert "failure_sig" not in rec
+
+
+class TestStuckLeaves:
+    def _fail(self, run_dir: Path, leaf: str, reason: str) -> None:
+        append_leaf_outcome(run_dir, leaf, LeafOutcome(leaf=leaf, status="failed", reason=reason))
+
+    def test_two_identical_failures_are_stuck(self, run_dir: Path):
+        self._fail(run_dir, "x", "assert 1 == 2")
+        self._fail(run_dir, "x", "assert 1 == 2")
+        assert stuck_leaves(run_dir, ["x"]) == {"x"}
+
+    def test_two_different_failures_are_not_stuck(self, run_dir: Path):
+        self._fail(run_dir, "x", "import error")
+        self._fail(run_dir, "x", "assert 1 == 2")
+        assert stuck_leaves(run_dir, ["x"]) == set()
+
+    def test_single_failure_is_not_stuck(self, run_dir: Path):
+        self._fail(run_dir, "x", "boom")
+        assert stuck_leaves(run_dir, ["x"]) == set()
+
+    def test_a_success_between_failures_resets_the_streak(self, run_dir: Path):
+        self._fail(run_dir, "x", "boom")
+        append_leaf_outcome(run_dir, "x", LeafOutcome(leaf="x", status="done", commit_id="c"))
+        self._fail(run_dir, "x", "boom")
+        assert stuck_leaves(run_dir, ["x"]) == set()
+
+    def test_only_requested_leaves_are_considered(self, run_dir: Path):
+        self._fail(run_dir, "x", "boom")
+        self._fail(run_dir, "x", "boom")
+        self._fail(run_dir, "y", "boom")
+        self._fail(run_dir, "y", "boom")
+        assert stuck_leaves(run_dir, ["x"]) == {"x"}
+
+    def test_no_journal_is_not_stuck(self, tmp_path: Path):
+        assert stuck_leaves(tmp_path, ["x"]) == set()

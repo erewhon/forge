@@ -9,9 +9,10 @@ Mirrors the research harness layout and ``automerge.log_decision``.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,27 @@ from forge.coding_pipeline.models import LeafOutcome, WaveRecord
 from forge.shared.automerge import log_decision
 
 _WAVE_RE = re.compile(r"^wave-(\d+)\.json$")
+
+# Volatile detail stripped before signing a failure reason, so the signature captures the FAILURE
+# MODE (which gate/test/step) rather than the run (line numbers, durations, shas, temp paths).
+_HEX_RE = re.compile(r"0x[0-9a-f]+|\b[0-9a-f]{7,}\b", re.IGNORECASE)
+_PATH_RE = re.compile(r"/\S+")
+_NUM_RE = re.compile(r"\d+")
+_WS_RE = re.compile(r"\s+")
+
+
+def failure_signature(reason: str) -> str:
+    """A stable, cheap fingerprint of *why* an attempt failed — the Ralph-loop guard compares it
+    across consecutive attempts of the same leaf. Normalizes away run-specific noise (shas, paths,
+    numbers, whitespace) so two attempts that fail the same way sign identically. An empty/blank
+    reason has no signature (``""``) — it can never trip the guard, which fails safe."""
+    if not reason or not reason.strip():
+        return ""
+    norm = _HEX_RE.sub(" ", reason.lower())
+    norm = _PATH_RE.sub(" ", norm)
+    norm = _NUM_RE.sub(" ", norm)
+    norm = _WS_RE.sub(" ", norm).strip()
+    return hashlib.sha256(norm.encode()).hexdigest()[:16]
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +110,11 @@ def append_leaf_outcome(
         record["reason"] = outcome.reason
     if outcome.commit_id:
         record["commit_id"] = outcome.commit_id
+    if outcome.status != "done":
+        # The failure fingerprint powers the no-progress (Ralph-loop) guard on later waves.
+        sig = failure_signature(outcome.reason)
+        if sig:
+            record["failure_sig"] = sig
     log_decision(record, _journal_path(run_dir))
     return _journal_path(run_dir)
 
@@ -237,6 +264,43 @@ def count_attempts_for_all(
 ) -> dict[str, int]:
     """Return a dict mapping every *leaf_title* in the list to its attempt count."""
     return {title: count_attempts(run_dir, title) for title in leaf_titles}
+
+
+def _iter_dispatch_records(run_dir: Path) -> Iterator[dict[str, Any]]:
+    """Yield every ``leaf_dispatch`` record from the journal, in order (skipping unparseable
+    lines). The journal is the single source of truth for per-leaf attempt history."""
+    journal = _journal_path(run_dir)
+    if not journal.exists():
+        return
+    for line in journal.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if rec.get("event") == "leaf_dispatch":
+            yield rec
+
+
+def stuck_leaves(run_dir: Path, leaf_titles: list[str]) -> set[str]:
+    """The Ralph-loop guard: leaves whose two most recent attempts BOTH failed with the SAME
+    failure signature — i.e. the loop is repeating an identical mistake, making no progress.
+
+    Such leaves should escalate immediately rather than burn their remaining attempt budget. A
+    landed (``done``) attempt resets the streak, and an attempt with no recorded signature never
+    matches, so the check fails safe — a genuinely different failure each time keeps its attempts.
+    """
+    want = set(leaf_titles)
+    sigs: dict[str, list[str | None]] = {t: [] for t in want}
+    for rec in _iter_dispatch_records(run_dir):
+        leaf = rec.get("leaf")
+        if leaf not in want:
+            continue
+        # A success breaks the no-progress streak; a failure contributes its signature ("" if none).
+        sigs[leaf].append(None if rec.get("status") == "done" else (rec.get("failure_sig") or ""))
+    return {leaf for leaf, seq in sigs.items() if len(seq) >= 2 and seq[-1] and seq[-1] == seq[-2]}
 
 
 def landed_titles(run_dir: Path) -> set[str]:

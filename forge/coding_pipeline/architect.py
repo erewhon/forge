@@ -533,17 +533,38 @@ class ReplanEnvelope(BaseModel):
     actions: list[ReplanAction] = []
 
 
-def deterministic_escalations(report: WaveReport, attempts: dict[str, int]) -> list[EscalateAction]:
-    """The pre-rule that never goes near a model: a failed leaf at the attempt cap escalates
-    to a human, full stop.
+_NO_PROGRESS_PREFIX = "no-progress: repeated identical failure across attempts (Ralph-loop guard)"
 
-    Public because it is also the orchestrator's degrade path when the model replan
-    call fails — the wave must still escalate capped leaves and persist its record."""
-    return [
-        EscalateAction(leaf_title=outcome.leaf, diagnostics=outcome.reason)
-        for outcome in report.failed
-        if attempts.get(outcome.leaf, 0) >= settings.max_leaf_attempts
-    ]
+
+def deterministic_escalations(
+    report: WaveReport,
+    attempts: dict[str, int],
+    stuck: set[str] | frozenset[str] = frozenset(),
+) -> list[EscalateAction]:
+    """The pre-rules that never go near a model, escalating a failed leaf straight to a human:
+
+    - **attempt cap** — the leaf has used its whole budget (``attempts >= max_leaf_attempts``);
+    - **no-progress** — the leaf is in ``stuck`` (its last two attempts failed identically), so
+      retrying would just repeat the mistake. This stops a Ralph loop BEFORE cap exhaustion and
+      tags the diagnostic so replan/humans see "stuck on X", not a generic "failed N times".
+
+    Public because it is also the orchestrator's degrade path when the model replan call fails —
+    the wave must still escalate capped/stuck leaves and persist its record."""
+    escalations = []
+    for outcome in report.failed:
+        capped = attempts.get(outcome.leaf, 0) >= settings.max_leaf_attempts
+        no_progress = outcome.leaf in stuck
+        if not (capped or no_progress):
+            continue
+        # Prefer the no-progress framing: it is the more actionable diagnostic and the reason the
+        # loop stopped early. A capped-only leaf keeps its raw failure reason.
+        diagnostics = (
+            f"{_NO_PROGRESS_PREFIX}. Last failure:\n{outcome.reason}"
+            if no_progress
+            else outcome.reason
+        )
+        escalations.append(EscalateAction(leaf_title=outcome.leaf, diagnostics=diagnostics))
+    return escalations
 
 
 def _replan_user(
@@ -586,6 +607,7 @@ def replan(
     report: WaveReport,
     attempts: dict[str, int],
     landed_titles: set[str] | frozenset[str] = frozenset(),
+    stuck: set[str] | frozenset[str] = frozenset(),
 ) -> list[ReplanAction]:
     """A4: wave report → typed replan actions.
 
@@ -603,7 +625,7 @@ def replan(
     is not a finding confirmed in THIS wave (invented slugs defeat the ref-dedup that
     keys on the slug), including integration fixes when the suite is green.
     """
-    escalated = deterministic_escalations(report, attempts)
+    escalated = deterministic_escalations(report, attempts, stuck)
     escalated_titles = {e.leaf_title for e in escalated}
     terminal_titles = set(landed_titles) | {o.leaf for o in report.landed}
 

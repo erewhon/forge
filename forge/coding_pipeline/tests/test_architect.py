@@ -524,3 +524,44 @@ def test_requires_tests_headroom_leaves_generous_budgets_alone():
     leaf = _leaf("roomy", requires_tests=True, max_files=8, file_scope=["a.py"])
     arch._apply_conservative_tags([leaf], _proposal(approved=True))
     assert leaf.max_files == 8
+
+
+# --- no-progress (Ralph-loop) guard ---------------------------------------------------
+
+
+def test_no_progress_leaf_escalates_under_cap_without_llm(monkeypatch):
+    calls = _structured_spy(monkeypatch)  # any LLM call would raise
+    report = _report(outcomes=[_failed_leaf("wobbly", reason="assert 1 == 2")])
+    # UNDER the attempt cap (1 < 2) but stuck: the last two attempts failed identically, so the
+    # guard escalates now instead of burning the remaining attempt on the same mistake.
+    actions = arch.replan(
+        _proposal(approved=True), [_leaf("wobbly")], report, {"wobbly": 1}, stuck={"wobbly"}
+    )
+    assert calls == []  # escalated deterministically; never reached the model
+    assert len(actions) == 1 and isinstance(actions[0], EscalateAction)
+    assert actions[0].leaf_title == "wobbly"
+    assert "no-progress" in actions[0].diagnostics
+    assert "assert 1 == 2" in actions[0].diagnostics  # the last failure is preserved for the human
+
+
+def test_differing_failures_under_cap_still_go_to_the_model(monkeypatch):
+    # Not stuck (empty set): existing behavior — an under-cap failure is still sent for respec.
+    revised = _leaf("wobbly", execution_mode="Auto-OK", max_files=None, requires_tests=False)
+    _envelope(monkeypatch, [arch.RespecAction(leaf_title="wobbly", revised=revised)])
+    report = _report(outcomes=[_failed_leaf("wobbly")])
+    actions = arch.replan(
+        _proposal(approved=True), [_leaf("wobbly")], report, {"wobbly": 1}, stuck=set()
+    )
+    assert len(actions) == 1 and isinstance(actions[0], arch.RespecAction)
+
+
+def test_deterministic_escalations_distinguishes_cap_from_no_progress():
+    report = _report(
+        outcomes=[_failed_leaf("capped", "boom"), _failed_leaf("looping", "same error each time")]
+    )
+    esc = arch.deterministic_escalations(report, {"capped": 2, "looping": 1}, stuck={"looping"})
+    by = {e.leaf_title: e.diagnostics for e in esc}
+    assert set(by) == {"capped", "looping"}
+    assert "no-progress" in by["looping"]  # stuck-under-cap gets the Ralph-loop framing
+    assert by["capped"] == "boom"  # capped-only keeps its raw reason, no no-progress tag
+    assert "no-progress" not in by["capped"]

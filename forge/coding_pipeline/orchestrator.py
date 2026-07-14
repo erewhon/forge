@@ -48,6 +48,7 @@ from forge.coding_pipeline.journal import (
     next_wave_number,
     persist_wave,
     reconcile,
+    stuck_leaves,
 )
 from forge.coding_pipeline.journal_mirror import hydrate_run_dir, mirror_framing, mirror_run_dir
 from forge.coding_pipeline.models import (
@@ -182,8 +183,8 @@ def _apply_actions(
                 action.leaf_title,
                 "Spec Needed",
                 notes=(
-                    "Escalated by the pipeline at the attempt cap — needs a human.\n\n"
-                    f"Diagnostics:\n\n{action.diagnostics}"
+                    "Escalated by the pipeline (attempt cap or no-progress guard) — needs a "
+                    f"human.\n\nDiagnostics:\n\n{action.diagnostics}"
                 ),
                 execution_mode="Manual",
             )
@@ -385,15 +386,21 @@ def run_epic(
             details=review_detail,
         )
 
-        attempts = count_attempts_for_all(run_dir, [o.leaf for o in report.failed])
+        failed_titles = [o.leaf for o in report.failed]
+        attempts = count_attempts_for_all(run_dir, failed_titles)
+        # No-progress guard: leaves whose last two attempts failed identically escalate now,
+        # before they burn the rest of their attempt budget repeating the same mistake.
+        stuck = stuck_leaves(run_dir, failed_titles)
         try:
-            actions = replan(framing, tree, report, attempts, landed_titles=journal_landed)
+            actions = replan(
+                framing, tree, report, attempts, landed_titles=journal_landed, stuck=stuck
+            )
         except ArchitectError as e:
             # A failed model replan must not kill the wave (e2e dry-run: it crashed the
             # run twice, losing the wave record while the journal kept counting
-            # attempts). Degrade to the deterministic pre-rules — capped leaves still
+            # attempts). Degrade to the deterministic pre-rules — capped/stuck leaves still
             # escalate — and journal the degradation so a human sees replan is limping.
-            actions = list(deterministic_escalations(report, attempts))
+            actions = list(deterministic_escalations(report, attempts, stuck))
             # Journal the model's raw output too — that's the only record of *why* replan's
             # judgment half never fires (see pipeline:build:fix:replan-validation). Keep it out
             # of the console note, which stays a one-liner.
