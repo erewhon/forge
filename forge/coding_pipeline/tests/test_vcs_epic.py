@@ -464,8 +464,13 @@ def _blocked_result() -> SignoffResult:
 def test_write_gate_note_records_verdict_on_the_epic_tip(repo):
     branch = ve.ensure_epic_bookmark(repo, "toy", push=False, log=lambda m: None)
     tip = ve.write_gate_note(
-        repo, "toy", _approved_result(), _framing(),
-        timestamp="2026-07-13T00:00:00+00:00", push=False, log=lambda m: None,
+        repo,
+        "toy",
+        _approved_result(),
+        _framing(),
+        timestamp="2026-07-13T00:00:00+00:00",
+        push=False,
+        log=lambda m: None,
     )
     assert tip == _git(repo, "rev-parse", branch)
 
@@ -487,8 +492,13 @@ def test_write_gate_note_records_verdict_on_the_epic_tip(repo):
 def test_write_gate_note_records_blocked_verdicts_too(repo):
     ve.ensure_epic_bookmark(repo, "toy", push=False, log=lambda m: None)
     tip = ve.write_gate_note(
-        repo, "toy", _blocked_result(), _framing(),
-        timestamp="2026-07-13T00:00:00+00:00", push=False, log=lambda m: None,
+        repo,
+        "toy",
+        _blocked_result(),
+        _framing(),
+        timestamp="2026-07-13T00:00:00+00:00",
+        push=False,
+        log=lambda m: None,
     )
     payload = read_note(repo, ve.GATE_NOTE_REF, tip)
     assert payload["approved"] is False
@@ -499,8 +509,13 @@ def test_write_gate_note_records_blocked_verdicts_too(repo):
 def test_write_gate_note_without_epic_branch_warns_and_skips(repo):
     warnings: list[str] = []
     tip = ve.write_gate_note(
-        repo, "toy", _approved_result(), _framing(),
-        timestamp="2026-07-13T00:00:00+00:00", push=False, log=warnings.append,
+        repo,
+        "toy",
+        _approved_result(),
+        _framing(),
+        timestamp="2026-07-13T00:00:00+00:00",
+        push=False,
+        log=warnings.append,
     )
     assert tip is None
     assert any("no pipeline/toy tip" in w for w in warnings)
@@ -511,15 +526,29 @@ def test_write_gate_note_push_failure_is_a_warning_not_an_error(repo):
     ve.ensure_epic_bookmark(repo, "toy", push=False, log=lambda m: None)
     warnings: list[str] = []
     tip = ve.write_gate_note(
-        repo, "toy", _approved_result(), _framing(),
-        timestamp="2026-07-13T00:00:00+00:00", push=True, log=warnings.append,
+        repo,
+        "toy",
+        _approved_result(),
+        _framing(),
+        timestamp="2026-07-13T00:00:00+00:00",
+        push=True,
+        log=warnings.append,
     )
     assert tip is not None
     assert read_note(repo, ve.GATE_NOTE_REF, tip)["approved"] is True
-    assert any("pipeline notes" in w for w in warnings)
+    assert any("provenance refs" in w for w in warnings)
 
 
-def test_push_pipeline_notes_is_a_silent_noop_when_no_notes_exist(repo):
+def test_push_pipeline_refs_is_a_silent_noop_when_no_refs_exist(repo):
     warnings: list[str] = []
-    assert ve.push_pipeline_notes(repo, log=warnings.append) is True
+    assert ve.push_pipeline_refs(repo, log=warnings.append) is True
     assert warnings == []
+
+
+def test_push_pipeline_refs_attempts_the_push_once_a_mirror_ref_exists(repo):
+    # A journal mirror ref exists but there is no remote: the push is attempted and warns (rather
+    # than silently no-opping), proving refs/pipeline/* is in the push set alongside the notes.
+    _git(repo, "update-ref", "refs/pipeline/toy", _git(repo, "rev-parse", "HEAD"))
+    warnings: list[str] = []
+    assert ve.push_pipeline_refs(repo, log=warnings.append) is False
+    assert any("provenance refs" in w for w in warnings)

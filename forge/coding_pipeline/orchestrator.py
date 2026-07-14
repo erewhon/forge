@@ -49,6 +49,7 @@ from forge.coding_pipeline.journal import (
     persist_wave,
     reconcile,
 )
+from forge.coding_pipeline.journal_mirror import hydrate_run_dir, mirror_run_dir
 from forge.coding_pipeline.models import (
     EscalateAction,
     FixupAction,
@@ -235,6 +236,11 @@ def run_epic(
     run_dir.mkdir(parents=True, exist_ok=True)
     store = get_task_store()
 
+    # Resume-from-clone: if this machine has the epic's mirror ref but no local run dir, rebuild
+    # the run dir from refs/pipeline/<epic> so the framing/journal/wave reads below find it. A
+    # no-op when local state already exists (write-primary) or the ref is absent.
+    hydrate_run_dir(repo, run_dir, epic_slug, log=log)
+
     framing = require_approved_framing(run_dir)
     tree = _load_tree(run_dir) or []
     result = OrchestratorResult(status="max-waves", epic_slug=epic_slug, feature=feature or "")
@@ -407,6 +413,10 @@ def run_epic(
             epic_slug,
             WaveRecord(wave=wave_n, dispatched=plan.dispatch, report=report, actions=actions),
         )
+        # Mirror the just-updated run dir into refs/pipeline/<epic> as one append-only commit —
+        # the decision history now travels with the repo. Best-effort; the checkpoint push below
+        # carries the new ref (push_pipeline_refs picks it up).
+        mirror_run_dir(repo, run_dir, epic_slug, message=f"wave {wave_n}: {epic_slug}", log=log)
         try:
             update_epic_bookmark(repo, epic_slug, log=log)  # the wave checkpoint re-push
         except VCSError as e:

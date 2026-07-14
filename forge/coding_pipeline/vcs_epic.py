@@ -29,8 +29,12 @@ _TIMEOUT = 30
 
 #: Note namespace for epic gate verdicts; git stores it at ``refs/notes/pipeline/gate``.
 GATE_NOTE_REF = "pipeline/gate"
-#: All pipeline provenance lives under this ref hierarchy; pushed as one refspec.
-_NOTES_REFSPEC = "refs/notes/pipeline/*:refs/notes/pipeline/*"
+#: Repo-native provenance ref hierarchies, each pushed with a mirror refspec only when it has
+#: refs: the gate/leaf notes and the mirrored journal chain (refs/pipeline/<epic>).
+_PROVENANCE_REFSPECS = (
+    ("refs/notes/pipeline", "refs/notes/pipeline/*:refs/notes/pipeline/*"),
+    ("refs/pipeline", "refs/pipeline/*:refs/pipeline/*"),
+)
 
 EPIC_SIGNOFF_SYSTEM = """You are the FINAL merge gatekeeper for an epic built by an automated \
 coding pipeline. The diff is the epic's ENTIRE accumulated change set; per-leaf tests and \
@@ -134,22 +138,27 @@ def _push_branch(repo: Path, vcs: str, branch: str, log: Callable[[str], None]) 
     return True
 
 
-def push_pipeline_notes(repo: Path, *, log: Callable[[str], None] = print) -> bool:
-    """Best-effort push of ``refs/notes/pipeline/*`` to origin.
+def push_pipeline_refs(repo: Path, *, log: Callable[[str], None] = print) -> bool:
+    """Best-effort push of the repo-native provenance refs to origin — the gate/leaf notes
+    (``refs/notes/pipeline/*``) and the mirrored journal chain (``refs/pipeline/*``).
 
-    Notes never ride a branch push (nor a ``jj git push``), so they need their own refspec and
+    These never ride a branch push (nor a ``jj git push``), so they need their own refspecs and
     are pushed with plain git regardless of the working VCS — a jj-colocated repo is git
     underneath. A push failure is a warning, not an error, matching the bookmark-push contract.
-    When no pipeline notes exist yet this is a silent no-op, so folding it into the checkpoint
-    push never emits spurious "no matching refs" warnings.
+    Only hierarchies that actually have refs are pushed, so folding this into the checkpoint push
+    is a silent no-op early on rather than a spurious "no matching refs" warning.
     """
-    have = _run(["git", "for-each-ref", "--format=%(refname)", "refs/notes/pipeline"], repo)
-    if have.returncode != 0 or not have.stdout.strip():
+    to_push = [
+        refspec
+        for prefix, refspec in _PROVENANCE_REFSPECS
+        if _run(["git", "for-each-ref", "--format=%(refname)", prefix], repo).stdout.strip()
+    ]
+    if not to_push:
         return True  # nothing to push yet
-    res = _run(["git", "push", "origin", _NOTES_REFSPEC], repo)
+    res = _run(["git", "push", "origin", *to_push], repo)
     if res.returncode != 0:
         log(
-            f"warning: push of pipeline notes failed (will retry next checkpoint): "
+            f"warning: push of pipeline provenance refs failed (will retry next checkpoint): "
             f"{res.stderr.strip()}"
         )
         return False
@@ -170,7 +179,7 @@ def ensure_epic_bookmark(
         log(f"created epic bookmark {branch}")
         if push:
             _push_branch(repo, vcs, branch, log)
-            push_pipeline_notes(repo, log=log)
+            push_pipeline_refs(repo, log=log)
     return branch
 
 
@@ -185,7 +194,7 @@ def update_epic_bookmark(
     _set_branch_to_tip(repo, vcs, branch)
     if push:
         _push_branch(repo, vcs, branch, log)
-        push_pipeline_notes(repo, log=log)
+        push_pipeline_refs(repo, log=log)
     return branch
 
 
@@ -477,5 +486,5 @@ def write_gate_note(
         log(f"warning: writing gate provenance note failed: {exc}")
         return None
     if push:
-        push_pipeline_notes(repo, log=log)
+        push_pipeline_refs(repo, log=log)
     return tip
