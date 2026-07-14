@@ -65,12 +65,21 @@ class ApiExecutor:
                 failure_class=FailureClass.TRANSIENT,
             )
         except Exception as exc:  # noqa: BLE001 — classify decides retry vs. fail over
+            fclass = classify(exc)
+            # Name the retry disposition in the string too — a reader of the error alone (logs,
+            # aggregated advisories) shouldn't have to cross-reference failure_class to know
+            # whether a retry can help.
+            disposition = {
+                FailureClass.TERMINAL: "terminal — will fail over, not retry (check the model/key)",
+                FailureClass.TRANSIENT: "transient — will retry, then fail over",
+            }.get(fclass, "")
+            error = f"{type(exc).__name__}: {exc}"
             return ExecResult(
                 executor=self.label,
                 status=ExecStatus.ERROR,
                 latency_ms=_elapsed_ms(start),
-                error=f"{type(exc).__name__}: {exc}",
-                failure_class=classify(exc),
+                error=f"{error} [{disposition}]" if disposition else error,
+                failure_class=fclass,
             )
 
     async def _call(self, prompt: Prompt) -> str:

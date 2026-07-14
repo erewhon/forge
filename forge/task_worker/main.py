@@ -58,6 +58,13 @@ def _tail(s: str, n: int = 500) -> str:
     return cut  # one long line: better mid-line than empty
 
 
+def _gate_failure(gate: str, expectation: str, tail: str) -> str:
+    """A worker gate-failure reason written for the NEXT attempt, not the stack-trace reader: name
+    the failed expectation (and the fix) first, then the evidence. This string is what the retry
+    and the escalation note consume — a bare output tail teaches the next beat nothing."""
+    return f"{gate} gate failed — {expectation}. Evidence:\n{tail}"
+
+
 # A BLOCKED marker is a LINE starting with "BLOCKED:" (the model protocol) or the guardrail
 # "> **Blocked:**" that get_task_spec injects. Line-anchored on purpose: a spec that merely
 # *mentions* the protocol ("print a line starting with BLOCKED:") must not trip it.
@@ -144,7 +151,11 @@ def run_one(
             spec = get_task_store().get_spec(task.task)
         except Exception as e:  # noqa: BLE001
             print(f"Failed to fetch task spec: {e}")
-            return _outcome("skipped", f"spec fetch failed: {e}")
+            return _outcome(
+                "skipped",
+                f"spec fetch failed — the task store was unreachable or the task is missing; "
+                f"check the task-store backend and that the task exists. Detail: {e}",
+            )
 
     if _has_blocked_marker(spec):
         print("Spec contains BLOCKED marker, skipping")
@@ -181,11 +192,12 @@ def run_one(
         sandbox = make_sandbox(project_dir, kind=sandbox_kind)
     dx_ready, dx_status = sandbox.preflight()
     if not dx_ready:
-        print(
-            f"dx container not ready for {task.project} ({dx_status}). "
-            f"Skipping. Run `cd {project_dir} && gaol dx shell` to set it up."
-        )
-        return _outcome("skipped", f"dx container not ready ({dx_status})")
+        # The remedy travels in the reason itself — this string is what the loop's next attempt
+        # (and the escalation note) reads, not the console print.
+        remedy = f"provision it with `cd {project_dir} && gaol dx shell`, then re-dispatch"
+        reason = f"dx container not ready ({dx_status}) — {remedy}"
+        print(f"Skipping {task.project}: {reason}")
+        return _outcome("skipped", reason)
     print(f"  dx: {dx_status}")
 
     # 4. Verify clean working copy before starting
@@ -193,7 +205,11 @@ def run_one(
         existing_changes = get_changed_files(project_dir)
     except VCSError as e:
         print(f"VCS inspection failed: {e}")
-        return _outcome("skipped", f"VCS inspection failed: {e}")
+        return _outcome(
+            "skipped",
+            f"VCS inspection failed — could not read the working-copy state; the repo may be "
+            f"mid-operation or not a jj/git repo. Detail: {e}",
+        )
 
     if existing_changes:
         print(
@@ -274,7 +290,14 @@ def run_one(
                 notes=f"Autonomous worker failed:\n\n{_tail(stdout_tail, 500)}",
             )
             return _outcome(
-                "failed", f"opencode failed: {_tail(stdout_tail, 200)}", notes_written=nw
+                "failed",
+                _gate_failure(
+                    "opencode",
+                    "the model exited non-zero and left no usable change; the spec may be too "
+                    "large or unclear — split or clarify it, then re-dispatch",
+                    _tail(stdout_tail, 200),
+                ),
+                notes_written=nw,
             )
         print(
             f"OpenCode exited non-zero but left {len(leftover)} changed file(s) — "
@@ -288,7 +311,12 @@ def run_one(
         print(f"VCS inspection failed after execution: {e}")
         _safe_revert(project_dir, "post-exec-vcs-fail")
         nw = _safe_status(task.task, "Ready", notes=f"Worker VCS inspection failed: {e}")
-        return _outcome("failed", f"post-exec VCS inspection failed: {e}", notes_written=nw)
+        return _outcome(
+            "failed",
+            f"post-exec VCS inspection failed — could not read the diff after the model ran; the "
+            f"sandbox may have left the repo locked or dirty. Detail: {e}",
+            notes_written=nw,
+        )
 
     max_files = task.max_files if task.max_files is not None else settings.default_max_files
     if task.requires_tests and max_files < 3:
@@ -349,7 +377,12 @@ def run_one(
         )
         return _outcome(
             "failed",
-            f"static checks failed: {_tail(build_output, 200)}",
+            _gate_failure(
+                "static-checks",
+                "expected the build/static checks to pass; fix the errors below (the change "
+                "does not build)",
+                _tail(build_output, 200),
+            ),
             changed=changed,
             notes_written=nw,
         )
@@ -377,7 +410,12 @@ def run_one(
             )
             return _outcome(
                 "failed",
-                f"lint failed: {_tail(lint_output, 200)}",
+                _gate_failure(
+                    "lint",
+                    "expected lint to pass after autofix; fix the surviving violations below by "
+                    "hand",
+                    _tail(lint_output, 200),
+                ),
                 changed=changed,
                 notes_written=nw,
             )
@@ -404,7 +442,12 @@ def run_one(
             )
             return _outcome(
                 "failed",
-                f"tests failed: {_tail(test_output, 200)}",
+                _gate_failure(
+                    "tests",
+                    "expected the test suite to pass; fix the failing tests below or the code "
+                    "under test (do not weaken the tests)",
+                    _tail(test_output, 200),
+                ),
                 changed=changed,
                 notes_written=nw,
             )
@@ -426,7 +469,13 @@ def run_one(
         print(f"Commit failed: {e}. Reverting.")
         _safe_revert(project_dir, "commit-failed")
         nw = _safe_status(task.task, "Ready", notes=f"Worker commit failed: {e}")
-        return _outcome("failed", f"commit failed: {e}", changed=changed, notes_written=nw)
+        return _outcome(
+            "failed",
+            f"commit failed — the change could not be committed; the working copy may be locked "
+            f"or in a conflicted state. Detail: {e}",
+            changed=changed,
+            notes_written=nw,
+        )
 
     print(f"Committed: {commit_id}")
 

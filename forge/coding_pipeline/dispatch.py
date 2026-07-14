@@ -396,7 +396,10 @@ def _run_concurrent(
     except JJError as e:
         for ws in workspaces.values():
             forget_workspace(repo, ws)
-        raise DispatchError(f"workspace setup failed, nothing dispatched: {e}") from e
+        raise DispatchError(
+            f"workspace setup failed, nothing dispatched — could not create the per-leaf jj "
+            f"workspaces (disk full, or the base rev is unresolvable). Detail: {e}"
+        ) from e
 
     def _worker(item: tuple[str, TaskInfo | None, str | None]) -> LeafOutcome:
         title, task, spec = item
@@ -408,7 +411,15 @@ def _run_concurrent(
                 kwargs["spec"] = spec
             return _to_leaf_outcome(title, run_leaf(task, **kwargs))
         except Exception as e:  # noqa: BLE001 — a dead worker is one failed leaf, never the batch
-            return LeafOutcome(leaf=title, status="failed", reason=f"worker crashed: {e}")
+            return LeafOutcome(
+                leaf=title,
+                status="failed",
+                reason=(
+                    f"worker crashed — uncaught exception in the leaf run, usually an "
+                    f"infra/sandbox fault rather than the code; check the sandbox and retry. "
+                    f"Detail: {e}"
+                ),
+            )
 
     async def _fan_out() -> list[LeafOutcome]:
         async def one(item: tuple[str, TaskInfo | None, str | None]) -> LeafOutcome:

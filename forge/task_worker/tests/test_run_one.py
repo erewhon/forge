@@ -149,6 +149,25 @@ def test_dirty_working_copy_skips_before_in_progress(wired, monkeypatch):
     assert wired == []  # In Progress never written
 
 
+def test_dx_not_ready_carries_the_remedy_in_the_reason(wired, monkeypatch):
+    monkeypatch.setattr(
+        tw,
+        "make_sandbox",
+        lambda *a, **k: SimpleNamespace(preflight=lambda: (False, "not created")),
+    )
+    out = tw.run_one(_task())
+    assert out.status == "skipped"
+    # the fix travels in the reason the loop/escalation consumes, not just the console print
+    assert "gaol dx shell" in out.reason
+    assert "not created" in out.reason
+
+
+def test_gate_failure_reason_names_expectation_then_evidence():
+    msg = tw._gate_failure("tests", "expected the suite to pass", "3 failed")
+    assert msg.startswith("tests gate failed — expected the suite to pass.")
+    assert "Evidence:\n3 failed" in msg
+
+
 def test_blocked_marker_in_spec_skips(wired):
     out = tw.run_one(_task(), spec="> **Blocked:** deps not Done")
     assert out.status == "skipped"
@@ -279,7 +298,8 @@ def test_tests_fail_reverts_and_reopens(wired, monkeypatch):
     monkeypatch.setattr(tw, "run_tests", lambda p, sandbox=None, **kw: (False, "assertion boom"))
     out = tw.run_one(_task())
     assert out.status == "failed"
-    assert "tests failed" in out.reason
+    assert "tests gate failed" in out.reason  # names the failed expectation for the next attempt
+    assert "assertion boom" in out.reason  # ...and carries the evidence
     assert "commit" not in wired
     assert wired.index("revert") < wired.index(("status", "Ready"))
 
@@ -291,7 +311,8 @@ def test_opencode_failure_without_diff_reverts_and_reopens(wired, monkeypatch):
     monkeypatch.setattr(tw, "get_changed_files", lambda p: [])  # nothing left behind
     out = tw.run_one(_task())
     assert out.status == "failed"
-    assert "opencode failed" in out.reason
+    assert "opencode gate failed" in out.reason
+    assert "model exploded" in out.reason
     assert wired.index("revert") < wired.index(("status", "Ready"))
 
 
@@ -464,7 +485,7 @@ def test_lint_failure_reverts_before_tests(wired, monkeypatch):
     )
     out = tw.run_one(_task())
     assert out.status == "failed"
-    assert out.reason.startswith("lint failed:")
+    assert out.reason.startswith("lint gate failed —")
     assert tests_ran == []  # lint gates BEFORE tests: one test run per leaf, final state only
     assert "revert" in events  # reverted like any other gate failure
     assert ("status", "Ready") in events
@@ -497,7 +518,8 @@ def test_linter_crash_fails_closed(wired, monkeypatch):
     monkeypatch.setattr(tw, "run_lint", boom)
     out = tw.run_one(_task())
     assert out.status == "failed"
-    assert "lint failed" in out.reason
+    assert "lint gate failed" in out.reason
+    assert "uvx exploded" in out.reason  # the crash detail survives into the actionable reason
 
 
 def test_requires_tests_floors_max_files_at_three(wired):

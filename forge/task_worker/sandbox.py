@@ -121,7 +121,10 @@ class GaolRunOnceSandbox:
                 timeout=15,
             )
         except (subprocess.TimeoutExpired, OSError) as e:
-            return False, f"gaol run-once probe failed: {e}"
+            return False, (
+                f"gaol run-once probe failed — the gaol binary is unresponsive or broken; "
+                f"check the gaol install and daemon. Detail: {e}"
+            )
         if probe.returncode != 0:
             return False, f"gaol run-once probe exited {probe.returncode}"
         return True, "gaol run-once (ephemeral per command)"

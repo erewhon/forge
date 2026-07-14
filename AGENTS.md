@@ -17,6 +17,10 @@ READMEs cover each agent.
   for the pattern. `TASK_STORE_BACKEND=github` must always work without nous installed.
 - Pure signal/parse helpers stay separate from network fetchers, and fetchers are injectable
   for tests (see `forge/dependabot/supply_chain.py`).
+- Write errors for the next attempt, not the stack-trace reader: any error on a path a loop
+  retries (worker outcomes, task-store writes, dispatch preflight, executor failures) must state
+  the failed expectation and the likely remedy, then the evidence — never a bare status or
+  exception. See `docs/error-surface-audit.md`.
 
 ## Boundaries for autonomous workers
 

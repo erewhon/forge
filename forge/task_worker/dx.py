@@ -30,7 +30,10 @@ def check_dx_ready(project_dir: Path) -> tuple[bool, str]:
             cwd=project_dir,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-        return False, f"gaol dx info failed: {e}"
+        return False, (
+            f"gaol dx info failed — the gaol daemon is unreachable or not installed; "
+            f"ensure gaol is running and on PATH. Detail: {e}"
+        )
 
     if result.returncode != 0:
         return False, f"gaol dx info exit {result.returncode}: {result.stderr.strip()}"
