@@ -138,7 +138,64 @@ def test_missing_project_dir_skips(wired, monkeypatch, tmp_path):
     monkeypatch.setattr(tw.settings, "projects_dir", tmp_path / "nowhere")
     out = tw.run_one(_task())
     assert out.status == "skipped"
-    assert "project dir not found" in out.reason
+    assert "could not locate a checkout" in out.reason
+
+
+# --- project-dir resolution (cwd-first) ---------------------------------------
+
+
+def test_project_key_normalizes_case_and_separators():
+    assert tw._project_key("Meta") == tw._project_key("meta")
+    assert tw._project_key("soft-serve-with-sprinkles") == tw._project_key(
+        "soft_serve_with_sprinkles"
+    )
+
+
+def test_find_repo_root_walks_up(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    deep = repo / "src" / "pkg"
+    deep.mkdir(parents=True)
+    assert tw._find_repo_root(deep) == repo
+
+    bare = tmp_path / "no-vcs" / "here"
+    bare.mkdir(parents=True)
+    assert tw._find_repo_root(bare) is None
+
+
+def test_resolve_prefers_cwd_when_name_matches(monkeypatch, tmp_path):
+    repo = tmp_path / "Meta"
+    repo.mkdir()
+    monkeypatch.setattr(tw, "_find_repo_root", lambda start: repo)
+    monkeypatch.setattr(tw.settings, "projects_dir", tmp_path / "nowhere")
+    assert tw._resolve_project_dir(_task()) == repo
+
+
+def test_resolve_matches_cwd_case_insensitively(monkeypatch, tmp_path):
+    repo = tmp_path / "meta"  # lowercase dir vs Title-case project
+    repo.mkdir()
+    monkeypatch.setattr(tw, "_find_repo_root", lambda start: repo)
+    monkeypatch.setattr(tw.settings, "projects_dir", tmp_path / "nowhere")
+    assert tw._resolve_project_dir(_task()) == repo
+
+
+def test_resolve_falls_back_to_base_when_cwd_is_other_repo(monkeypatch, tmp_path):
+    other = tmp_path / "some-other-repo"
+    other.mkdir()
+    base = tmp_path / "base"
+    (base / "Meta").mkdir(parents=True)
+    monkeypatch.setattr(tw, "_find_repo_root", lambda start: other)
+    monkeypatch.setattr(tw.settings, "projects_dir", base)
+    # cwd is a repo but not this project's — must NOT commit there; use the base checkout.
+    assert tw._resolve_project_dir(_task()) == base / "Meta"
+
+
+def test_resolve_returns_none_when_cwd_mismatch_and_no_base(monkeypatch, tmp_path):
+    other = tmp_path / "some-other-repo"
+    other.mkdir()
+    monkeypatch.setattr(tw, "_find_repo_root", lambda start: other)
+    monkeypatch.setattr(tw.settings, "projects_dir", tmp_path / "nowhere")
+    assert tw._resolve_project_dir(_task()) is None
 
 
 def test_dirty_working_copy_skips_before_in_progress(wired, monkeypatch):

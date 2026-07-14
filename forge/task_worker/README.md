@@ -101,7 +101,11 @@ forge/task_worker/run.sh --project example
 Environment variables (all prefixed `TASK_WORKER_`; a gitignored `.env` at the repo
 root is also read when running from the repo):
 
-- `PROJECTS_DIR` — default `~/projects`
+- `PROJECTS_DIR` — fallback base dir for locating a project's checkout, default
+  `~/projects`. Resolution is **current-directory first**: run `forge task` from inside
+  the repo (or a subdirectory) and the worker uses that checkout when its name matches the
+  task's project, so no base dir needs configuring. `PROJECTS_DIR/<project>` is only the
+  fallback for running from outside the checkout. `--repo PATH` overrides both.
 - `NOTEBOOK_NAME` — default `Forge`
 - `DATABASE_NAME` — default `Project Tasks`
 - `DAEMON_URL` — default `http://127.0.0.1:7667`

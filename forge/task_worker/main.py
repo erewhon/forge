@@ -98,6 +98,63 @@ def _safe_status(task_name: str, status: str, notes: str = "") -> bool:
         return False
 
 
+def _project_key(name: str) -> str:
+    """Normalize a project or directory name for loose matching.
+
+    Case- and separator-insensitive so "Meta"/"meta" and
+    "soft-serve-with-sprinkles"/"soft_serve_with_sprinkles" compare equal.
+    """
+    return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+def _find_repo_root(start: Path) -> Path | None:
+    """Walk up from ``start`` to the nearest ancestor that is a VCS checkout.
+
+    ``detect_vcs`` only inspects the exact directory, so this makes the cwd-based
+    resolver work when the worker is invoked from a subdirectory of the repo.
+    """
+    for candidate in (start, *start.parents):
+        if detect_vcs(candidate):
+            return candidate
+    return None
+
+
+def _resolve_project_dir(task: TaskInfo) -> Path | None:
+    """Locate the checkout for ``task``'s project, current-directory first.
+
+    Resolution order — cwd-first so the worker is portable across machines with no
+    configured base path (the common path is ``cd <repo> && forge task``):
+
+      1. The repo containing the current directory, when its name matches the task's
+         project. Zero configuration; works wherever the user cloned the repo.
+      2. ``settings.projects_dir / project`` (Title-case, then lowercased) — the legacy
+         convention, kept as a fallback for running from outside the checkout.
+
+    Returns None (after printing guidance) when neither resolves. The name-match guard
+    exists because this worker commits and marks tasks Done: it must never run a task
+    against a repo that isn't that task's project. ``--repo PATH`` bypasses the guard
+    for the deliberate case.
+    """
+    root = _find_repo_root(Path.cwd())
+    if root is not None and _project_key(root.name) == _project_key(task.project):
+        return root
+
+    base = settings.projects_dir / task.project
+    if not base.is_dir():
+        lowered = settings.projects_dir / task.project.lower()
+        if lowered.is_dir():
+            base = lowered
+    if base.is_dir():
+        return base
+
+    where = f" (cwd is repo '{root.name}')" if root is not None else ""
+    print(
+        f"Could not locate a checkout for project '{task.project}'{where}. "
+        f"cd into the repo and re-run, pass --repo PATH, or set TASK_WORKER_PROJECTS_DIR."
+    )
+    return None
+
+
 def run_one(
     task: TaskInfo,
     *,
@@ -167,15 +224,9 @@ def run_one(
             print(f"Repo override not found: {project_dir}")
             return _outcome("skipped", f"repo override not found: {project_dir}")
     else:
-        # Forge project names are Title Case ("Meta"); checkouts are conventionally lowercase.
-        project_dir = settings.projects_dir / task.project
-        if not project_dir.is_dir():
-            lowered = settings.projects_dir / task.project.lower()
-            if lowered.is_dir():
-                project_dir = lowered
-        if not project_dir.is_dir():
-            print(f"Project dir not found: {project_dir}")
-            return _outcome("skipped", f"project dir not found: {project_dir}")
+        project_dir = _resolve_project_dir(task)
+        if project_dir is None:
+            return _outcome("skipped", f"could not locate a checkout for project '{task.project}'")
 
     vcs = detect_vcs(project_dir)
     if not vcs:
@@ -494,7 +545,7 @@ def run_one(
     return _outcome("done", commit_id=commit_id, changed=changed, notes_written=nw)
 
 
-def run(*, project_filter: str | None = None) -> None:
+def run(*, project_filter: str | None = None, repo: Path | None = None) -> None:
     """Pick and execute one task (MVP). Future: loop mode."""
     print(f"Task Worker starting (dry_run={settings.dry_run})")
 
@@ -518,7 +569,7 @@ def run(*, project_filter: str | None = None) -> None:
         f"  priority={task.priority} mode={task.execution_mode} "
         f"tier={task.model_tier or settings.model_tier_default}"
     )
-    run_one(task)
+    run_one(task, repo=repo)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -530,6 +581,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Only pick tasks from this project",
     )
     parser.add_argument(
+        "--repo",
+        type=Path,
+        default=None,
+        help="Run the task against this checkout, bypassing cwd/base-dir resolution",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Run OpenCode but don't commit or update Nous",
@@ -537,7 +594,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.dry_run:
         settings.dry_run = True
-    run(project_filter=args.project)
+    run(project_filter=args.project, repo=args.repo)
     return 0
 
 
