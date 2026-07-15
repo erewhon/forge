@@ -42,6 +42,12 @@ for _cmd in REGISTRY:
 
 def main() -> None:
     """Console-script entry point (``[project.scripts] forge``)."""
+    # Layer ~/.config/forge/config.toml into the environment before any agent (and thus its
+    # settings) is imported by a verb, so machine-level defaults are in place while the real
+    # environment and repo .env still win.
+    from forge.shared.user_config import apply_user_config
+
+    apply_user_config()
     app()
 
 

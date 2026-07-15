@@ -1,0 +1,24 @@
+# Example forge user config — copy to ~/.config/forge/config.toml and edit.
+#
+# This file holds machine-level defaults that sit *beneath* the real environment and any repo
+# `.env`, so real env vars and project `.env` values always win. Forge reads it at startup (the
+# `forge` CLI and `forge-mcp` server) and translates it into the environment variables its agents
+# already understand.
+#
+# Location is resolved as: $FORGE_CONFIG_DIR  ->  $XDG_CONFIG_HOME/forge  ->  ~/.config/forge
+# You can also drop a plain ~/.config/forge/.env alongside this file for raw PREFIX_FIELD defaults.
+
+# OpenAI-compatible LLM router base URL. Applied to every agent's router endpoint.
+router_url = "http://router.example:4000/v1"
+
+# The NAME of the environment variable that holds the router API key — never the key itself.
+# Export it from your shell, a secrets manager, or `ho secret`, e.g.
+#     export FORGE_ROUTER_API_KEY="$(ho secret get llm-router-key)"
+api_key_env = "FORGE_ROUTER_API_KEY"
+
+# Per-agent overrides, verbatim. Model selection lives here because agents deliberately run
+# different tiers — there is no single "the model". Any PREFIX_FIELD variable is accepted.
+[env]
+CODE_REVIEWER_MODEL            = "glm"
+PR_REVIEW_ENSEMBLE_LOCAL_MODEL = "coder"
+GENERAL_RESEARCHER_MODEL       = "research"

@@ -139,6 +139,11 @@ def book(config_path: str, max_sprints: int | None = None, dry_run: bool = False
 
 def main() -> None:
     """Console-script entry point (``[project.scripts] forge-mcp``)."""
+    # Layer ~/.config/forge/config.toml into the environment before any agent tool is invoked
+    # (agents and their settings are imported lazily inside the tool bodies).
+    from forge.shared.user_config import apply_user_config
+
+    apply_user_config()
     mcp.run(transport="stdio")
 
 
