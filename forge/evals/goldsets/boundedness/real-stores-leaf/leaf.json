@@ -1,0 +1,18 @@
+{
+  "title": "GalleryappGraphlibStore SubscriptionStore and NotificationStore implementations",
+  "content": "**Repo:** ~/projects/galleryapp. **Why:** the slice's fan-out half \u2014\nsubscriptions match publish events to followers and notifications persist\nfor the in-app feed. Follows the exact bridging pattern established by the\nGraphStore leaf (spawn_blocking over `DbPool`, errors to\n`GraphlibError::StorageError`); this is mechanical extension, not new design.\n\n## What\n\nExtend `src-tauri/src/daemon/graphlib_store.rs`:\n\n- `#[async_trait] impl graphlib::storage::SubscriptionStore for GalleryappGraphlibStore`:\n  `subscribe` (generate a `sub_<uuid>` id; serialize\n  `SubscriptionFilter` to `filter_json`), `unsubscribe`,\n  `subscriptions_for`, `subscribers_of`. Crib SQL + serialization from\n  `graphlib/src/sqlite.rs`.\n- `#[async_trait] impl graphlib::storage::NotificationStore for GalleryappGraphlibStore`:\n  `store_notification`, `notifications_for` (unread_only filter, newest\n  first), `mark_read`, `mark_all_read`, `unread_count`,\n  `delete_notification`.\n- Keep default paginated variants.\n\n## Tests (`#[cfg(test)]`, `#[tokio::test]`, against `db::test_pool()`)\n\n- subscribe \u2192 subscriptions_for/subscribers_of round-trip; unsubscribe\n  removes; filter_json survives round-trip with event_kinds +\n  metadata_match set.\n- store \u2192 notifications_for(unread_only) ordering; mark_read /\n  mark_all_read flip read state; unread_count tracks; delete removes;\n  notifications_for_page sanity.\n\n## Acceptance\n\n- `graphlib::subscribe::SubscriptionEngine` constructed over GalleryappGraphlibStore\n  (store + `.with_notification_store(..)` + `.with_graph_store(..)`)\n  delivers a NewContent event to a subscriber in one test \u2014 including the\n  block-suppression path (blocked source produces no notification).\n- `cargo test` + `cargo clippy -- -D warnings` green in `src-tauri/`.\n\n## Files\n\n`src-tauri/src/daemon/graphlib_store.rs` (extend), tests in-file.\n",
+  "feature": "Social features on Graphlib",
+  "depends_on": [
+    "GalleryappGraphlibStore GraphStore implementation over the daemon pool"
+  ],
+  "priority": 2,
+  "phase": "Feature",
+  "status": "Ready",
+  "execution_mode": "Auto-OK",
+  "complexity": "routine",
+  "estimate": "m",
+  "task_type": "feature",
+  "requires_tests": true,
+  "max_files": 4,
+  "model_tier": "coder"
+}

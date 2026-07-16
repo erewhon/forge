@@ -1,0 +1,482 @@
+{
+  "leaves": [
+    {
+      "title": "Evals: package scaffold with config and result models",
+      "content": "**What/why.** Create the `agents/evals/` package skeleton: settings and the typed result models every other eval leaf builds on. This is the eval harness that scores local models against frozen gold sets (see `architect-brief.md` and `pipeline-runs/distill-evals/framing.md`).\n\n**Files.** `agents/evals/__init__.py` (empty), `agents/evals/config.py`, `agents/evals/models.py`, `agents/evals/tests/__init__.py`, `agents/evals/tests/test_models.py`.\n\n**config.py** \u2014 `EvalsSettings(BaseSettings)` with `env_prefix=\"EVALS_\"`, mirroring `agents/coding_pipeline/config.py` style: `goldsets_dir: Path` (default `<repo>/agents/evals/goldsets`), `runs_dir: Path` (default `<repo>/eval-runs`), `openai_base_url: str = \"http://llm-router.internal:4010/v1\"`, `openai_api_key: str = \"sk-REDACTED\"`, `model: str = \"coder\"`, `repeats: int = 3`, `temperature: float = 0.0`, `timeout: float = 240.0`, `max_tokens: int = 16_000`. Module-level `settings` instance.\n\n**models.py** \u2014 Pydantic models:\n- `GoldCase`: `step: Literal[\"replan\" | \"decompose\" | \"boundedness\" | \"review-findings\" | \"review-confirm\" | \"testgap-find\" | \"testgap-skeptic\"]`, `case_id: str` (lowercase slug, validated), `case_dir: Path`, `schema_version: int`, `holdout: bool = False`, `inputs: dict[str, str]` (logical name -> filename inside case_dir), `expected: dict`, `notes: str = \"\"`.\n- `GradeCheck`: `name: str`, `passed: bool`, `detail: str = \"\"`.\n- `GradeResult`: `case_id`, `step`, `passed: bool`, `score: float` (0..1), `checks: list[GradeCheck]`, `error: str | None = None` (transport/parse-level failure).\n- `CaseScore`: `case_id`, `holdout: bool`, `repeats: list[GradeResult]`, plus computed properties `passed_majority: bool` (strict majority of non-error repeats) and `mean_score: float`.\n- `StepScore`: `step`, `cases: list[CaseScore]`, properties `pass_rate`, `holdout_pass_rate` (None-safe when no holdout cases), `error_repeats: int`.\n- `Scorecard`: `model: str`, `timestamp: str`, `steps: list[StepScore]`, `notes: str = \"\"`, property `overall_pass_rate`.\n\n**Acceptance criteria.**\n- All models construct, validate, and JSON round-trip; `case_id` rejects non-slug values.\n- `CaseScore.passed_majority` and the rate properties are unit-tested including the zero-cases / all-error edge cases (no ZeroDivisionError).\n- `uv run pytest agents/evals` green; ruff clean (100-char lines).\n",
+      "feature": "Eval Harness",
+      "depends_on": [],
+      "priority": 2,
+      "phase": "Infrastructure",
+      "status": "Ready",
+      "execution_mode": "Auto-OK",
+      "complexity": "routine",
+      "estimate": "s",
+      "task_type": "feature",
+      "requires_tests": true,
+      "max_files": 5,
+      "model_tier": "coder",
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "in-session architect judgment (Fable) fills the boundedness seat"
+      }
+    },
+    {
+      "title": "Evals: gold case loader with schema version pinning",
+      "content": "**What/why.** The fixture loader: gold cases are directories checked into the repo; the loader turns them into validated `GoldCase` objects and fails loudly on any drift \u2014 a gold set that silently stops loading is a dead regression harness.\n\n**Files.** `agents/evals/fixtures.py`, `agents/evals/tests/test_fixtures.py`.\n\n**Layout contract.** `goldsets/<step>/<case-id>/case.yaml` plus input files in the same directory. `case.yaml` fields: `schema_version: int`, `step: str` (must equal its parent dir name), `holdout: bool` (default false), `inputs: {logical_name: filename}`, `expected: {...}` (step-specific, opaque here), `notes: str`.\n\n**fixtures.py.**\n- `SUPPORTED_SCHEMA_VERSION = 1`.\n- `class EvalFixtureError(RuntimeError)` \u2014 every raise names the offending case dir.\n- `load_goldsets(root: Path, step: str | None = None) -> list[GoldCase]`: walk `root/<step>/<case-id>/`, parse `case.yaml`, validate: known step key, step field matches dir, `schema_version == SUPPORTED_SCHEMA_VERSION`, every `inputs` filename exists in the case dir. Returns cases sorted by (step, case_id) for deterministic runs.\n- `read_input(case: GoldCase, name: str) -> str` \u2014 resolve + read a logical input.\n\n**Acceptance criteria.**\n- tmp_path-built fixtures load correctly; ordering is deterministic.\n- Distinct tests for: unknown step dir, missing case.yaml, step/dir mismatch, wrong schema_version, missing input file \u2014 each raises EvalFixtureError naming the case.\n- `uv run pytest agents/evals` green; ruff clean.\n",
+      "feature": "Eval Harness",
+      "depends_on": [
+        "Evals: package scaffold with config and result models"
+      ],
+      "priority": 2,
+      "phase": "Infrastructure",
+      "status": "Ready",
+      "execution_mode": "Auto-OK",
+      "complexity": "routine",
+      "estimate": "s",
+      "task_type": "feature",
+      "requires_tests": true,
+      "max_files": 4,
+      "model_tier": "coder",
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "in-session architect judgment (Fable) fills the boundedness seat"
+      }
+    },
+    {
+      "title": "Evals: step adapters rendering production prompts",
+      "content": "**What/why.** The harness must measure PRODUCTION reality: every scored call renders the exact system/user messages the agents send, built by the agents' own prompt code \u2014 never a copy that can drift. One adapter per graded prompt surface, keyed by step.\n\n**Files.** `agents/evals/steps.py`, `agents/evals/tests/test_steps.py` (small wire models may go in `agents/evals/models.py` if cleaner).\n\n**Interface.** `@dataclass PromptSpec: system: str; user: str; schema: type[BaseModel]`. `@dataclass StepAdapter: step: str; build: Callable[[GoldCase], PromptSpec]`. Module-level `ADAPTERS: dict[str, StepAdapter]` with exactly these keys:\n- `replan` \u2014 inputs `framing.json`, `tree.json`, `report.json`, `attempts.json`. Parse into `FramingProposal` / `TaskTree` / `WaveReport` / `dict[str, int]`; compute `escalated` via `agents.coding_pipeline.architect.deterministic_escalations`; system = `REPLAN_SYSTEM`; user via `architect._replan_user(...)`; schema = `architect.ReplanEnvelope`.\n- `decompose` \u2014 inputs `framing.json`, `inventory.json`; system = `DECOMPOSE_SYSTEM`; user via `architect._decompose_user`; schema = `TaskTree`.\n- `boundedness` \u2014 input `leaf.json` (one LeafSpec); system = `BOUNDEDNESS_SYSTEM`; user via `architect._leaf_summary`; schema = `architect.LeafBoundedness`.\n- `review-findings` \u2014 input `diff.patch`; system = `coding_pipeline.verify.FINDINGS_SYSTEM`; user = the same `f\"Wave diff:\\n\\n{diff}\"` shape `collect_findings` sends; schema = `verify.FindingsEnvelope`.\n- `review-confirm` \u2014 inputs `diff.patch`, `candidate.json` (summary/file/severity); system = `verify.CONFIRM_SYSTEM`; user mirrors the `make_user` lambda in `verify.confirm_findings`; schema: `ConfirmVerdict(BaseModel)` = `{real: bool, reason: str}` (new wire model matching the prompt's declared JSON shape).\n- `testgap-find` \u2014 inputs `context.md` (source + existing tests), `angle` key in `case.yaml` expected/inputs; system via `testing_ensemble.prompts.finder_system` with the matching entry from `FINDER_ANGLES`; user = context; schema: `GapsEnvelope` matching `_GAP_SHAPE` (`gaps: list[{target, gap_type, why_it_matters, suggested_test, severity}]`).\n- `testgap-skeptic` \u2014 inputs `context.md`, `gap.json`; system = `prompts.SKEPTIC_BASE`; user via `prompts.verify_user`; schema: `SkepticVerdict` = `{real: bool, confidence: str, severity: str, reasoning: str}`.\n\nImporting private helpers (`_replan_user`, `_decompose_user`, `_leaf_summary`) is the POINT \u2014 same repo, and it guarantees the eval renders what production renders. Do not duplicate their logic. Agent modules must not import `agents.evals` (dependency points evals -> agents only).\n\n**Acceptance criteria.**\n- For fixed inputs, each adapter's user string is byte-equal to the production builder's output (tests call both) and `system` is identity-equal (`is`) to the production constant.\n- Unknown step key raises KeyError/ValueError with the step name.\n- New wire models validate the exact JSON shapes the prompts declare.\n- `uv run pytest agents/evals` green; ruff clean.\n",
+      "feature": "Eval Harness",
+      "depends_on": [
+        "Evals: package scaffold with config and result models"
+      ],
+      "priority": 2,
+      "phase": "Infrastructure",
+      "status": "Ready",
+      "execution_mode": "Auto-OK",
+      "complexity": "routine",
+      "estimate": "m",
+      "task_type": "feature",
+      "requires_tests": true,
+      "max_files": 5,
+      "model_tier": "coder",
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "in-session architect judgment (Fable) fills the boundedness seat"
+      }
+    },
+    {
+      "title": "Evals: replan action grader",
+      "content": "**What/why.** Deterministic grader for the `replan` step. Judges the model's RAW output \u2014 validity is part of the grade (the 3a6360cb incident: every coder replan was discarded as schema-invalid), so the grader never benefits from retry laundering.\n\n**Files.** `agents/evals/graders/__init__.py`, `agents/evals/graders/replan.py`, `agents/evals/tests/test_grader_replan.py`.\n\n**Contract.** `grade(case: GoldCase, raw: str) -> GradeResult`. Parse via `agents.shared.llm.extract_json` + `ReplanEnvelope.model_validate` (mirror `panel._parse_model` semantics). Unparseable/invalid -> `passed=False`, `score=0.0`, check `valid-envelope` failed, remaining checks skipped.\n\n**Expected block** (`case.yaml` `expected:`): `must: [{kind, finding_slug?, leaf_title?, feature?}]` (an action matches on kind + every given target field), `forbid_kinds: [str]`, `forbid_targets: [str]` (leaf titles the model must not touch \u2014 the escalated list), `allow_extra: bool = false`, `require_empty: bool = false`.\n\n**Checks** (each a named GradeCheck):\n1. `valid-envelope` \u2014 parses + schema-validates.\n2. `must-actions` \u2014 every `must` entry matched by exactly >=1 action.\n3. `no-forbidden` \u2014 no action has a forbidden kind or targets (leaf_title / revised.title / leaf.title) a forbidden target.\n4. `fixup-confirmed-only` \u2014 every fixup's `finding_slug` is a CONFIRMED finding slug in the case's `report.json` (read via the case inputs).\n5. `no-extras` \u2014 when `allow_extra` false: no unmatched actions (skip-pass when true). When `require_empty`: actions list must be empty.\n6. `leaf-floors` \u2014 every new/revised LeafSpec: estimate in {xs,s,m}; non-Manual leaves have `requires_tests=true`; content is non-trivial (>= 200 chars).\n\n`score` = passed checks / total applicable; `passed` = all applicable checks pass.\n\n**Acceptance criteria.**\n- Unit tests cover: valid fixup-only answer passes; invalid JSON fails check 1 only; touching a forbidden target fails 3; fixup for unconfirmed slug fails 4; extra action fails 5 unless allow_extra; require_empty with clean wave; leaf floor violations fail 6.\n- `uv run pytest agents/evals` green; ruff clean.\n",
+      "feature": "Eval Harness",
+      "depends_on": [
+        "Evals: package scaffold with config and result models"
+      ],
+      "priority": 2,
+      "phase": "Infrastructure",
+      "status": "Ready",
+      "execution_mode": "Auto-OK",
+      "complexity": "routine",
+      "estimate": "s",
+      "task_type": "feature",
+      "requires_tests": true,
+      "max_files": 4,
+      "model_tier": "coder",
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "in-session architect judgment (Fable) fills the boundedness seat"
+      }
+    },
+    {
+      "title": "Evals: decomposition and boundedness grader",
+      "content": "**What/why.** Grader for the `decompose` and `boundedness` steps. Decompositions can differ legitimately, so grading is structure + a frozen per-case rubric checklist (authored by Fable, applied deterministically) \u2014 never exact-tree match, never a live judge. Umbrella-leaf detection is the heart: the #1 local-tier failure.\n\n**Files.** `agents/evals/graders/decomposition.py`, `agents/evals/tests/test_grader_decomposition.py`.\n\n**Contract.** `grade_decompose(case, raw) -> GradeResult` and `grade_boundedness(case, raw) -> GradeResult` (dispatched by step key).\n\n**Decompose structural checks** (always applied):\n1. `valid-tree` \u2014 extract_json + `TaskTree.model_validate`, >=1 leaf.\n2. `deps-resolve` \u2014 reuse `architect._validate_deps` (unknown titles / cycles fail).\n3. `files-named` \u2014 every leaf's content contains >=1 path-like token (regex `[A-Za-z0-9_./-]+\\.[a-z0-9]{1,5}` or a `Files` section) unless the leaf is `complexity=\"novel\"` + Manual.\n4. `estimates-bounded` \u2014 every leaf estimate in {xs,s,m} OR novel+Manual.\n5. `auto-floors` \u2014 every non-Manual leaf: `requires_tests=true` and (`max_files` null or >= 3).\n\n**Rubric DSL** (from `expected.rubric: [...]`; each item one GradeCheck named by its `id`):\n`{id, kind, ...}` with kinds: `require_leaf {title_pattern?, content_pattern?}` (>=1 leaf matches all given regexes); `forbid_leaf {title_pattern?, content_pattern?}`; `max_leaves {n}` / `min_leaves {n}`; `require_dep {from_pattern, to_pattern}` (some matching edge exists); `require_manual {title_pattern}` (all matching leaves Manual). Unknown kind -> EvalFixtureError (fail loudly, not silently green).\n\n**Boundedness check:** parse `LeafBoundedness`; compare `worker_shaped` to `expected.worker_shaped` (bool); when `expected.criteria` present, also compare each named criterion field. Score = fraction correct; passed = overall verdict correct.\n\n**Acceptance criteria.**\n- Tests: valid tree passing all structural checks; cycle fails 2; pathless content fails 3; xl estimate fails 4; Auto leaf with max_files=1 fails 5; each rubric kind has a pass and a fail test; unknown rubric kind raises; boundedness right/wrong verdicts scored.\n- `uv run pytest agents/evals` green; ruff clean.\n",
+      "feature": "Eval Harness",
+      "depends_on": [
+        "Evals: package scaffold with config and result models"
+      ],
+      "priority": 3,
+      "phase": "Infrastructure",
+      "status": "Ready",
+      "execution_mode": "Auto-OK",
+      "complexity": "routine",
+      "estimate": "m",
+      "task_type": "feature",
+      "requires_tests": true,
+      "max_files": 4,
+      "model_tier": "coder",
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "in-session architect judgment (Fable) fills the boundedness seat"
+      }
+    },
+    {
+      "title": "Evals: review findings grader",
+      "content": "**What/why.** Grader for `review-findings` (precision/recall vs a frozen reference finding set over a known-buggy diff) and `review-confirm` (skeptic-vote accuracy on labeled real/decoy candidates). This is the generate-and-compare flagship: real bugs caught, no false alarms.\n\n**Files.** `agents/evals/graders/review.py`, `agents/evals/tests/test_grader_review.py`.\n\n**review-findings.** Parse `FindingsEnvelope` from raw (invalid -> score 0). `expected.must_find: [{id, file_pattern?, keywords_any: [str]?, keywords_all: [str]?}]` \u2014 a candidate finding matches a reference iff its `file` matches `file_pattern` (regex, skipped when absent; candidate file may be null only if pattern absent) AND case-insensitive keyword rules hold against `summary`. One candidate may satisfy only one reference (greedy best match). Metrics: `recall` = matched refs / refs; `precision` = matched candidates / candidates (empty candidate list with empty must_find = precision 1); `score` = F1. Thresholds from expected: `recall_min` (default 0.7), `precision_min` (default 0.5); `passed` = both met. Also check `max-findings` (prompt cap: <= 5) and severity values legal.\n\n**review-confirm.** Parse `ConfirmVerdict`; compare `real` to `expected.real` (bool). Score 1/0; `passed` = correct. The decoy cases (expected.real=false: style nits, pre-existing issues) are where the local tier cries wolf \u2014 that is the judgment frozen here.\n\n**Acceptance criteria.**\n- Tests: perfect match; paraphrase matched via keywords; miss drops recall below floor; hallucinated finding drops precision; greedy matching never double-counts; empty/empty edge; confirm right + wrong on both labels.\n- `uv run pytest agents/evals` green; ruff clean.\n",
+      "feature": "Eval Harness",
+      "depends_on": [
+        "Evals: package scaffold with config and result models"
+      ],
+      "priority": 3,
+      "phase": "Infrastructure",
+      "status": "Ready",
+      "execution_mode": "Auto-OK",
+      "complexity": "routine",
+      "estimate": "s",
+      "task_type": "feature",
+      "requires_tests": true,
+      "max_files": 4,
+      "model_tier": "coder",
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "in-session architect judgment (Fable) fills the boundedness seat"
+      }
+    },
+    {
+      "title": "Evals: test gap severity grader",
+      "content": "**What/why.** Grader for `testgap-find` (is the gap list sane \u2014 finds the real holes, does not cry wolf on trivia) and `testgap-skeptic` (labeled real/already-covered verdicts). Severity ORDERING matters as much as detection: a ranker that calls trivia critical drowns the real hole.\n\n**Files.** `agents/evals/graders/testgap.py`, `agents/evals/tests/test_grader_testgap.py`.\n\n**testgap-find.** Parse `GapsEnvelope` (invalid -> 0). Reference lists in expected: `must_find` (match rules identical in shape to the review grader: id + target_pattern / keywords) and `nice_to_find` (matches count for neither recall nor cry-wolf). Checks:\n1. `recall` \u2014 matched must_find / must_find >= `recall_min` (default 0.7).\n2. `cry-wolf` \u2014 candidates with severity high|critical matching NOTHING (neither list) must number <= `cry_wolf_max` (default 1).\n3. `severity-order` \u2014 over matched must_find pairs, pairwise agreement between model severity ranks (critical>high>medium>low) and the reference ranks: concordant / (concordant + discordant), ties skipped, >= `order_min` (default 0.6; check skip-passes with < 2 comparable pairs).\nScore = mean of the three check scores (each as its ratio, capped at 1).\n\n**testgap-skeptic.** Parse `SkepticVerdict`; compare `real` to `expected.real`. The load-bearing decoys are gaps ALREADY covered by the existing tests (coverage-truth lens).\n\n**Acceptance criteria.**\n- Tests: full-recall case; missed hole fails 1; critical-severity trivia fails 2; inverted ordering fails 3; <2 pairs skip-passes 3; skeptic both labels; invalid JSON scores 0.\n- No new dependencies (implement pairwise agreement locally; no scipy).\n- `uv run pytest agents/evals` green; ruff clean.\n",
+      "feature": "Eval Harness",
+      "depends_on": [
+        "Evals: package scaffold with config and result models"
+      ],
+      "priority": 3,
+      "phase": "Infrastructure",
+      "status": "Ready",
+      "execution_mode": "Auto-OK",
+      "complexity": "routine",
+      "estimate": "m",
+      "task_type": "feature",
+      "requires_tests": true,
+      "max_files": 4,
+      "model_tier": "coder",
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "in-session architect judgment (Fable) fills the boundedness seat"
+      }
+    },
+    {
+      "title": "Ensemble: optional temperature on Prompt through ApiExecutor",
+      "content": "**What/why.** The eval runner needs pinned sampling (temperature 0) or pass-rates are noise, but `Prompt` (`agents/shared/ensemble/models.py`) has no temperature field and `ApiExecutor._call` (`agents/shared/ensemble/executor.py`) never passes one. Additive, default-off knob; Manual because agents/shared/ensemble sits under every agent.\n\n**Files.** `agents/shared/ensemble/models.py`, `agents/shared/ensemble/executor.py`, plus matching tests under `agents/shared/ensemble/tests/`.\n\n**Change.** `Prompt.temperature: float | None = None`. In `ApiExecutor._call`, include `temperature=prompt.temperature` in the anthropic `messages.create` and openai `chat.completions.create` kwargs ONLY when not None \u2014 when None the request kwargs are byte-identical to today (no `temperature` key at all).\n\n**Acceptance criteria.**\n- Default None -> request kwargs contain no temperature key (assert via mock/captured kwargs for both kinds); set -> passed through verbatim.\n- Existing Prompt constructions all still validate (field has a default).\n- Full `uv run pytest` green (whole repo \u2014 shared code); ruff clean.\n",
+      "feature": "Eval Harness",
+      "depends_on": [],
+      "priority": 2,
+      "phase": "Infrastructure",
+      "status": "Ready",
+      "execution_mode": "Manual",
+      "complexity": "routine",
+      "estimate": "xs",
+      "task_type": "feature",
+      "requires_tests": true,
+      "max_files": null,
+      "model_tier": null,
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "worker-shaped but Manual by policy: agents/shared/ensemble is shared plumbing under every agent \u2014 never Auto (iron rule)"
+      }
+    },
+    {
+      "title": "Evals: scorecard runner over the live router",
+      "content": "**What/why.** The scorecard runner: model id -> load gold sets -> render each case through its step adapter -> call the model through the SAME `Pool`/`ApiExecutor` stack production uses -> grade raw output -> aggregate to a `Scorecard`. CRITICAL DESIGN RULE: call `Pool.run` with NO `validate` callback. `panel.structured` retries schema-invalid output until the pool yields a valid payload \u2014 for production that is resilience, for an eval it is grade laundering. Transport retries stay; validity is graded from the first returned text of each repeat.\n\n**Files.** `agents/evals/runner.py`, `agents/evals/report.py`, `agents/evals/tests/test_runner.py`.\n\n**runner.py.**\n- `GRADERS: dict[str, Callable[[GoldCase, str], GradeResult]]` mapping all 7 step keys to the graders (decomposition module serves decompose+boundedness; review serves both review keys; testgap both testgap keys).\n- `run_scorecard(model: str, *, steps: list[str] | None = None, goldsets_root: Path | None = None, repeats: int | None = None, temperature: float | None = None, executor_factory=None) -> Scorecard`. Build one `ApiExecutor(kind=\"openai\", model=model, base_url=settings.openai_base_url, api_key=settings.openai_api_key)` wrapped in a single-executor `Pool(role=f\"evals:{model}\")`; `executor_factory` (returning an `Executor`) is the test seam. Per case x repeat: `Prompt(system, user, max_tokens=settings.max_tokens, temperature=...)`, drive the pool via `asyncio.run` (mirror `panel.structured`'s sync wrapper), grade `result.output`; a transport-failed repeat -> `GradeResult(error=..., passed=False, score=0)`.\n- Assemble `CaseScore` (holdout flag from the case) -> `StepScore` -> `Scorecard` (timestamp via `datetime.now(UTC).isoformat()`).\n\n**report.py.** `render_scorecard(sc: Scorecard) -> str` (markdown: per-step table \u2014 cases, pass-rate, holdout pass-rate, mean score, error repeats; overall line) and `write_scorecard(sc, runs_dir) -> Path` persisting `scorecard.json` + `scorecard.md` under `runs_dir/<UTC-stamp>-<model>/`.\n\n**Acceptance criteria.**\n- With a scripted fake executor: valid outputs grade pass; an invalid-JSON repeat is graded fail (NOT retried \u2014 assert exactly `repeats` executor calls per case); a raising executor yields an error GradeResult; holdout split lands in StepScore; files written where promised.\n- No live-network test; `uv run pytest agents/evals` green; ruff clean.\n",
+      "feature": "Eval Harness",
+      "depends_on": [
+        "Evals: gold case loader with schema version pinning",
+        "Evals: step adapters rendering production prompts",
+        "Evals: replan action grader",
+        "Evals: decomposition and boundedness grader",
+        "Evals: review findings grader",
+        "Evals: test gap severity grader",
+        "Ensemble: optional temperature on Prompt through ApiExecutor"
+      ],
+      "priority": 2,
+      "phase": "Infrastructure",
+      "status": "Ready",
+      "execution_mode": "Auto-OK",
+      "complexity": "routine",
+      "estimate": "m",
+      "task_type": "feature",
+      "requires_tests": true,
+      "max_files": 4,
+      "model_tier": "coder",
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "in-session architect judgment (Fable) fills the boundedness seat"
+      }
+    },
+    {
+      "title": "Evals: CLI with baseline capture and compare",
+      "content": "**What/why.** The front door: `meta evals ...` subcommands and the checked-in baseline mechanic that makes uplift MEASURED, not asserted.\n\n**Files.** `agents/evals/main.py`, `agents/registry.py` (one new entry), `agents/evals/tests/test_main.py`.\n\n**main.py** \u2014 argparse in the style of `agents/coding_pipeline/main.py`:\n- `run` \u2014 `--model` (default settings.model), `--step` (repeatable, validates against the 7 step keys), `--goldsets`, `--repeats`; runs `run_scorecard`, writes via `report.write_scorecard`, prints the markdown, exit 0.\n- `baseline` \u2014 same flags; additionally writes the scorecard JSON to `agents/evals/baselines/<model>.json` (mkdir ok; refuses to overwrite an existing baseline without `--force` \u2014 baselines are load-bearing history).\n- `compare` \u2014 runs a fresh scorecard, loads `baselines/<model>.json` (missing -> exit 2 with a message naming `baseline`), prints a per-step delta table (pass-rate and holdout pass-rate deltas, regressions marked); exit 0 (advisory gate \u2014 humans read it).\n\n**registry.py** \u2014 append `AgentCommand(name=\"evals\", summary=\"Judgment eval harness: score models against frozen gold sets.\", module=\"agents.evals.main\", exposes_mcp=False)`.\n\n**Acceptance criteria.**\n- Tests (monkeypatched `run_scorecard`, tmp dirs): run writes + prints; baseline writes and refuses overwrite without --force; compare exits 2 without baseline and renders deltas with one; unknown --step errors naming the bad key; registry resolves `evals` and `load_main()` imports.\n- `uv run pytest agents/evals agents/tests` green; ruff clean.\n",
+      "feature": "Eval Harness",
+      "depends_on": [
+        "Evals: scorecard runner over the live router"
+      ],
+      "priority": 2,
+      "phase": "Infrastructure",
+      "status": "Ready",
+      "execution_mode": "Auto-OK",
+      "complexity": "routine",
+      "estimate": "m",
+      "task_type": "feature",
+      "requires_tests": true,
+      "max_files": 5,
+      "model_tier": "coder",
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "in-session architect judgment (Fable) fills the boundedness seat"
+      }
+    },
+    {
+      "title": "Gold set: replan cases with frozen expected actions",
+      "content": "**What/why.** THE DISTILLATION (replan half). Freeze Fable-authored gold cases for the `replan` step in `agents/evals/goldsets/replan/<case-id>/`. Fable (in-session) mines real run artifacts and authors the inputs + expected-action rules; the coder tier must never write these.\n\n**Sources (real first).** `pipeline-runs/build/wave-0002.json` (a real confirmed finding -> fixup case); `pipeline-runs/build/framing.json` + Forge tree for context; `pipeline-runs/smoke-tempconv/wave-000*.json` (failure/escalation material); the replan fix commit `3a6360cb` \u2014 its captured raw coder payload becomes (a) a grader unit-test fixture and (b) a negative few-shot exemplar later; the INPUTS that produced it become a case here.\n\n**Coverage \u2014 at least 7 cases:** fixup-for-confirmed-finding; unconfirmed-finding-must-be- ignored (require_empty or must-not-fixup); escalated-leaf-hands-off (forbid_targets); clean-wave-empty-actions (require_empty); integration-red -> integration_fix (Manual + novel leaf); respec-under-cap with sharpened spec; halt-when-framing-invalidated. Mark >= 1/3 of cases `holdout: true` (never sourced for exemplars).\n\n**Format.** Per case: `case.yaml` (schema_version 1, step replan, holdout, inputs map, expected block per the replan grader spec, notes explaining WHY the expected actions are right \u2014 the rationale is part of the distillation) + `framing.json`, `tree.json`, `report.json`, `attempts.json` as the adapter expects.\n\n**Acceptance criteria.**\n- `load_goldsets(root, \"replan\")` returns all cases; every case renders through the replan adapter without error.\n- >= 7 cases, >= 1/3 holdout, >= 4 sourced from real run artifacts.\n- Each case's notes field records the judgment rationale.\n",
+      "feature": "Gold Sets",
+      "depends_on": [
+        "Evals: gold case loader with schema version pinning",
+        "Evals: step adapters rendering production prompts"
+      ],
+      "priority": 2,
+      "phase": "Feature",
+      "status": "Ready",
+      "execution_mode": "Manual",
+      "complexity": "novel",
+      "estimate": "m",
+      "task_type": "feature",
+      "requires_tests": false,
+      "max_files": null,
+      "model_tier": null,
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "Manual by the oracle boundary: the expected-action rules ARE the distilled judgment \u2014 Fable authors them in-session; never delegate to the coder tier"
+      }
+    },
+    {
+      "title": "Gold set: decomposition and boundedness cases",
+      "content": "**What/why.** THE DISTILLATION (decomposition half \u2014 the highest-leverage target: umbrella leaves are the #1 local-tier failure). Gold cases for `decompose` (framing+inventory in, rubric-checked tree out) and `boundedness` (labeled leaf specs).\n\n**Sources.** Real framing+inventory pairs: `pipeline-runs/smoke-tempconv/`, `pipeline-runs/galleryapp-web-parity/`, `pipeline-runs/graphlib-consumer-proof/`, and `pipeline-runs/distill-evals/` itself (this epic \u2014 meta but legitimate). Real leaves from those `tree.json` files as worker-shaped boundedness positives; Fable authors umbrella counterexamples (\"implement the backend\", missing files, xl-in-disguise) as negatives.\n\n**Coverage.** >= 3 decompose cases, each with a Fable-authored rubric in `expected.rubric` using the grader DSL \u2014 e.g. require_manual for gold-authoring-like judgment leaves, require_leaf for the load-bearing slice, forbid_leaf for known umbrella phrasings, min/max_leaves sanity bounds, require_dep for the must-be-sequenced edge. >= 8 boundedness cases (mixed labels, >= 3 umbrella negatives, including one plausible-but-unshaped trap). >= 1/3 of each holdout.\n\n**Acceptance criteria.**\n- All cases load and render through their adapters.\n- Every rubric item's `id` is unique within its case and every rubric kind is one the grader implements (loader/grader raise otherwise).\n- Rationale in each case's notes.\n",
+      "feature": "Gold Sets",
+      "depends_on": [
+        "Evals: gold case loader with schema version pinning",
+        "Evals: step adapters rendering production prompts"
+      ],
+      "priority": 3,
+      "phase": "Feature",
+      "status": "Ready",
+      "execution_mode": "Manual",
+      "complexity": "novel",
+      "estimate": "m",
+      "task_type": "feature",
+      "requires_tests": false,
+      "max_files": null,
+      "model_tier": null,
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "Manual by the oracle boundary: rubric checklists and worker-shaped labels are the distilled judgment \u2014 Fable-authored"
+      }
+    },
+    {
+      "title": "Gold set: review findings cases over seeded bug diffs",
+      "content": "**What/why.** THE DISTILLATION (review half). Known-buggy diffs with frozen reference finding sets (`review-findings`) and labeled confirm-vote candidates (`review-confirm`).\n\n**Sources.** Real wave diffs reconstructed from run history (jj revisions around the build and smoke epics) as clean or known-finding cases; Fable-seeded diffs for coverage: plant one bug per class across cases \u2014 semantic inversion (the known auto-tier failure signature), off-by-one, swallowed exception, resource leak on an error path, a test that asserts the bug. Keep each diff < ~300 lines so grading stays sharp.\n\n**Coverage.** 4-6 `review-findings` cases: each with `expected.must_find` match rules (file_pattern + keywords) for every planted bug, thresholds tuned per case; include one CLEAN diff where the right answer is an empty findings list (precision discipline \u2014 \"don't manufacture issues\"). 6+ `review-confirm` cases over those diffs: real findings (expected.real=true) and decoys \u2014 style nit, pre-existing issue, matter of taste (expected.real=false). >= 1/3 holdout across both.\n\n**Acceptance criteria.**\n- All cases load and render; every planted bug documented in notes (class, file, line area, why the match rule identifies it).\n- The clean-diff case is present and its expected block accepts only an empty list.\n",
+      "feature": "Gold Sets",
+      "depends_on": [
+        "Evals: gold case loader with schema version pinning",
+        "Evals: step adapters rendering production prompts"
+      ],
+      "priority": 3,
+      "phase": "Feature",
+      "status": "Ready",
+      "execution_mode": "Manual",
+      "complexity": "novel",
+      "estimate": "m",
+      "task_type": "feature",
+      "requires_tests": false,
+      "max_files": null,
+      "model_tier": null,
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "Manual by the oracle boundary: planted-bug inventories and real/decoy labels are the distilled judgment \u2014 Fable-authored"
+      }
+    },
+    {
+      "title": "Gold set: test gap cases with severity rankings",
+      "content": "**What/why.** THE DISTILLATION (test-gap half). Source+tests fixture pairs with frozen gap inventories and severity ORDERINGS (`testgap-find`), plus labeled skeptic verdicts (`testgap-skeptic`). The judgment frozen here: rank the real hole above the trivia.\n\n**Sources.** Snapshot small real-ish modules INTO the fixture dirs (frozen copies, never live repo paths \u2014 live code rots the gold): e.g. a trimmed slugify/automerge-style module, a retry/timeout wrapper, a parser with error paths. Author the existing-tests file to deliberately cover some behaviors and miss others.\n\n**Coverage.** 3-4 `testgap-find` cases; per case: `must_find` (the real holes \u2014 error paths, boundary, concurrency-ish ordering assumption), `nice_to_find` (legitimate but minor), a reference severity ordering over must_find, an `angle` input selecting the FINDER_ANGLES entry, thresholds. At least one case whose existing tests are thorough \u2014 correct answer is (nearly) no gaps, catching the cry-wolf failure. 6+ `testgap-skeptic` cases: claimed gaps labeled real=true, and the load-bearing decoys \u2014 gaps ALREADY covered by the existing tests (coverage-truth lens), labeled real=false. >= 1/3 holdout.\n\n**Acceptance criteria.**\n- All cases load and render through both testgap adapters.\n- Severity orderings are total over must_find entries; rationale in notes.\n",
+      "feature": "Gold Sets",
+      "depends_on": [
+        "Evals: gold case loader with schema version pinning",
+        "Evals: step adapters rendering production prompts"
+      ],
+      "priority": 3,
+      "phase": "Feature",
+      "status": "Ready",
+      "execution_mode": "Manual",
+      "complexity": "novel",
+      "estimate": "m",
+      "task_type": "feature",
+      "requires_tests": false,
+      "max_files": null,
+      "model_tier": null,
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "Manual by the oracle boundary: the gap inventory and severity ordering are the distilled judgment \u2014 Fable-authored"
+      }
+    },
+    {
+      "title": "Baseline: capture coder scorecard before prompt changes",
+      "content": "**What/why.** Baseline discipline (framing constraint 3): capture the local coder tier's scorecard BEFORE any prompt change lands, so distillation uplift is measured against a frozen before. This leaf BLOCKS both Distill leaves.\n\n**Steps.**\n1. `meta evals baseline --model coder` against the full gold sets (all 7 step keys), default repeats (3) and temperature 0 over the live router (llm-router.internal:4010).\n2. Eyeball `error_repeats` per step \u2014 transport flakes above ~10% mean re-run before freezing; a noisy baseline is not a baseline.\n3. Commit `agents/evals/baselines/coder.json`. In the scorecard `notes`, record the date and the concrete router model the `coder` alias resolved to (from the router config on the router host) \u2014 alias drift must be visible later.\n4. Optional but cheap: also capture `baselines/<one-other-tier>.json` for contrast if the router exposes one worth tracking.\n\n**Acceptance criteria.**\n- `agents/evals/baselines/coder.json` committed; all 7 steps present with >= 1 case each; error repeats within tolerance; notes name the resolved router model and date.\n",
+      "feature": "Prompt Distillation",
+      "depends_on": [
+        "Evals: CLI with baseline capture and compare",
+        "Gold set: replan cases with frozen expected actions",
+        "Gold set: decomposition and boundedness cases",
+        "Gold set: review findings cases over seeded bug diffs",
+        "Gold set: test gap cases with severity rankings"
+      ],
+      "priority": 3,
+      "phase": "Feature",
+      "status": "Ready",
+      "execution_mode": "Manual",
+      "complexity": "routine",
+      "estimate": "s",
+      "task_type": "feature",
+      "requires_tests": false,
+      "max_files": null,
+      "model_tier": null,
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "Manual: needs the live router and a human eye on flaky repeats; it also commits the load-bearing baseline artifact"
+      }
+    },
+    {
+      "title": "Distill: architect prompts with few-shot exemplars",
+      "content": "**What/why.** Land the distilled judgment into the architect prompts: tighten `DECOMPOSE_SYSTEM`, `BOUNDEDNESS_SYSTEM`, `REPLAN_SYSTEM` (and `FRAMING_SYSTEM` only if a cheap win is obvious) in `agents/coding_pipeline/architect.py`. PROMPT TEXT ONLY \u2014 no logic/behavior changes (framing constraint 4).\n\n**Method.**\n- Few-shot exemplars sourced ONLY from non-holdout gold cases (framing constraint 5) plus the 3a6360cb raw payload as the canonical negative (what invalid replan output looks like and why it was discarded).\n- Bake the rubric language in: what umbrella leaves look like and how to split them; worker-shaped criteria with a positive and negative exemplar each; replan action-choice guidance (when respec vs escalate vs halt \u2014 mirror the gold rationale notes).\n- Watch the token budget: exemplars inflate every A2/A4 call; keep additions <= ~40% of current prompt length and note the before/after prompt sizes in the commit message.\n\n**Files.** `agents/coding_pipeline/architect.py`; update any prompt-content assertions in `agents/coding_pipeline/tests/test_architect.py`.\n\n**Acceptance criteria.**\n- `meta evals compare --model coder`: HOLDOUT pass-rate on replan + decompose + boundedness at or above baseline with at least one step materially up; NO step regresses on holdout.\n- Full `uv run pytest` green; ruff clean on changed files.\n- Scorecard delta pasted into the task notes when closing (the measured uplift record).\n",
+      "feature": "Prompt Distillation",
+      "depends_on": [
+        "Baseline: capture coder scorecard before prompt changes"
+      ],
+      "priority": 4,
+      "phase": "Feature",
+      "status": "Ready",
+      "execution_mode": "Manual",
+      "complexity": "novel",
+      "estimate": "m",
+      "task_type": "feature",
+      "requires_tests": false,
+      "max_files": null,
+      "model_tier": null,
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "Manual by the oracle boundary: the exemplars ARE the captured judgment; prompt-text-only change measured by scorecard delta"
+      }
+    },
+    {
+      "title": "Distill: review and testgap prompts with few-shot exemplars",
+      "content": "**What/why.** Land the distilled judgment into the review and test-gap prompts: `FINDINGS_SYSTEM`, `CONFIRM_SYSTEM`, `CONSOLIDATE_SYSTEM` in `agents/coding_pipeline/verify.py`, and the finder/skeptic/dedup prompts in `agents/testing_ensemble/prompts.py`. PROMPT TEXT ONLY.\n\n**Method.**\n- Exemplars from non-holdout gold only: a real-bug finding done right (specific file + concrete defect), a decoy correctly rejected by the skeptic (pre-existing issue / style nit / already-covered gap), and a severity-ordering exemplar (why the error-path hole outranks the boundary nit).\n- Sharpen the confirm skeptic's default-to-not-real stance with the decoy taxonomy from the gold notes; sharpen the coverage-truth lens with an already-covered exemplar.\n- `pr_review_ensemble/prompts.py` (markdown-output prompts) is OUT of scope \u2014 ungraded surface, separate pass later.\n\n**Files.** `agents/coding_pipeline/verify.py`, `agents/testing_ensemble/prompts.py`; update prompt-content assertions in their test dirs if any.\n\n**Acceptance criteria.**\n- `meta evals compare --model coder`: HOLDOUT pass-rate on review-findings + review-confirm + testgap-find + testgap-skeptic at or above baseline with at least one step materially up; NO step regresses on holdout.\n- Full `uv run pytest` green; ruff clean on changed files.\n- Scorecard delta pasted into the task notes when closing.\n",
+      "feature": "Prompt Distillation",
+      "depends_on": [
+        "Baseline: capture coder scorecard before prompt changes"
+      ],
+      "priority": 4,
+      "phase": "Feature",
+      "status": "Ready",
+      "execution_mode": "Manual",
+      "complexity": "novel",
+      "estimate": "m",
+      "task_type": "feature",
+      "requires_tests": false,
+      "max_files": null,
+      "model_tier": null,
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "Manual by the oracle boundary: exemplar authoring is the captured judgment; prompt-text-only change measured by scorecard delta"
+      }
+    },
+    {
+      "title": "Docs: eval harness workflow and baseline policy",
+      "content": "**What/why.** The harness only stays alive if the workflow is written down: when to re-score, how baselines move, and the holdout rule that keeps uplift honest.\n\n**Files.** `agents/evals/README.md` (new), `DEVELOPMENT-WORKFLOWS.md` (new section), optionally `agents/coding_pipeline/README.md` (one cross-link line).\n\n**README.md.** Package map (fixtures/steps/graders/runner/report/main); the goldset dir layout + case.yaml fields with one full worked example; the 7 step keys and which production prompt each measures; how to add a gold case; the schema_version rule.\n\n**DEVELOPMENT-WORKFLOWS.md section \u2014 \"Judgment evals (meta evals)\".** The loop: any change to a graded prompt or a router model swap -> `meta evals compare --model coder` -> paste the delta into the PR/task. Baseline update policy: baselines move only via `meta evals baseline --force` after a human signs off on a verified uplift \u2014 never casually, they are the regression reference. Holdout policy: exemplars may only cite non-holdout cases; holdout is what compare judges. Cross-reference the distill-evals epic and `architect-brief.md` for the why.\n\n**Acceptance criteria.**\n- Both files exist with the named sections; commands are copy-paste runnable; ruff/format untouched elsewhere. No code changes.\n",
+      "feature": "Eval Harness",
+      "depends_on": [
+        "Evals: CLI with baseline capture and compare"
+      ],
+      "priority": 5,
+      "phase": "Polish",
+      "status": "Ready",
+      "execution_mode": "Auto-OK",
+      "complexity": "routine",
+      "estimate": "s",
+      "task_type": "docs",
+      "requires_tests": false,
+      "max_files": 3,
+      "model_tier": "coder",
+      "boundedness": {
+        "single_concern": true,
+        "bounded_diff": true,
+        "small_estimate": true,
+        "testable_acceptance": true,
+        "files_named": true,
+        "notes": "docs leaf: acceptance = named files and sections exist; suite-neutral"
+      }
+    }
+  ]
+}

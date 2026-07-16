@@ -1,0 +1,9 @@
+{
+  "leaf_title": "GalleryappGraphlibStore SubscriptionStore and NotificationStore implementations",
+  "single_concern": true,
+  "bounded_diff": true,
+  "small_estimate": true,
+  "testable_acceptance": true,
+  "files_named": true,
+  "notes": "Trait impls against existing schema: bounded, testable via the slice suite."
+}

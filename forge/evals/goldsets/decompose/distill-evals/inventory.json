@@ -1,0 +1,347 @@
+{
+  "project": "Meta",
+  "repo": "/home/user/projects/meta",
+  "tree": "agents/\n  astro_scout/\n    ai/\n    collectors/\n    models/\n    renderer/\n    tests/\n    __init__.py\n    config.py\n    main.py\n    run.sh\n  book_researcher/\n    examples/\n    tests/\n    __init__.py\n    config.py\n    main.py\n    models.py\n    planner.py\n    README.md\n    renderer.py\n    researcher.py\n    run.sh\n    scaffold.py\n    verifier.py\n  code_audit_ensemble/\n    tests/\n    __init__.py\n    audit.py\n    config.py\n    emit.py\n    main.py\n    models.py\n    prompts.py\n    run.sh\n  code_reviewer/\n    collectors/\n    __init__.py\n    ai.py\n    config.py\n    main.py\n    models.py\n    renderer.py\n    run.sh\n    writer.py\n  coding_pipeline/\n    examples/\n    tests/\n    __init__.py\n    architect.py\n    config.py\n    context.py\n    dispatch.py\n    emit.py\n    inventory.py\n    journal.py\n    main.py\n    models.py\n    orchestrator.py\n    README.md\n    vcs_epic.py\n    verify.py\n    waves.py\n  daily_briefing/\n    collectors/\n    models/\n    renderer/\n    tests/\n    __init__.py\n    config.py\n    daily-briefing.service\n    daily-briefing.timer\n    main.py\n    nous_client.py\n    run.sh\n  dashboard/\n    collectors/\n    models/\n    renderer/\n    tests/\n    __init__.py\n    BOOTSTRAP-WORK-AGENTS.md\n    briefing.py\n    config.py\n    main.py\n    ROADMAP.md\n    run.sh\n  general_researcher/\n    examples/\n    tests/\n    __init__.py\n    config.py\n    main.py\n    models.py\n    planner.py\n    README.md\n    renderer.py\n    researcher.py\n    run.sh\n    synthesizer.py\n    verifier.py\n  morning_brief/\n    collectors/\n    models/\n    renderer/\n    __init__.py\n    config.py\n    main.py\n    morning-brief.service\n    morning-brief.timer\n    nous_client.py\n    run.sh\n  parallel_edit/\n    tests/\n    __init__.py\n    config.py\n    judge.py\n    logger.py\n    main.py\n    models.py\n    prompts.py\n    renderer.py\n    run.sh\n    runner.py\n    workspaces.py\n  pr_review_ensemble/\n    tests/\n    __init__.py\n    aggregator.py\n    config.py\n    diffscan.py\n    diffsplit.py\n    digest.py\n    logger.py\n    main.py\n    models.py\n    prompts.py\n    providers.py\n    renderer.py\n    run.sh\n    runner.py\n    supply_chain.py\n  refactor_ensemble/\n    tests/\n    __init__.py\n    config.py\n    emit.py\n    main.py\n    models.py\n    plan.py\n    prompts.py\n    run.sh\n  shared/\n    ensemble/\n    models/\n    renderer/\n    tests/\n    __init__.py\n    automerge.py\n    forge_emit.py\n    llm.py\n    nous_http.py\n    panel.py\n    recipe.py\n    signoff.py\n  stream_planner/\n    collectors/\n    __init__.py\n    ai.py\n    config.py\n    main.py\n    models.py\n    renderer.py\n    run.sh\n    scorer.py\n  task_worker/\n    tests/\n    __init__.py\n    config.py\n    dx.py\n    executor.py\n    linter.py\n    main.py\n    models.py\n    nous_client.py\n    README.md\n    run.sh\n    sandbox.py\n    tester.py\n    vcs.py\n  testing_ensemble/\n    tests/\n    __init__.py\n    autotest.py\n    config.py\n    emit.py\n    generate.py\n    main.py\n    models.py\n    prompts.py\n    review.py\n    run.sh\n  tests/\n    __init__.py\n    test_cli.py\n    test_mcp_server.py\n  video_researcher/\n    ai/\n    collectors/\n    models/\n    renderer/\n    tests/\n    __init__.py\n    config.py\n    main.py\n    run.sh\n    video-researcher.service\n    video-researcher.timer\n  work_watcher/\n    collectors/\n    models/\n    __init__.py\n    config.py\n    main.py\n    notify.py\n    run.sh\n    state.py\n    work-watcher.service\n    work-watcher.timer\n  __init__.py\n  cli.py\n  mcp_server.py\n  registry.py\ndocs/\n  opencode-parity.md\nscripts/\n  project-graph.py\nagentic-loops.md\narchitecture-discussion.md\nastronomy-testing-brief.md\nBOOTSTRAP-CLAUDE-WORKFLOW.md\nbrowser-automation-options.md\ncc.txt\ncoding-pipeline-brief.md\ncoding-pipeline-design.md\ndependabot-brief.md\nDEVELOPMENT-WORKFLOWS.md\narchitect-brief.md\ninitial-prompt.md\ngraphlib-architect-brief.md\ntalk-notes-coding-pipeline.md\npipeline-as-a-model.md\nproject-graph.dot\nproject-graph.png\nproject-graph.svg\npyproject.toml\nRESEARCH-WORKFLOWS.md\nuv.lock",
+  "key_files": [
+    {
+      "path": "pyproject.toml",
+      "head": "[project]\nname = \"meta-agents\"\nversion = \"0.1.0\"\ndescription = \"Autonomous agents for life management\"\nrequires-python = \">=3.12\"\ndependencies = [\n    \"anthropic>=0.40\",\n    \"openai>=1.0\",\n    \"beautifulsoup4>=4.12\",\n    \"httpx>=0.27\",\n    \"pydantic>=2.0\",\n    \"pydantic-settings>=2.0\",\n    \"pyyaml>=6.0\",\n    \"typer>=0.12\",\n    \"mcp>=1.25.0\",\n    \"nous-ai\",\n]\n\n[project.scripts]\nmeta = \"agents.cli:main\"\nmeta-mcp = \"agents.mcp_server:main\"\n\n[build-system]\nrequires = [\"hatchling\"]\nbuild-backend = \"hatchling.build\"\n\n[tool.hatch.build.targets.wheel]\npackages = [\"agents\"]\n\n[tool.uv.sources]\nnous-ai = { path = \"../nous/nous-py\", editable = true }\n\n[tool.ruff]\ntarget-version = \"py312\"\nline-length = 100\n\n[tool.ruff.lint]\nselect = [\"E\", \"F\", \"I\", \"UP\"]\n\n[tool.ruff.lint.per-file-ignores]\n\"**/tests/conftest.py\" = [\"E501\"]\n\n[tool.pytest.ini_options]\ntestpaths = [\"agents\"]\npythonpath = [\".\"]\n\n[dependency-groups]\ndev = [\n    \"pytest>=9.0.2\",\n]\n"
+    }
+  ],
+  "modules": [
+    "agents",
+    "docs",
+    "scripts"
+  ],
+  "test_layout": [
+    "agents/astro_scout/tests",
+    "agents/book_researcher/tests",
+    "agents/code_audit_ensemble/tests",
+    "agents/coding_pipeline/tests",
+    "agents/daily_briefing/tests",
+    "agents/dashboard/tests",
+    "agents/general_researcher/tests",
+    "agents/parallel_edit/tests",
+    "agents/pr_review_ensemble/tests",
+    "agents/refactor_ensemble/tests",
+    "agents/shared/ensemble/tests",
+    "agents/shared/tests",
+    "agents/task_worker/tests",
+    "agents/testing_ensemble/tests",
+    "agents/tests",
+    "agents/video_researcher/tests"
+  ],
+  "toolchain": [
+    "uv/python",
+    "python (pyproject)"
+  ],
+  "existing_tasks": [
+    {
+      "task": "MVP advisory PR review ensemble",
+      "status": "Done",
+      "feature": "PR Review Ensemble",
+      "external_ref": ""
+    },
+    {
+      "task": "MVP advisory PR review ensemble",
+      "status": "Ready",
+      "feature": "PR Review Ensemble",
+      "external_ref": ""
+    },
+    {
+      "task": "Ensemble orchestration layer \u2014 adopt dynamic-workflow patterns atop the harness",
+      "status": "Done",
+      "feature": "Ensemble Harness",
+      "external_ref": ""
+    },
+    {
+      "task": "Testing review ensemble (thin specialization of the audit recipe)",
+      "status": "Done",
+      "feature": "Ensemble Harness",
+      "external_ref": ""
+    },
+    {
+      "task": "Refactoring/best-practices ensemble (thin specialization of the audit recipe)",
+      "status": "Done",
+      "feature": "Ensemble Harness",
+      "external_ref": ""
+    },
+    {
+      "task": "Nous-task emission for the refactor ensemble (review-then-implement)",
+      "status": "Done",
+      "feature": "Ensemble Harness",
+      "external_ref": "59439f0153e4"
+    },
+    {
+      "task": "Adopt forge_emit in meta testing and meta audit",
+      "status": "Done",
+      "feature": "Ensemble Harness",
+      "external_ref": "86af7b8b4657"
+    },
+    {
+      "task": "Iterative coding pipeline (architect + orchestrator over Forge task trees)",
+      "status": "Done",
+      "feature": "",
+      "external_ref": ""
+    },
+    {
+      "task": "Work-deployable coding harness (Bedrock + local M3)",
+      "status": "Spec Needed",
+      "feature": "",
+      "external_ref": ""
+    },
+    {
+      "task": "Pipeline: extend forge_emit with per-spec gating and guardrail fields",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:forge-emit-gating"
+    },
+    {
+      "task": "Pipeline: extract shared sign-off gate into agents/shared/signoff.py",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:shared-signoff"
+    },
+    {
+      "task": "Pipeline: task_worker run_one() callable API",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:worker-run-one"
+    },
+    {
+      "task": "Pipeline: coding_pipeline package scaffold and models",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:package-scaffold"
+    },
+    {
+      "task": "Pipeline: repo and Forge inventory collector (architect A0)",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:inventory"
+    },
+    {
+      "task": "Pipeline: architect framing stage with approval gate (A1)",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:framing"
+    },
+    {
+      "task": "Pipeline: architect decomposition stage with boundedness checks (A2)",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:decomposition"
+    },
+    {
+      "task": "Pipeline: tree emission to Forge (A3)",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:tree-emission"
+    },
+    {
+      "task": "Pipeline: /meta-architect interactive skill",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:architect-skill"
+    },
+    {
+      "task": "Pipeline: wave planner (ready-set over Forge)",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:wave-planner"
+    },
+    {
+      "task": "Pipeline: wave journal and resume reconciliation",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:journal"
+    },
+    {
+      "task": "Pipeline: serial dispatcher over task_worker run_one",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:dispatcher"
+    },
+    {
+      "task": "Pipeline: wave verification (suite gate + review ensemble findings)",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:wave-verify"
+    },
+    {
+      "task": "Pipeline: architect replan stage (A4)",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:replan"
+    },
+    {
+      "task": "Pipeline: orchestrator wave loop",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:wave-loop"
+    },
+    {
+      "task": "Pipeline: epic integration branch and final sign-off gate",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:epic-branch-gate"
+    },
+    {
+      "task": "Pipeline: meta build CLI and registry entry",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:cli"
+    },
+    {
+      "task": "Pipeline: Sandbox protocol extraction from task_worker",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:sandbox-protocol"
+    },
+    {
+      "task": "Pipeline: end-to-end dry-run on a toy epic",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:e2e-dry-run"
+    },
+    {
+      "task": "Pipeline: workflow docs and playbook updates",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:docs"
+    },
+    {
+      "task": "Pipeline: fix jj bookmark push for jj 0.42",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:fix:jj-push-allow-new"
+    },
+    {
+      "task": "Pipeline: survive replan model failure with deterministic degrade",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:fix:replan-crash"
+    },
+    {
+      "task": "Pipeline: record wave start as parent change so review sees the diff",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:fix:wave-diff-basis"
+    },
+    {
+      "task": "Pipeline: cover all features of an epic in the wave loop",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:fix:epic-feature-scope"
+    },
+    {
+      "task": "Worker: diagnostics and retry for no-change opencode sessions",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:fix:worker-nochange-diagnostics"
+    },
+    {
+      "task": "Pipeline: default leaf model tier to coder",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:fix:leaf-tier-coder"
+    },
+    {
+      "task": "Pipeline: escalation should also set execution mode to Manual",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:fix:escalate-manual-mode"
+    },
+    {
+      "task": "Pipeline: scope build status to the epic and show Done leaves",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:fix:status-scope"
+    },
+    {
+      "task": "Pipeline: inject sibling interfaces into leaf context (cross-leaf contracts)",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:fix:leaf-sibling-contracts"
+    },
+    {
+      "task": "Pipeline: consolidation pass for wave-review findings before emission",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:fix:fixup-consolidation"
+    },
+    {
+      "task": "Pipeline: exercise the epic-gate approve path (complete toy epic)",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:fix:epic-gate-approve-coverage"
+    },
+    {
+      "task": "Worker: lint gate alongside the test gate",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:fix:worker-lint-gate"
+    },
+    {
+      "task": "Architect: floor max_files above 1 when tests are required",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:fix:max-files-floor"
+    },
+    {
+      "task": "Pipeline: replan structured output never validates on coder",
+      "status": "Done",
+      "feature": "Coding Pipeline",
+      "external_ref": "pipeline:build:fix:replan-validation"
+    },
+    {
+      "task": "assert max_files floor on requires_tests False Auto OK leaves",
+      "status": "Done",
+      "feature": "post-dry-run-fix-up",
+      "external_ref": "pipeline:build:fix:agents-coding-pipeline-tests-test-architect-py-the"
+    }
+  ],
+  "overlaps": [
+    "agentic-loops.md",
+    "agents",
+    "agents/astro_scout/collectors/stream_plan.py",
+    "agents/astro_scout/config.py",
+    "agents/astro_scout/main.py",
+    "agents/astro_scout/models",
+    "agents/astro_scout/tests",
+    "agents/astro_scout/tests/conftest.py",
+    "agents/astro_scout/tests/test_collectors.py",
+    "agents/astro_scout/tests/test_filter.py",
+    "agents/astro_scout/tests/test_page_writer.py",
+    "agents/astro_scout/tests/test_prep.py",
+    "agents/book_researcher",
+    "agents/book_researcher/README.md",
+    "agents/book_researcher/config.py",
+    "agents/book_researcher/examples",
+    "agents/book_researcher/examples/sample-book.yaml",
+    "agents/book_researcher/main.py",
+    "agents/book_researcher/models.py",
+    "agents/book_researcher/researcher.py",
+    "agents/book_researcher/tests",
+    "agents/book_researcher/tests/test_scaffold.py",
+    "agents/book_researcher/tests/test_verifier.py",
+    "agents/code_audit_ensemble/config.py",
+    "agents/code_audit_ensemble/emit.py",
+    "agents/code_audit_ensemble/main.py",
+    "agents/code_audit_ensemble/models.py",
+    "agents/code_audit_ensemble/prompts.py",
+    "agents/code_audit_ensemble/tests",
+    "agents/code_audit_ensemble/tests/test_audit.py",
+    "agents/code_audit_ensemble/tests/test_emit.py",
+    "agents/code_reviewer",
+    "agents/code_reviewer/collectors/changes.py",
+    "agents/code_reviewer/config.py",
+    "agents/code_reviewer/main.py",
+    "agents/code_reviewer/models.py",
+    "agents/coding_pipeline",
+    "agents/coding_pipeline/README.md",
+    "agents/coding_pipeline/architect.py",
+    "agents/coding_pipeline/config.py"
+  ],
+  "truncated": 163
+}

@@ -1,0 +1,35 @@
+schema_version: 1
+step: decompose
+holdout: true
+inputs:
+  framing.json: framing.json
+  inventory.json: inventory.json
+expected:
+  rubric:
+  - id: r-min-leaves
+    kind: min_leaves
+    n: 8
+  - id: r-max-leaves
+    kind: max_leaves
+    n: 24
+  - id: r-oracle-boundary
+    kind: require_manual
+    title_pattern: (?i)gold set|golden|exemplar
+  - id: r-evals-package
+    kind: require_leaf
+    content_pattern: agents/evals
+  - id: r-runner
+    kind: require_leaf
+    title_pattern: (?i)runner|scorecard
+  - id: r-runner-depends-on-plumbing
+    kind: require_dep
+    from_pattern: (?i)runner|scorecard|cli
+    to_pattern: (?i)loader|adapter|grader|scaffold|runner
+  - id: r-no-umbrella
+    kind: forbid_leaf
+    title_pattern: (?i)^(build|implement) the (eval )?(harness|evals?)$
+notes: "Self-referential but the sharpest oracle-boundary fixture available: the distill-evals epic's\
+  \ own framing. THE frozen judgment is r-oracle-boundary \u2014 every gold-set/exemplar authoring leaf\
+  \ must be Manual (Fable is the oracle; handing gold authoring to the coder tier distills nothing and\
+  \ quietly defeats the epic). Plumbing is worker-shaped and named to agents/evals files; the runner\
+  \ depends on the pieces it drives."

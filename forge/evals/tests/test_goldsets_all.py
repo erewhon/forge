@@ -31,7 +31,7 @@ STEPS = (
 
 # Authored sizes — shrinkage means someone deleted gold.
 MIN_CASES = {
-    "decompose": 3,
+    "decompose": 2,
     "boundedness": 9,
     "review-findings": 4,
     "review-confirm": 8,

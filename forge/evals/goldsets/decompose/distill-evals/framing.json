@@ -1,0 +1,51 @@
+{
+  "goal_as_stated": "Distill Fable-tier judgment into the local coding harness before the window closes: freeze gold eval sets for the four judgment-heavy steps (decomposition quality, replan, review findings, test-gap severity), build an eval harness (agents/evals/) with Fable-independent graders and a scorecard runner against the real router, and tighten prompts + few-shot exemplars so the local coder tier measurably improves against a captured baseline.",
+  "restated_goal": "Same goal, sequenced as a vertical slice first: land the harness core plus the REPLAN gold set end-to-end (fixtures \u2192 grader \u2192 scorecard \u2192 captured coder baseline) before fanning out to the other three steps. The replan step has a ready-made real fixture (the 3a6360cb validation failure) and the most deterministic grading, so it proves the whole loop cheaply; the other steps then reuse a working harness instead of landing into an unproven one. Gold-set and exemplar authoring stays Fable-in-session (Manual); only plumbing is worker-eligible.",
+  "rescoped": false,
+  "inventory_summary": "No eval harness exists anywhere in the repo (grep for eval hits only incidental 'evaluate' strings). The four judgment prompts are exactly where the brief says: FRAMING/DECOMPOSE/BOUNDEDNESS/REPLAN_SYSTEM in agents/coding_pipeline/architect.py; FINDINGS/CONFIRM/CONSOLIDATE_SYSTEM in agents/coding_pipeline/verify.py plus the pr_review_ensemble prompts; finder/skeptic/dedup prompts in agents/testing_ensemble/prompts.py. All four run through agents/shared/panel.py::structured (or run_member_panel), and StructuredResult.raw (added in 3a6360cb) already exposes raw model output for grading. Fixture sources are real and on disk: pipeline-runs/build/ (2 waves, journal, a real confirmed-finding replan) and pipeline-runs/smoke-tempconv/ (9 waves, framing, tree, inventory). Forge: the Coding Pipeline feature is 34/34 Done \u2014 this epic is additive, no task-level overlap. The LLM Router project's 'Model Eval' feature (6 Ready) is candidate-model bring-up (OCR/ASR/VLM on Sparks), not judgment evals \u2014 no duplication, but the scorecard runner built here (takes a model id, reports pass rates) is exactly the tool those tasks will want later: a free synergy, not a scope change.",
+  "gap_analysis": "What's missing is everything above the shared plumbing: (1) a fixture format + loader for gold cases; (2) per-step graders that run WITHOUT Fable \u2014 deterministic checks, set-overlap P/R, rank correlation, and frozen-rubric checklists; (3) a scorecard runner that drives a chosen model through the REAL structured()/panel path against every gold set and reports per-step pass rates; (4) the gold sets themselves \u2014 Fable-authored reference outputs, the non-delegable half; (5) tightened prompts + few-shot exemplars, landed only after a baseline scorecard exists so uplift is measured. Grading-method calls per step: REPLAN = schema validity through the real path + expected-action-set match (kinds, targeted leaves, no touching escalated leaves) + LeafSpec structural floors; DECOMPOSITION = deterministic structure (dep graph acyclic, worker-shaped tag floors, comma-free, files named) + a frozen Fable-authored rubric checklist per case (umbrella-leaf detection is the heart); REVIEW FINDINGS = precision/recall vs a frozen reference finding set over seeded-bug diffs, matched by per-case keyword/file match rules, graded on the collect\u2192confirm funnel's confirmed output; TEST-GAP = recall of must-find gaps + rank correlation of severity ordering vs a frozen reference, plus a cry-wolf penalty for high-severity trivia. Where a rubric is irreducibly judgment-shaped it is frozen as an explicit checklist a deterministic scorer applies \u2014 never a live-Fable judge.",
+  "options": [
+    {
+      "name": "A \u2014 Full four-step harness, replan slice first (recommended)",
+      "summary": "Build agents/evals/ (fixture loader, graders, scorecard runner, meta evals CLI), author gold sets for all four steps, capture the coder baseline, then land tightened prompts + exemplars and re-score. Sequenced so harness core + replan gold set + baseline land as wave 1.",
+      "tradeoffs": "Most leaves (~17) and the longest tail, but delivers both halves of the mission \u2014 durable regression harness AND measured uplift \u2014 across every judgment step while the Fable window is open. The vertical-slice ordering caps integration risk."
+    },
+    {
+      "name": "B \u2014 Two steps only (replan + review findings)",
+      "summary": "Same harness, but gold sets only for the two most deterministically gradable steps. Decomposition and test-gap follow as a later epic.",
+      "tradeoffs": "Faster to a measured result and lower authoring load, but decomposition is the single highest-leverage distillation target (umbrella leaves are the #1 coder failure) and deferring it risks the Fable window closing with the most valuable judgment uncaptured."
+    },
+    {
+      "name": "C \u2014 Rubric-only distillation (no harness)",
+      "summary": "Skip graders/scorecards; just tighten the four prompts, add few-shot exemplars, and check frozen rubric docs into the repo.",
+      "tradeoffs": "Cheapest, but violates the mission's core constraint: uplift would be asserted, not measured, and nothing catches future prompt/model regressions. This is exactly the 'one-time output' failure mode the brief exists to avoid."
+    },
+    {
+      "name": "D \u2014 Generic eval harness for all agents",
+      "summary": "Design the harness around a plugin grader interface covering the content agents (researcher, book, video) from day one.",
+      "tradeoffs": "Over-general: content-agent grading has different shapes (citations, prose quality) and the brief explicitly scopes them out. A coding-harness-shaped MVP whose loader/grader seams are merely *clean* leaves the door open without paying the abstraction tax now."
+    }
+  ],
+  "recommendation": "Option A. The four steps are the brief's scope and all four have viable Fable-independent grading; the only real risk is sequencing, which the replan-first vertical slice addresses. Hard constraints carried into decomposition: (1) gold reference outputs and few-shot exemplars are Manual leaves \u2014 Fable authors them in-session, never the coder tier; (2) graders never call Fable \u2014 deterministic / set-overlap / rank-correlation / frozen-rubric only; (3) the baseline scorecard leaf BLOCKS every prompt-tightening leaf, so uplift is measured against a captured before; (4) agent-side changes are prompts + exemplars only, no behavior changes; (5) each gold set holds out ~1/3 of its cases from exemplar authoring so prompt tightening is scored against unseen cases, not its own few-shots.",
+  "value_ordering": [
+    "Harness core: fixture schema + loader + scorecard runner + meta evals CLI (runs against the real router via panel.structured)",
+    "Replan gold set (Fable-authored, incl. the 3a6360cb raw fixture) + deterministic replan grader",
+    "Baseline scorecard of the coder tier captured and checked in for all landed gold sets",
+    "Review-findings gold set (seeded-bug diffs) + set-overlap P/R grader",
+    "Decomposition gold set + structural/frozen-rubric grader",
+    "Test-gap gold set + rank-correlation grader",
+    "Tightened prompts + few-shot exemplars for all four steps, each landed with a before/after scorecard delta",
+    "Docs + DEVELOPMENT-WORKFLOWS wiring (how to re-run the scorecard when prompts or router models change)"
+  ],
+  "risks": [
+    "Gold-set rot: prompts and wire schemas evolve; fixtures must pin the schema version they were authored against, and the loader should fail loudly on drift",
+    "Nondeterminism: router models at nonzero temperature make pass-rates noisy \u2014 the runner needs pinned temperature and N-repeat majority/pass@k reporting or the baseline is not a baseline",
+    "Overfitting to gold: tightening prompts against the same cases they are scored on inflates uplift \u2014 held-out cases are the guard",
+    "Prompt-budget creep: few-shot exemplars swell system prompts (decompose already runs 16k max_tokens); token cost must be part of the scorecard delta",
+    "Fable window closes mid-epic: gold authoring is the critical path and only needs the fixture schema, not the full harness \u2014 author gold immediately after the schema leaf lands",
+    "Semantic finding-matching is the weakest grader link: keyword/file match rules per case must be authored carefully or review P/R numbers lie in both directions"
+  ],
+  "epic_slug": "distill-evals",
+  "branch": "pipeline/distill-evals",
+  "approved": true
+}
