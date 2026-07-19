@@ -91,7 +91,9 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     print(render_bump(result))
-    if result.status == "advisory" or result.status == "error":
+    # "advisory" is a successful outcome: the bump was evaluated, gated, and
+    # filed as a Forge task. Only real errors should fail the systemd unit.
+    if result.status == "error":
         return 1
     return 0
 

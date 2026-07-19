@@ -38,10 +38,12 @@ def test_auto_merge_flag_reaches_auto_bump(auto_bump_mock):
     assert auto_bump_mock.call_args[1]["auto_merge"] is True
 
 
-def test_advisory_status_exits_1(auto_bump_mock, capsys):
+def test_advisory_status_exits_0(auto_bump_mock, capsys):
+    # Advisory = evaluated, gated, filed as a task: a successful run. Exit 1
+    # is reserved for real errors so the systemd unit only reddens on those.
     auto_bump_mock.return_value = _result(status="advisory", reason="major delta")
     result = main([])
-    assert result == 1
+    assert result == 0
     out = capsys.readouterr().out
     assert "advisory" in out
 
