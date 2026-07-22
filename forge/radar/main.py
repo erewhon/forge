@@ -10,9 +10,10 @@ Usage::
     forge radar scan                # run the source adapters, accumulate the candidate feed
     forge radar scan --source hackernews --dry-run   # one source, don't persist
     forge radar candidates          # show the accumulated feed
+    forge radar synthesize          # weekly pass: judge the feed → move blips → print digest
+    forge radar synthesize --deep --dry-run          # research Trial/Adopt picks, don't persist
 
-Read + scan surface. The weekly synthesis (a separate workstream) reads the candidate feed and is
-the only thing that creates or moves blips.
+Read, scan, and synthesize surface. The synthesis is the only thing that creates or moves blips.
 """
 
 from __future__ import annotations
@@ -266,6 +267,64 @@ def _cmd_candidates(argv: list[str]) -> int:
     return 0
 
 
+def _cmd_synthesize(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="forge radar synthesize",
+        description="Judge the candidate feed against the stack, move blips, emit a digest.",
+    )
+    _add_source_args(parser)
+    parser.add_argument("--deep", action="store_true", help="Research Trial/Adopt picks first.")
+    parser.add_argument("--model", default=None, help="Router model alias (default: env/research).")
+    parser.add_argument("--max", type=int, default=60, help="Max candidates to judge this pass.")
+    parser.add_argument("--dry-run", action="store_true", help="Judge + digest but don't persist.")
+    parser.add_argument("--digest-out", type=Path, default=None, help="Write the digest to a file.")
+    args = parser.parse_args(argv)
+
+    from datetime import date
+
+    from forge.radar.synthesis import default_llm, synthesize
+    from forge.shared.llm import complete
+
+    radar_store = _read_store(args)
+    if radar_store is None:
+        return 1
+    feed_store = _feed_store(args)
+
+    cfg, model = default_llm()
+    if args.model:
+        model = args.model
+
+    radar = radar_store.load()
+    feed = feed_store.load()
+    if not feed.entries:
+        print("Candidate feed is empty — run `forge radar scan` first.", file=sys.stderr)
+        return 0
+
+    result, digest = synthesize(
+        radar,
+        feed,
+        today=date.today(),
+        complete_fn=complete,
+        cfg=cfg,
+        model=model,
+        max_candidates=args.max,
+        deep=args.deep,
+    )
+
+    if args.digest_out:
+        args.digest_out.write_text(digest)
+        print(f"Digest written to {args.digest_out}")
+    else:
+        print(digest)
+
+    if args.dry_run:
+        print("(dry run — radar and feed not saved)", file=sys.stderr)
+        return 0
+    radar_store.save(radar)
+    feed_store.save(feed)
+    return 0
+
+
 def _cmd_init(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="forge radar init",
@@ -287,6 +346,7 @@ _COMMANDS = {
     "show": _cmd_show,
     "scan": _cmd_scan,
     "candidates": _cmd_candidates,
+    "synthesize": _cmd_synthesize,
 }
 
 
@@ -305,6 +365,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("show", help="Full detail and evidence trail for one blip.")
     sub.add_parser("scan", help="Run the source adapters, accumulate the candidate feed.")
     sub.add_parser("candidates", help="Show the accumulated candidate feed.")
+    sub.add_parser("synthesize", help="Weekly pass: judge the feed, move blips, emit a digest.")
     parser.parse_args(args)  # --help exits 0; unknown command exits 2
     parser.print_help()
     return 0
