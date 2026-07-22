@@ -197,6 +197,13 @@ def parse_placements(raw: dict, entries: list[FeedEntry]) -> list[Placement]:
     return out
 
 
+#: Candidates per judge call. The response carries a full rationale per candidate, so a large batch
+#: overruns ``max_tokens`` and the JSON truncates (live-observed at ~30) — chunk so each call's
+#: output stays whole. Each chunk still sees the current blips, so dedup-against-blips holds across
+#: chunks.
+DEFAULT_CHUNK_SIZE = 15
+
+
 def judge_candidates(
     entries: list[FeedEntry],
     radar: Radar,
@@ -205,14 +212,20 @@ def judge_candidates(
     cfg: LLMConfig,
     model: str,
     max_tokens: int = 8192,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> list[Placement]:
-    """Run one judge pass over *entries*. ``complete_fn`` is injectable (the shared
+    """Judge *entries* in chunks of ``chunk_size`` (one model call each, so a big feed can't
+    truncate the JSON), returning all placements. ``complete_fn`` is injectable (the shared
     :func:`forge.shared.llm.complete` in production, a fake in tests)."""
-    if not entries:
-        return []
-    system, user = build_judge_messages(entries, radar)
-    text = complete_fn(cfg, system=system, user_message=user, model=model, max_tokens=max_tokens)
-    return parse_placements(_extract_json_object(text), entries)
+    placements: list[Placement] = []
+    for start in range(0, len(entries), max(1, chunk_size)):
+        chunk = entries[start : start + max(1, chunk_size)]
+        system, user = build_judge_messages(chunk, radar)
+        text = complete_fn(
+            cfg, system=system, user_message=user, model=model, max_tokens=max_tokens
+        )
+        placements.extend(parse_placements(_extract_json_object(text), chunk))
+    return placements
 
 
 def _extract_json_object(text: str) -> dict:

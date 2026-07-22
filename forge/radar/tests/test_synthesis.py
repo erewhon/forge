@@ -116,6 +116,27 @@ def test_judge_tolerates_trailing_model_chatter():
     assert len(placements) == 1 and placements[0].name == "B"
 
 
+def test_judge_chunks_large_batches():
+    # 25 candidates with chunk_size 10 → 3 model calls, all placements collected.
+    entries = [_entry("github", f"o/r{i}", f"o/r{i}") for i in range(25)]
+    calls = {"n": 0}
+
+    def fn(cfg, *, system, user_message, model, max_tokens=8192):
+        calls["n"] += 1
+        # Echo a keep placement for each key present in this chunk's user message.
+        keys = [ln.split("key=", 1)[1].split(",", 1)[0] for ln in user_message.splitlines()
+                if "key=" in ln]
+        return json.dumps({"placements": [
+            {"key": k, "keep": True, "name": k, "quadrant": "Infra/Tooling", "ring": "Assess",
+             "rationale": "r"} for k in keys
+        ]})
+
+    placements = judge_candidates(entries, Radar(), complete_fn=fn, cfg=CFG, model="glm",
+                                  chunk_size=10)
+    assert calls["n"] == 3  # 10 + 10 + 5
+    assert len(placements) == 25
+
+
 def test_judge_candidates_roundtrips_through_fake_llm():
     entries = [_entry("huggingface", "org/m", "org/m", quadrant_hint=Quadrant.MODELS)]
     fn = _fake_complete(

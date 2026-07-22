@@ -12,8 +12,10 @@ Usage::
     forge radar candidates          # show the accumulated feed
     forge radar synthesize          # weekly pass: judge the feed → move blips → print digest
     forge radar synthesize --deep --dry-run          # research Trial/Adopt picks, don't persist
+    forge radar render --nous       # publish the SVG radar chart + legend page to Nous
+    forge radar render --out radar.md                # write the page markdown locally instead
 
-Read, scan, and synthesize surface. The synthesis is the only thing that creates or moves blips.
+Read, scan, synthesize, and render surface. The synthesis is the only thing that moves blips.
 """
 
 from __future__ import annotations
@@ -325,6 +327,49 @@ def _cmd_synthesize(argv: list[str]) -> int:
     return 0
 
 
+def _cmd_render(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="forge radar render",
+        description="Render the SVG radar chart + legend page from the blip store.",
+    )
+    _add_source_args(parser)
+    parser.add_argument("--out", type=Path, default=None, help="Write the page markdown to a file.")
+    parser.add_argument(
+        "--digest-file", type=Path, default=None, help="Include this digest markdown on the page."
+    )
+    args = parser.parse_args(argv)
+
+    from datetime import date
+
+    from forge.radar.render import RADAR_PAGE_TITLE, publish_radar, render_radar_page
+
+    radar_store = _read_store(args)
+    if radar_store is None:
+        return 1
+    radar = radar_store.load()
+    digest = args.digest_file.read_text() if args.digest_file else None
+    updated = date.today().isoformat()
+
+    if getattr(args, "nous", False):
+        result = publish_radar(
+            _nous_client(), radar, notebook_name=RADAR_NOTEBOOK_NAME, digest=digest, updated=updated
+        )
+        verb = "Created" if result["created"] else "Updated"
+        print(
+            f'{verb} "{RADAR_PAGE_TITLE}" ({result["page_id"]}) in the "{RADAR_NOTEBOOK_NAME}" '
+            "notebook."
+        )
+        return 0
+
+    page = render_radar_page(radar, digest=digest, updated=updated)
+    if args.out:
+        args.out.write_text(page)
+        print(f"Radar page written to {args.out}")
+    else:
+        print(page)
+    return 0
+
+
 def _cmd_init(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="forge radar init",
@@ -347,6 +392,7 @@ _COMMANDS = {
     "scan": _cmd_scan,
     "candidates": _cmd_candidates,
     "synthesize": _cmd_synthesize,
+    "render": _cmd_render,
 }
 
 
@@ -366,6 +412,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("scan", help="Run the source adapters, accumulate the candidate feed.")
     sub.add_parser("candidates", help="Show the accumulated candidate feed.")
     sub.add_parser("synthesize", help="Weekly pass: judge the feed, move blips, emit a digest.")
+    sub.add_parser("render", help="Render/publish the SVG radar chart + legend page.")
     parser.parse_args(args)  # --help exits 0; unknown command exits 2
     parser.print_help()
     return 0
