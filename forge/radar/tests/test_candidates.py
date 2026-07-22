@@ -149,6 +149,14 @@ def test_nous_candidate_store_roundtrips_and_reuses_row_ids():
     assert ids1 == ids2 and len(ids2) == 2  # idempotent, no duplicate rows
 
 
+def test_nous_candidate_rows_carry_required_timestamps():
+    daemon = FakeProvisionDaemon()
+    store = provision_candidate_store(daemon, notebook_name="AI Radar")
+    store.save(_feed())
+    rows = daemon.contents[store.db_id]["rows"]
+    assert rows and all(r.get("createdAt") and r.get("updatedAt") for r in rows)
+
+
 def test_nous_candidate_store_reuses_existing_notebook_and_db():
     daemon = FakeProvisionDaemon()
     provision_candidate_store(daemon, notebook_name="AI Radar")
