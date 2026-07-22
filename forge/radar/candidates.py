@@ -22,6 +22,7 @@ promoted to a blip is not re-added to the feed).
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
@@ -32,6 +33,10 @@ from forge.radar.sources.base import RawItem
 
 DEFAULT_JSONL_PATH = ".forge/radar/candidates.jsonl"
 CANDIDATE_DATABASE_TITLE = "Radar Candidates"
+
+
+def _now_iso() -> str:
+    return datetime.now(UTC).isoformat()
 
 
 class FeedEntry(BaseModel):
@@ -198,7 +203,7 @@ def _cell(row: dict, prop_map: dict[str, dict], name: str) -> str:
     return "" if raw is None else str(raw)
 
 
-def _entry_to_row(entry: FeedEntry, prop_ids: dict[str, str], existing_row_id: str | None) -> dict:
+def _entry_to_row(entry: FeedEntry, prop_ids: dict[str, str], prev: dict | None, now: str) -> dict:
     cells = {
         prop_ids["Title"]: entry.title,
         prop_ids["Source"]: entry.source,
@@ -212,7 +217,13 @@ def _entry_to_row(entry: FeedEntry, prop_ids: dict[str, str], existing_row_id: s
         prop_ids["Last Seen"]: entry.last_seen,
         prop_ids["Times Seen"]: str(entry.times_seen),
     }
-    return {"id": existing_row_id or _stable_id("row", entry.key), "cells": cells}
+    # createdAt/updatedAt are required by the frontend row schema (else "cannot parse as v1 or v2").
+    return {
+        "id": (prev or {}).get("id") or _stable_id("row", entry.key),
+        "cells": cells,
+        "createdAt": (prev or {}).get("createdAt") or now,
+        "updatedAt": now,
+    }
 
 
 def _row_to_entry(row: dict, prop_map: dict[str, dict]) -> FeedEntry:
@@ -272,24 +283,28 @@ class NousCandidateStore:
         db = self._inner()
         properties = _ensure_properties(db.get("properties", []))
         prop_ids = {p["name"]: p["id"] for p in properties}
-        existing = _existing_row_ids(db.get("rows", []), prop_map=prop_ids)
-        rows = [_entry_to_row(entry, prop_ids, existing.get(entry.key)) for entry in feed.entries]
+        existing = _existing_rows_by_key(db.get("rows", []), prop_map=prop_ids)
+        now = _now_iso()
+        rows = [
+            _entry_to_row(entry, prop_ids, existing.get(entry.key), now) for entry in feed.entries
+        ]
         db["properties"] = properties
         db["rows"] = rows
         self.client.put_database(self.notebook_id, self.db_id, db)
 
 
-def _existing_row_ids(rows: list[dict], prop_map: dict[str, str]) -> dict[str, str]:
-    """Map ``source:external_id -> existing row id`` so saves update rows in place."""
+def _existing_rows_by_key(rows: list[dict], prop_map: dict[str, str]) -> dict[str, dict]:
+    """Map ``source:external_id -> existing row`` so saves update rows in place (reusing id +
+    createdAt)."""
     src_id, ext_id = prop_map.get("Source"), prop_map.get("External ID")
     if not src_id or not ext_id:
         return {}
-    out: dict[str, str] = {}
+    out: dict[str, dict] = {}
     for row in rows:
         cells = row.get("cells", {})
         key = f"{cells.get(src_id, '')}:{cells.get(ext_id, '')}"
         if row.get("id") and cells.get(src_id):
-            out[key] = row["id"]
+            out[key] = row
     return out
 
 

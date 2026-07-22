@@ -105,6 +105,22 @@ def test_nous_store_roundtrips_through_a_fresh_database():
     assert loaded.model_dump() == radar.model_dump()
 
 
+def test_nous_store_rows_carry_required_timestamps():
+    # The frontend row schema requires createdAt/updatedAt — omitting them makes the whole database
+    # fail to parse ("cannot parse as v1 or v2").
+    daemon = FakeDaemon()
+    store = NousRadarStore(daemon, notebook_id="nb", db_id="db")
+    store.save(_radar())
+    rows = daemon.content["rows"]
+    assert rows and all(r.get("createdAt") and r.get("updatedAt") for r in rows)
+
+    # A second save preserves createdAt and refreshes updatedAt.
+    created_before = {r["id"]: r["createdAt"] for r in daemon.content["rows"]}
+    store.save(store.load())
+    for r in daemon.content["rows"]:
+        assert r["createdAt"] == created_before[r["id"]]
+
+
 def test_nous_store_reuses_row_ids_across_saves():
     daemon = FakeDaemon()
     store = NousRadarStore(daemon, notebook_id="nb", db_id="db")

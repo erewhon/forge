@@ -19,10 +19,15 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from forge.radar.models import Blip, Evidence, Quadrant, Radar, Ring
+
+
+def _now_iso() -> str:
+    return datetime.now(UTC).isoformat()
 
 # --- local JSON backend -----------------------------------------------------
 
@@ -111,10 +116,13 @@ def radar_database_properties() -> list[dict]:
     return props
 
 
-def _blip_to_row(blip: Blip, prop_ids: dict[str, str], existing_row_id: str | None) -> dict:
+def _blip_to_row(blip: Blip, prop_ids: dict[str, str], prev: dict | None, now: str) -> dict:
     """Serialise one blip to a database row. Select cells carry the plain label; ``Evidence`` and
-    ``Links`` carry JSON so they round-trip losslessly. Reuses ``existing_row_id`` when the blip is
-    already on the radar so updates don't churn ids."""
+    ``Links`` carry JSON so they round-trip losslessly. Reuses the prior row's id + ``createdAt``
+    when the blip is already on the radar (so updates don't churn), and stamps ``updatedAt`` now.
+
+    ``createdAt``/``updatedAt`` are **required** by the frontend's row schema — omitting them makes
+    the whole database fail to parse ("cannot parse as v1 or v2")."""
     cells = {
         prop_ids["Name"]: blip.name,
         prop_ids["Quadrant"]: blip.quadrant.value,
@@ -128,7 +136,12 @@ def _blip_to_row(blip: Blip, prop_ids: dict[str, str], existing_row_id: str | No
         prop_ids["Evidence"]: json.dumps([e.model_dump() for e in blip.evidence]),
         prop_ids["Links"]: json.dumps(blip.links),
     }
-    return {"id": existing_row_id or _stable_id("row", blip.slug), "cells": cells}
+    return {
+        "id": (prev or {}).get("id") or _stable_id("row", blip.slug),
+        "cells": cells,
+        "createdAt": (prev or {}).get("createdAt") or now,
+        "updatedAt": now,
+    }
 
 
 def _cell(row: dict, prop_map: dict[str, dict], name: str) -> str:
@@ -272,9 +285,10 @@ class NousRadarStore:
         properties = _ensure_properties(db.get("properties", []))
         prop_ids = {p["name"]: p["id"] for p in properties}
 
-        existing_row_ids = _existing_row_ids(db.get("rows", []), prop_ids.get("Name"))
+        existing = _existing_rows_by_slug(db.get("rows", []), prop_ids.get("Name"))
+        now = _now_iso()
         rows = [
-            _blip_to_row(blip, prop_ids, existing_row_ids.get(blip.slug)) for blip in radar.blips
+            _blip_to_row(blip, prop_ids, existing.get(blip.slug), now) for blip in radar.blips
         ]
         db["properties"] = properties
         db["rows"] = rows
@@ -305,16 +319,16 @@ def _ensure_properties(existing: list[dict]) -> list[dict]:
     return out
 
 
-def _existing_row_ids(rows: list[dict], name_prop_id: str | None) -> dict[str, str]:
-    """Map ``blip slug -> existing row id`` so a save updates rows in place. Keyed by slugifying the
-    Name cell of each existing row."""
+def _existing_rows_by_slug(rows: list[dict], name_prop_id: str | None) -> dict[str, dict]:
+    """Map ``blip slug -> existing row`` so a save updates rows in place (reusing id + createdAt).
+    Keyed by slugifying the Name cell of each existing row."""
     from forge.radar.models import slugify
 
     if not name_prop_id:
         return {}
-    out: dict[str, str] = {}
+    out: dict[str, dict] = {}
     for row in rows:
         name = row.get("cells", {}).get(name_prop_id, "")
         if name and row.get("id"):
-            out[slugify(str(name))] = row["id"]
+            out[slugify(str(name))] = row
     return out
