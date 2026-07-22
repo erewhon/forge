@@ -123,6 +123,7 @@ class _CaptureMCP:
 @dataclass(frozen=True)
 class _NousCtx:
     create_task: Callable[..., str]
+    create_project: Callable[..., str]
     storage: object
     notebook_id: str
     database_id: str
@@ -148,6 +149,7 @@ def _ctx() -> _NousCtx:
     db_page = daemon.resolve_page(nb["id"], settings.database)
     return _NousCtx(
         create_task=stub.tools["create_task"],
+        create_project=stub.tools["create_project"],
         storage=storage,
         notebook_id=nb["id"],
         database_id=db_page["id"],
@@ -157,6 +159,13 @@ def _ctx() -> _NousCtx:
 def _create_task(**kwargs) -> str:
     """Indirection over the captured nous_mcp create_task (so tests can patch it)."""
     return _ctx().create_task(**kwargs)
+
+
+def ensure_project(project: str) -> None:
+    """Ensure a Forge *project* exists (folder + task-DB select option) before emitting into it.
+    Idempotent — a no-op when the project is already there. ``create_task`` requires the project to
+    pre-exist, so callers emitting into a fresh project (e.g. radar trials) call this first."""
+    _ctx().create_project(name=project, notebook=settings.notebook, database=settings.database)
 
 
 def existing_external_refs() -> set[str]:

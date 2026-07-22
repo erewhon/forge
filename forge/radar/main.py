@@ -14,8 +14,10 @@ Usage::
     forge radar synthesize --deep --dry-run          # research Trial/Adopt picks, don't persist
     forge radar render --nous       # publish the SVG radar chart + legend page to Nous
     forge radar render --out radar.md                # write the page markdown locally instead
+    forge radar act                 # suggest Forge trial tasks for Trial-ring blips (no writes)
+    forge radar act --file --nous   # file them into the Radar Trials project + back-link the blips
 
-Read, scan, synthesize, and render surface. The synthesis is the only thing that moves blips.
+Read, scan, synthesize, render, act. The synthesis is the only thing that moves blips.
 """
 
 from __future__ import annotations
@@ -327,6 +329,42 @@ def _cmd_synthesize(argv: list[str]) -> int:
     return 0
 
 
+def _cmd_act(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="forge radar act",
+        description="Suggest (or file) Forge trial tasks for Trial-ring blips.",
+    )
+    _add_source_args(parser)
+    parser.add_argument(
+        "--project", default=None, help="Target Forge project (default: Radar Trials)."
+    )
+    parser.add_argument("--blip", default=None, help="Only this blip (by name or slug).")
+    parser.add_argument(
+        "--file", action="store_true", help="Actually file the tasks (default: suggest only)."
+    )
+    args = parser.parse_args(argv)
+
+    from datetime import date
+
+    from forge.radar.action import DEFAULT_TRIAL_PROJECT, act
+
+    radar_store = _read_store(args)
+    if radar_store is None:
+        return 1
+    radar = radar_store.load()
+    result = act(
+        radar,
+        project=args.project or DEFAULT_TRIAL_PROJECT,
+        today=date.today(),
+        only=args.blip,
+        dry_run=not args.file,
+    )
+    print(result.render())
+    if args.file and result.filed:
+        radar_store.save(radar)  # persist the back-links (created or self-healed)
+    return 0
+
+
 def _cmd_render(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="forge radar render",
@@ -393,6 +431,7 @@ _COMMANDS = {
     "candidates": _cmd_candidates,
     "synthesize": _cmd_synthesize,
     "render": _cmd_render,
+    "act": _cmd_act,
 }
 
 
@@ -413,6 +452,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("candidates", help="Show the accumulated candidate feed.")
     sub.add_parser("synthesize", help="Weekly pass: judge the feed, move blips, emit a digest.")
     sub.add_parser("render", help="Render/publish the SVG radar chart + legend page.")
+    sub.add_parser("act", help="Suggest/file Forge trial tasks for Trial-ring blips.")
     parser.parse_args(args)  # --help exits 0; unknown command exits 2
     parser.print_help()
     return 0
