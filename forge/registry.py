@@ -88,6 +88,13 @@ REGISTRY: list[AgentCommand] = [
         exposes_mcp=False,
     ),
     AgentCommand(
+        name="grind",
+        summary="Iterate a goal via a runbook loop (reset -> run -> check -> adjust); no commits.",
+        module="forge.grind.main",
+        # CLI-only like task/edit: mutates a working copy and spawns model subprocesses.
+        exposes_mcp=False,
+    ),
+    AgentCommand(
         name="queue",
         summary="Backlog report: non-done tasks per project, worker-readiness resolved.",
         module="forge.queue.main",
