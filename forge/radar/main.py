@@ -1,4 +1,4 @@
-"""``forge radar`` — inspect the living AI Technology Radar.
+"""``forge radar`` — inspect the living AI Technology Radar and run the source scanners.
 
 Usage::
 
@@ -7,19 +7,31 @@ Usage::
     forge radar status --nous       # …read from the Nous blip database instead
     forge radar status --home PATH  # read the radar under PATH/.forge/radar/blips.json
     forge radar show "Qwen3-Coder"  # one blip's full detail and evidence trail
+    forge radar scan                # run the source adapters, accumulate the candidate feed
+    forge radar scan --source hackernews --dry-run   # one source, don't persist
+    forge radar candidates          # show the accumulated feed
 
-This is the spine's read surface plus one-time provisioning. The write paths — source scanners
-feeding :func:`~forge.radar.movement.integrate_candidate` and the weekly synthesis calling
-:func:`~forge.radar.movement.propose_move` — are separate workstreams under feature "AI Tech Radar".
+Read + scan surface. The weekly synthesis (a separate workstream) reads the candidate feed and is
+the only thing that creates or moves blips.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+from datetime import date
 from pathlib import Path
 
+from forge.radar.candidates import (
+    DEFAULT_JSONL_PATH,
+    CandidateFeed,
+    CandidateStore,
+    JsonlCandidateStore,
+    provision_candidate_store,
+)
+from forge.radar.harvest import harvest
 from forge.radar.models import RING_ORDER, Blip, Quadrant, Radar
+from forge.radar.sources import default_adapters, radar_http_client
 from forge.radar.store import (
     DEFAULT_JSON_PATH,
     RADAR_NOTEBOOK_NAME,
@@ -60,6 +72,24 @@ def _read_store(args: argparse.Namespace) -> RadarStore | None:
             )
         return store
     return _default_store(args.home)
+
+
+def _feed_store(args: argparse.Namespace) -> CandidateStore:
+    """The candidate-feed store: the Nous "Radar Candidates" database with ``--nous`` (created if
+    absent — this is a write path), else the local JSONL feed."""
+    if getattr(args, "nous", False):
+        return provision_candidate_store(_nous_client(), notebook_name=RADAR_NOTEBOOK_NAME)
+    base = args.home or Path.cwd()
+    return JsonlCandidateStore(base / DEFAULT_JSONL_PATH)
+
+
+def _blip_slugs(args: argparse.Namespace) -> set[str]:
+    """The slugs of existing blips, so the harvest skips candidates already promoted. Empty when the
+    blip store has not been provisioned yet."""
+    if getattr(args, "nous", False):
+        store = provision_radar_store(_nous_client(), create=False)
+        return set(store.load().by_slug()) if store else set()
+    return set(_default_store(args.home).load().by_slug())
 
 
 def _recent_moves(radar: Radar, limit: int = 5) -> list[Blip]:
@@ -126,6 +156,29 @@ def render_blip(blip: Blip) -> str:
     return "\n".join(lines)
 
 
+def render_feed(feed: CandidateFeed, limit: int = 20) -> str:
+    """The candidate feed at a glance: per-source counts and the top entries by durability then
+    popularity (how many scans have surfaced it, then its score)."""
+    if not feed.entries:
+        return "Candidate feed is empty — run `forge radar scan`."
+
+    by_source: dict[str, int] = {}
+    for e in feed.entries:
+        by_source[e.source] = by_source.get(e.source, 0) + 1
+
+    lines = [f"{len(feed.entries)} candidates in the feed"]
+    lines.append("  " + "  ".join(f"{src}:{n}" for src, n in sorted(by_source.items())))
+    lines.append("")
+
+    top = sorted(feed.entries, key=lambda e: (e.times_seen, e.score or 0), reverse=True)[:limit]
+    lines.append(f"Top {len(top)}:")
+    for e in top:
+        hint = e.quadrant_hint.value if e.quadrant_hint else "?"
+        score = f", score {e.score:g}" if e.score is not None else ""
+        lines.append(f"  [{hint:<19}] {e.title}  (x{e.times_seen}{score}, {e.source})")
+    return "\n".join(lines)
+
+
 def _add_source_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--home", type=Path, default=None, help="Repo root (default: cwd)")
     parser.add_argument(
@@ -164,6 +217,55 @@ def _cmd_show(argv: list[str]) -> int:
     return 0
 
 
+def _cmd_scan(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="forge radar scan",
+        description="Run the source adapters and accumulate the candidate feed.",
+    )
+    _add_source_args(parser)
+    parser.add_argument(
+        "--source",
+        action="append",
+        default=None,
+        help="Only run this adapter (repeatable). Default: all.",
+    )
+    parser.add_argument("--dry-run", action="store_true", help="Fetch + filter but don't persist.")
+    args = parser.parse_args(argv)
+
+    adapters = default_adapters()
+    if args.source:
+        wanted = {s.lower() for s in args.source}
+        adapters = [a for a in adapters if a.name.lower() in wanted]
+        if not adapters:
+            print(f"No adapters match {sorted(wanted)}.", file=sys.stderr)
+            return 1
+
+    feed_store = _feed_store(args)
+    feed = feed_store.load()
+    blip_slugs = _blip_slugs(args)
+
+    with radar_http_client() as client:
+        report = harvest(feed, adapters, client, blip_slugs=blip_slugs, today=date.today())
+
+    print(report.render())
+    if args.dry_run:
+        print("\n(dry run — feed not saved)")
+        return 0
+    feed_store.save(feed)
+    return 0
+
+
+def _cmd_candidates(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="forge radar candidates", description="Show the accumulated candidate feed."
+    )
+    _add_source_args(parser)
+    parser.add_argument("--limit", type=int, default=20, help="How many top entries to show.")
+    args = parser.parse_args(argv)
+    print(render_feed(_feed_store(args).load(), limit=args.limit))
+    return 0
+
+
 def _cmd_init(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="forge radar init",
@@ -179,7 +281,13 @@ def _cmd_init(argv: list[str]) -> int:
     return 0
 
 
-_COMMANDS = {"init": _cmd_init, "status": _cmd_status, "show": _cmd_show}
+_COMMANDS = {
+    "init": _cmd_init,
+    "status": _cmd_status,
+    "show": _cmd_show,
+    "scan": _cmd_scan,
+    "candidates": _cmd_candidates,
+}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -195,6 +303,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("init", help='Stand up the "AI Radar" Nous notebook + blip database.')
     sub.add_parser("status", help="Quadrant × ring grid, counts, and recent moves.")
     sub.add_parser("show", help="Full detail and evidence trail for one blip.")
+    sub.add_parser("scan", help="Run the source adapters, accumulate the candidate feed.")
+    sub.add_parser("candidates", help="Show the accumulated candidate feed.")
     parser.parse_args(args)  # --help exits 0; unknown command exits 2
     parser.print_help()
     return 0
