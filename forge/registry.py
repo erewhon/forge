@@ -102,6 +102,13 @@ REGISTRY: list[AgentCommand] = [
         exposes_mcp=False,
     ),
     AgentCommand(
+        name="switcheroo",
+        summary="Manual outage failover: drain worker-ready leaves via the local fleet.",
+        module="forge.switcheroo.main",
+        # CLI-only like task/grind: drives the OpenCode-backed worker, which commits to real repos.
+        exposes_mcp=False,
+    ),
+    AgentCommand(
         name="build",
         summary="Coding pipeline: plan, run, and inspect epic builds.",
         module="forge.coding_pipeline.main",
