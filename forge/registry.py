@@ -115,6 +115,14 @@ REGISTRY: list[AgentCommand] = [
         exposes_mcp=False,
     ),
     AgentCommand(
+        name="radar",
+        summary="AI Technology Radar: inspect the living quadrants × Adopt/Trial/Assess/Hold blips.",
+        module="forge.radar.main",
+        # CLI-only for now: read surface over the Nous/JSON blip store. The scanner + weekly
+        # synthesis write paths (separate workstreams) will decide their own MCP exposure.
+        exposes_mcp=False,
+    ),
+    AgentCommand(
         name="evals",
         summary="Judgment eval harness: score models against frozen gold sets.",
         module="forge.evals.main",
