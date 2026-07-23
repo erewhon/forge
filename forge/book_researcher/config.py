@@ -37,10 +37,14 @@ class BookResearcherSettings(BaseSettings):
     # Adversarial verification panel (ensemble harness consumer #3): instead of one verifier, fan
     # out these diverse router models — each scores + challenges adversarially; scores are median-
     # aggregated (robust to a lenient/harsh outlier) and the challenges drive the next sprint. The
-    # panel always runs through the router, even when llm_backend="anthropic". Privacy caveat: coder
-    # is self-hosted, but qwen3.6-plus/glm-5.1 are external (cloud) backends, so findings leave the
-    # local-lab in this step — research_model gathering stays local, verification does not.
-    verifier_panel_models: list[str] = ["coder", "qwen3.6-plus", "glm-5.1"]
+    # panel always runs through the router, even when llm_backend="anthropic". Privacy: all three
+    # members are self-hosted homelab models (models.yaml backend=vllm, never external), so book
+    # research findings never leave the lab during verification — gathering AND verification are now
+    # local. Diversity spans 2+ families for a real cross-check: coder=Qwen3.6-35B (hypatia GPU),
+    # gptoss=gpt-oss-120B (hekaton CPU, reasoning), m2.7-local=MiniMax-M2.7 (hekaton CPU). floor=2
+    # leaves headroom for one slow CPU member to time out. Tradeoff: the hekaton CPU members are
+    # slower than the old cloud glm/qwen3.6-plus — accepted for privacy (swapped 2026-07-23).
+    verifier_panel_models: list[str] = ["coder", "gptoss", "m2.7-local"]
     verifier_panel_floor: int = 2  # min members that must respond+parse, else degrade
 
     @property
