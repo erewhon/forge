@@ -21,6 +21,12 @@ from typing import Literal
 
 Backend = Literal["openai", "anthropic"]
 
+# Marker prefix stored in a research finding's ``answer`` when the LLM call produced nothing
+# usable (empty content or a hard error). Research harnesses use it to tell a genuinely empty
+# sprint apart from a real low-confidence finding, so a dead sprint can be aborted instead of
+# silently scored 1/10. Keep callers in sync when matching on it.
+RESEARCH_FAILED_PREFIX = "Research failed:"
+
 
 @dataclass(frozen=True)
 class LLMConfig:
@@ -65,6 +71,34 @@ def complete(
         ],
     )
     return (response.choices[0].message.content or "").strip()
+
+
+def complete_with_retry(
+    cfg: LLMConfig,
+    *,
+    system: str,
+    user_message: str,
+    model: str,
+    max_tokens: int = 4096,
+    retries: int = 1,
+) -> str:
+    """``complete()``, retrying when the model returns empty/whitespace content.
+
+    An empty completion is the classic symptom of a transient tool-proxy / web-egress hiccup
+    (see the 2026-07-24 outage): the request succeeds with HTTP 200 but carries no content. A
+    single retry recovers most of these. Returns the final attempt's text, which may STILL be
+    empty — callers must treat an empty return as a failure, not a valid finding.
+    """
+    text = ""
+    for attempt in range(retries + 1):
+        text = complete(
+            cfg, system=system, user_message=user_message, model=model, max_tokens=max_tokens
+        )
+        if text.strip():
+            return text
+        if attempt < retries:
+            print(f"    empty response from {model!r}; retrying ({attempt + 1}/{retries})...")
+    return text
 
 
 def extract_json(text: str) -> dict:

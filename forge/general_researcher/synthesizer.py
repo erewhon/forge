@@ -25,6 +25,7 @@ from forge.general_researcher.models import (
     VerificationResult,
 )
 from forge.shared.ensemble import Pool
+from forge.shared.llm import RESEARCH_FAILED_PREFIX
 from forge.shared.panel import build_router_executors, run_panel, structured
 
 _JUDGE_CANDIDATE_CHARS = 6000  # bound each candidate answer in the judge's context
@@ -278,6 +279,31 @@ def synthesize(
     sprint_count = len(all_findings)
     best_score = max((v.scores.overall for v in verifications), default=0)
     incomplete = not any(v.passed for v in verifications)
+
+    # If no finding carries real content (every one empty or a failure marker), do NOT synthesize:
+    # the models would answer the question from their own memory and emit a confident, unsourced
+    # answer that looks researched but isn't. Fail honestly instead. See Forge task 41c3a3b3.
+    has_content = any(
+        f.answer.strip() and not f.answer.startswith(RESEARCH_FAILED_PREFIX)
+        for sf in all_findings
+        for f in sf.findings
+    )
+    if not has_content:
+        return Synthesis(
+            question=topic.question,
+            answer=(
+                f"{RESEARCH_FAILED_PREFIX} the research step produced no usable findings across "
+                f"{sprint_count} sprint(s) — the tool proxy or its web egress was likely down. "
+                "No answer was synthesized (synthesizing from model memory would fabricate an "
+                "unsourced answer). Check the router, then re-run."
+            ),
+            key_sources=[],
+            confidence="low",
+            open_questions=[topic.question],
+            sprint_count=sprint_count,
+            best_score=best_score,
+            incomplete=True,
+        )
 
     user_msg = _build_user_message(topic, all_findings, verifications)
 
