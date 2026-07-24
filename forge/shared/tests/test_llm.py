@@ -9,7 +9,44 @@ from __future__ import annotations
 
 import json
 
-from forge.shared.llm import extract_json
+from forge.shared.llm import LLMConfig, complete_with_retry, extract_json
+
+
+def _cfg() -> LLMConfig:
+    return LLMConfig(backend="openai")
+
+
+def test_complete_with_retry_returns_first_nonempty(monkeypatch):
+    calls: list[str] = []
+
+    def fake(cfg, *, system, user_message, model, max_tokens=4096):
+        calls.append(model)
+        return "answer"
+
+    monkeypatch.setattr("forge.shared.llm.complete", fake)
+    out = complete_with_retry(_cfg(), system="s", user_message="u", model="research")
+    assert out == "answer"
+    assert len(calls) == 1  # succeeded first try, no retry
+
+
+def test_complete_with_retry_retries_empty_then_succeeds(monkeypatch):
+    outs = iter(["   ", "recovered"])
+    monkeypatch.setattr("forge.shared.llm.complete", lambda *a, **k: next(outs))
+    out = complete_with_retry(_cfg(), system="s", user_message="u", model="research")
+    assert out == "recovered"
+
+
+def test_complete_with_retry_gives_up_after_retries(monkeypatch):
+    n = {"c": 0}
+
+    def fake(*a, **k):
+        n["c"] += 1
+        return ""
+
+    monkeypatch.setattr("forge.shared.llm.complete", fake)
+    out = complete_with_retry(_cfg(), system="s", user_message="u", model="research", retries=1)
+    assert out == ""  # still empty — caller must treat as failure
+    assert n["c"] == 2  # initial attempt + one retry
 
 
 def test_plain_json_passes_through():

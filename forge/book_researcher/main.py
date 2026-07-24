@@ -11,7 +11,7 @@ from forge.book_researcher.config import settings
 from forge.book_researcher.models import BookConfig, SprintFindings
 from forge.book_researcher.planner import create_sprint
 from forge.book_researcher.renderer import render_knowledge_summary, render_verification
-from forge.book_researcher.researcher import execute_sprint
+from forge.book_researcher.researcher import execute_sprint, sprint_has_content
 from forge.book_researcher.scaffold import DEFAULT_FILENAME, write_skeleton
 from forge.book_researcher.verifier import verify_sprint
 
@@ -156,6 +156,17 @@ def run(config_path: str, *, max_sprints: int | None = None, dry_run: bool = Fal
         findings = execute_sprint(contract, chapter_context=chapter_context)
         print(f"  Collected {len(findings.findings)} findings")
         print()
+
+        # Abort a dead sprint before running the verifier panel on emptiness. Every finding
+        # empty/failed means the tool proxy or its web egress is down, so further sprints fail
+        # the same way. Stop loud rather than grind the cap. See Forge task 41c3a3b3.
+        if not sprint_has_content(findings):
+            print(
+                "  All findings this sprint are empty/failed — aborting.\n"
+                "  The router tool proxy or its web egress is likely down; check it, then re-run."
+            )
+            print()
+            break
 
         # c. Verify
         print("--- Verifying ---")

@@ -31,7 +31,7 @@ from forge.general_researcher.renderer import (
     render_synthesis,
     render_verification,
 )
-from forge.general_researcher.researcher import execute_sprint
+from forge.general_researcher.researcher import execute_sprint, sprint_has_content
 from forge.general_researcher.synthesizer import synthesize
 from forge.general_researcher.verifier import verify_sprint
 
@@ -170,6 +170,19 @@ def run(
         )
         print(f"  Collected {len(findings.findings)} findings")
         print()
+
+        # Abort a dead sprint before spending the verifier panel on emptiness. Every finding
+        # empty/failed means the tool proxy or its web egress is down (not a topic that's merely
+        # hard), so further sprints would fail the same way. Stop loud instead of grinding the
+        # cap and handing the synthesizer nothing. See Forge task 41c3a3b3.
+        if not sprint_has_content(findings):
+            print(
+                "  All findings this sprint are empty/failed — aborting the run.\n"
+                "  The router tool proxy or its web egress is likely down; check it, then re-run.\n"
+                "  (No verifier panel run for this sprint.)"
+            )
+            print()
+            break
 
         # Verify
         print("--- Verifying ---")
