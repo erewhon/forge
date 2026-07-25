@@ -8,6 +8,7 @@ from pathlib import Path
 import yaml
 
 from forge.book_researcher.config import settings
+from forge.book_researcher.importer import import_research
 from forge.book_researcher.models import BookConfig, SprintFindings
 from forge.book_researcher.planner import create_sprint
 from forge.book_researcher.renderer import render_knowledge_summary, render_verification
@@ -243,14 +244,57 @@ def _init(argv: list[str]) -> int:
     return 0
 
 
+def _import_research(argv: list[str]) -> int:
+    """`forge book import-research <slug> --chapter N` — pull a research topic into a chapter."""
+    parser = argparse.ArgumentParser(
+        prog="forge book import-research",
+        description=(
+            "Transplant a `forge research` topic's findings into a book chapter's knowledge dir, "
+            "so `forge book` treats them as prior context instead of re-researching them."
+        ),
+    )
+    parser.add_argument(
+        "slug",
+        help="Research topic slug (the dir name under GENERAL_RESEARCHER_PROJECT_DIR)",
+    )
+    parser.add_argument(
+        "--chapter", type=int, required=True, help="Target chapter number in this book"
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        result = import_research(args.slug, args.chapter)
+    except FileNotFoundError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    dropped = f" ({result.dropped} empty/failed skipped)" if result.dropped else ""
+    print(
+        f"Imported {result.imported} finding(s){dropped} from research topic "
+        f"'{args.slug}' into chapter {args.chapter}."
+    )
+    print(f"  source: {result.source_dir}")
+    print(f"  wrote:  {result.json_path}")
+    print("Run `forge book <config> --summary` to see it in the knowledge summary.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv and argv[0] == "init":
         return _init(argv[1:])
+    if argv and argv[0] == "import-research":
+        return _import_research(argv[1:])
 
     parser = argparse.ArgumentParser(
         description="Book research harness using generator-evaluator sprint cycles",
-        epilog="Subcommand: `init [path]` writes a skeleton book config to fill in.",
+        epilog=(
+            "Subcommands: `init [path]` writes a skeleton book config; "
+            "`import-research <slug> --chapter N` pulls a forge research topic into a chapter."
+        ),
     )
     parser.add_argument("config", help="Path to book config YAML/JSON file")
     parser.add_argument(
