@@ -6,6 +6,7 @@ from forge.general_researcher.models import (
     SprintContract,
     SprintFindings,
 )
+from forge.shared.datectx import researcher_date_context
 from forge.shared.llm import RESEARCH_FAILED_PREFIX, complete_with_retry, extract_json
 
 
@@ -69,7 +70,7 @@ def execute_sprint(
         try:
             response_text = complete_with_retry(
                 settings.llm_cfg(),
-                system=_SYSTEM_PROMPT,
+                system=f"{researcher_date_context()}\n\n{_SYSTEM_PROMPT}",
                 user_message=user_msg,
                 model=settings.research_model,
                 max_tokens=8192,

@@ -24,6 +24,7 @@ from forge.general_researcher.models import (
     TopicConfig,
     VerificationResult,
 )
+from forge.shared.datectx import researcher_date_context
 from forge.shared.ensemble import Pool
 from forge.shared.llm import RESEARCH_FAILED_PREFIX
 from forge.shared.panel import build_router_executors, run_panel, structured
@@ -185,7 +186,7 @@ def _generate_candidates(user_msg: str) -> tuple[list[_Candidate], list[str]]:
     )
     panel = run_panel(
         executors=executors,
-        system=_SYSTEM_PROMPT,
+        system=f"{researcher_date_context()}\n\n{_SYSTEM_PROMPT}",
         user=user_msg,
         floor=settings.synthesizer_panel_floor,
         max_tokens=8192,
@@ -256,7 +257,7 @@ def _single_synthesis(user_msg: str, question: str) -> _Candidate:
     res = structured(
         pool=pool,
         schema=_Candidate,
-        system=_SYSTEM_PROMPT,
+        system=f"{researcher_date_context()}\n\n{_SYSTEM_PROMPT}",
         user=user_msg,
         max_tokens=8192,
     )

@@ -3,6 +3,7 @@ from __future__ import annotations
 from forge.book_researcher.config import settings
 from forge.book_researcher.models import ResearchFinding, SprintContract, SprintFindings
 from forge.book_researcher.renderer import render_sprint_findings
+from forge.shared.datectx import researcher_date_context
 from forge.shared.llm import RESEARCH_FAILED_PREFIX, complete_with_retry, extract_json
 
 
@@ -62,7 +63,7 @@ def execute_sprint(contract: SprintContract, chapter_context: str = "") -> Sprin
         try:
             response_text = complete_with_retry(
                 settings.llm_cfg(),
-                system=_SYSTEM_PROMPT,
+                system=f"{researcher_date_context()}\n\n{_SYSTEM_PROMPT}",
                 user_message=user_msg,
                 model=settings.research_model,
             )
