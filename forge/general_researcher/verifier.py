@@ -214,6 +214,14 @@ def verify_sprint(
             members=members,
             user=user_msg,
             floor=settings.verifier_panel_floor,
+            # Well above run_member_panel's 4096 default. A reasoning panel member spends most of
+            # its budget thinking before emitting the verdict: measured on a real sprint, glm got
+            # ~650 tokens of content out of 4096 and its JSON was cut off mid-array, so the
+            # claim-verification lens dropped out of 4 of 5 sprints — and that is the lens grading
+            # claim_verification, which duly scored 2 in exactly those sprints. glm's verdict
+            # converges at ~6.4k chars (same length at 8192 and 16384), so this is headroom rather
+            # than a target; max_tokens is a ceiling, not a reservation, so slack costs nothing.
+            max_tokens=16384,
         )
     except Exception as e:  # noqa: BLE001 — verification must never crash the sprint loop
         return _fallback(contract, f"panel error: {e}")

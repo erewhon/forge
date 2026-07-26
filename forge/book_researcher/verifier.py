@@ -199,6 +199,11 @@ def _verify(contract: SprintContract, findings: SprintFindings) -> VerificationR
             members=members,
             user=user_msg,
             floor=settings.verifier_panel_floor,
+            # Well above run_member_panel's 4096 default — a reasoning panel member spends most of
+            # its budget thinking before emitting the verdict, and at 4096 glm's JSON came back cut
+            # off mid-array so its lens silently dropped out. max_tokens is a ceiling, not a
+            # reservation, so this slack costs nothing. See the general_researcher note.
+            max_tokens=16384,
         )
     except Exception as e:  # noqa: BLE001 — verification must never crash the chapter loop
         return _fallback(contract, f"panel error: {e}")
