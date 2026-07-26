@@ -22,6 +22,7 @@ from forge.general_researcher.models import (
     VerificationResult,
     VerificationScores,
 )
+from forge.shared.datectx import verifier_date_context
 from forge.shared.panel import build_lens_members, run_member_panel
 
 _DIMENSIONS = (
@@ -199,7 +200,10 @@ def verify_sprint(
         settings.verifier_panel_models,
         base_url=settings.openai_base_url,
         api_key=settings.openai_api_key,
-        base_system=_SYSTEM_PROMPT,
+        # Date context FIRST: without it the panel reads correctly-retrieved post-cutoff events as
+        # "CRITICAL HALLUCINATION" and floors the scores, inverting the quality signal. Built per
+        # call so it tracks the real date rather than freezing at import.
+        base_system=f"{verifier_date_context()}\n\n{_SYSTEM_PROMPT}",
     )
     print(
         f"  Verifying sprint {contract.sprint_id} "

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from forge.general_researcher.config import settings
 from forge.general_researcher.models import SprintContract, TopicConfig
+from forge.shared.datectx import researcher_date_context
 from forge.shared.llm import complete, extract_json
 
 _SYSTEM_PROMPT = """\
@@ -57,7 +58,7 @@ def create_sprint(
     try:
         response_text = complete(
             settings.llm_cfg(),
-            system=_SYSTEM_PROMPT,
+            system=f"{researcher_date_context()}\n\n{_SYSTEM_PROMPT}",
             user_message=user_msg,
             model=settings.synthesis_model,
         )
