@@ -153,9 +153,12 @@ to use Claude instead.
 
 - **Web search comes from the LLM router's tool proxy, not this harness.**
   When `RESEARCH_MODEL` is a `tool_proxy: true` model (the default
-  `research` alias is), the proxy auto-injects `web_search`,
-  `tavily_search`, and `fetch_url` tools and handles the tool loop server
-  side. The researcher prompt explicitly tells the model to use them. If
+  `research` alias is), the proxy auto-injects `web_search` and
+  `fetch_url` tools and handles the tool loop server
+  side. The researcher prompt explicitly tells the model to use them, and
+  must name only tools the proxy actually registers — advertising an
+  unregistered tool (`tavily_search`, previously) makes the model call it
+  and Atlas silently discard the call, yielding empty findings. If
   you switch to a model without a tool proxy, the researcher will fall
   back to memory.
 - **Anthropic backend has no search.** `LLM_BACKEND=anthropic` produces

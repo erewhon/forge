@@ -13,9 +13,14 @@ that suit smaller problems:
   artifact you actually read.
 
 The researcher prompt explicitly instructs the model to use the search
-tools (`web_search`, `tavily_search`, `fetch_url`) that the local LLM
-router's tool proxy auto-injects for the `research` alias. So research
-draws on live retrieval rather than just model memory.
+tools (`web_search`, `fetch_url`) that the local LLM router's tool proxy
+auto-injects for the `research` alias. So research draws on live
+retrieval rather than just model memory.
+
+The prompt must only name tools the proxy actually registers (check
+`curl <proxy>:5393/health`). It used to advertise `tavily_search`, which
+the proxy leaves keyless: the model would call it, and Atlas silently
+discarded the call — the sprint came back empty with no diagnosis.
 
 ## Pattern
 
