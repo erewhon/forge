@@ -23,7 +23,7 @@ from forge.general_researcher.models import (
     VerificationScores,
 )
 from forge.shared.datectx import verifier_date_context
-from forge.shared.panel import build_lens_members, run_member_panel
+from forge.shared.panel import build_lens_members, describe_participation, run_member_panel
 
 _DIMENSIONS = (
     "source_diversity",
@@ -240,10 +240,9 @@ def verify_sprint(
         _MAX_CHALLENGES,
     )
 
-    degraded = "" if panel.quorum_met else " (below floor — degraded)"
-    feedback = (
-        f"Perspective-diverse panel: {len(panel.responses)}/{panel.attempted} lenses{degraded}."
-    )
+    # Name the seats that graded and why any are missing — a bare "2/5 lenses" hides that whole
+    # perspectives went ungraded and that the survivors may all be one model.
+    feedback = f"Perspective-diverse panel: {describe_participation(panel)}."
     if challenges:
         feedback += " Top concerns: " + " | ".join(challenges[:4])
 

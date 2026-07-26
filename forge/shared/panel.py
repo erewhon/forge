@@ -38,6 +38,25 @@ class PanelResult:
     failures: list[tuple[str, str]] = field(default_factory=list)
 
 
+def describe_participation(panel: PanelResult) -> str:
+    """Who actually graded, and why the absent seats are absent.
+
+    A panel that silently drops members reports itself as "2/5 lenses" and reads like mild
+    degradation, when it can in fact mean whole perspectives went ungraded and the surviving seats
+    all ran the same model — the median then aggregates one model with itself. Naming the seats and
+    their failure reasons turns that from invisible into obvious. ``PanelResult.failures`` already
+    carries the reasons; this is the renderer callers were missing.
+    """
+    graded = ", ".join(panel.member_labels) or "none"
+    out = f"{len(panel.responses)}/{panel.attempted} lenses (graded by: {graded})"
+    if not panel.quorum_met:
+        out += " — BELOW FLOOR, degraded"
+    if panel.failures:
+        absent = "; ".join(f"{label} — {reason}" for label, reason in panel.failures)
+        out += f". Absent: {absent}"
+    return out
+
+
 @dataclass
 class PanelMember:
     """One panel seat: an executor paired with the (possibly lens-specialised) system prompt it
