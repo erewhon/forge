@@ -6,6 +6,7 @@ from forge.general_researcher.models import (
     TopicConfig,
     VerificationResult,
 )
+from forge.shared.llm import RESEARCH_FAILED_PREFIX
 
 
 def render_sprint_findings(findings: SprintFindings) -> str:
@@ -126,18 +127,39 @@ def render_findings_summary(all_findings: list[SprintFindings], max_chars: int) 
 
 
 def render_findings_context(all_findings: list[SprintFindings], max_chars: int) -> str:
-    """Fuller findings text for the researcher's prior-context prompt."""
+    """Fuller findings text for the researcher's prior-context prompt.
+
+    Two safeguards against fabrication laundering — an early invented "fact" hardening into
+    established background through repetition. Observed live: a court docket number appeared in
+    sprint 1 with ZERO sources; by sprint 2 the model was restating it at high confidence with
+    sources it had found for adjacent facts, and it survived four more sprints unchallenged.
+
+    1. Unsourced and failed findings are excluded — a claim nothing backed is not prior research,
+       and it is precisely the kind that gets laundered.
+    2. What remains is labelled UNVERIFIED CLAIMS rather than fact, so the model re-verifies
+       instead of treating the harness's own memory as a source.
+    """
     if not all_findings:
         return ""
     blocks = []
     for sf in all_findings:
         for f in sf.findings:
+            if f.answer.startswith(RESEARCH_FAILED_PREFIX) or not f.sources:
+                continue  # never feed an unsourced or failed claim forward
             blocks.append(
                 f"### Sprint {sf.sprint_id} — {f.question}\n"
                 f"{f.answer}\n"
-                f"Sources: {', '.join(f.sources) if f.sources else 'None cited'}\n"
+                f"Sources: {', '.join(f.sources)}\n"
             )
-    text = "\n---\n".join(blocks)
+    if not blocks:
+        return ""
+    header = (
+        "The following are UNVERIFIED CLAIMS from earlier sprints, not established facts. They may "
+        "contain errors. Do not restate any of them as settled — if you rely on one, verify it "
+        "against a source you retrieve yourself this session and cite that source. Never treat "
+        "this prior-research section as itself a source.\n\n"
+    )
+    text = header + "\n---\n".join(blocks)
     if len(text) > max_chars:
         text = text[:max_chars] + "\n\n[... earlier research truncated ...]"
     return text

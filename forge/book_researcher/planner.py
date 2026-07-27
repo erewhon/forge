@@ -26,9 +26,19 @@ def create_sprint(
     existing_knowledge: dict[int, list[str]],
     sprint_number: int,
     follow_up_feedback: str | None = None,
+    exhausted_chapters: set[int] | None = None,
 ) -> SprintContract:
-    """Create a sprint contract identifying the next research priority."""
+    """Create a sprint contract identifying the next research priority.
+
+    ``exhausted_chapters`` are chapters already attempted their maximum number of times without
+    passing. Without this the loop starves: a failing sprint's feedback is fed to the next planner
+    call, which pushes it to re-attack the same chapter, so a chapter that *cannot* pass absorbs
+    every remaining sprint. Observed live — all six sprints of a ten-sprint run went to chapter 2
+    while chapters 3-10 received nothing at all.
+    """
     sprint_id = f"{sprint_number:03d}"
+
+    exhausted = exhausted_chapters or set()
 
     # Build chapter summary
     chapters_info = []
@@ -37,6 +47,8 @@ def create_sprint(
         coverage_note = (
             f" (already researched: {', '.join(covered)})" if covered else " (no research yet)"
         )
+        if ch.number in exhausted:
+            coverage_note += " [ATTEMPT LIMIT REACHED — DO NOT TARGET THIS CHAPTER]"
         chapters_info.append(
             f"  Chapter {ch.number}: {ch.title} - {ch.description}{coverage_note}\n"
             f"    Open questions: {', '.join(ch.research_questions)}"
@@ -48,11 +60,20 @@ def create_sprint(
         f"Chapters:\n" + "\n".join(chapters_info)
     )
 
+    if exhausted:
+        listed = ", ".join(str(n) for n in sorted(exhausted))
+        user_msg += (
+            f"\n\nCHAPTERS {listed} HAVE REACHED THEIR ATTEMPT LIMIT without passing verification. "
+            f"Do NOT target them again — repeated attempts have not closed their gaps, and other "
+            f"chapters have had no research at all. Choose a different chapter."
+        )
+
     if follow_up_feedback:
         user_msg += (
             f"\n\nIMPORTANT - Previous sprint did not pass verification. "
             f"Feedback from verifier:\n{follow_up_feedback}\n"
-            f"Create a follow-up sprint addressing these gaps."
+            f"Create a follow-up sprint addressing these gaps"
+            + (" IN A DIFFERENT CHAPTER (see the attempt limits above)." if exhausted else ".")
         )
 
     user_msg += f"\n\nThis is sprint #{sprint_number}. Create the next research sprint."
