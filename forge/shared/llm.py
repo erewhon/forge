@@ -27,6 +27,23 @@ Backend = Literal["openai", "anthropic"]
 # silently scored 1/10. Keep callers in sync when matching on it.
 RESEARCH_FAILED_PREFIX = "Research failed:"
 
+# Signatures of a tool-proxy diagnostic returned *as if it were content*. When the proxy's web tools
+# fail it now reports why instead of returning an empty 200 (a genuine improvement), but the text
+# lands in `content`, so the harness stored strings like
+#   "(max tool rounds reached) — 11 of 12 tool call(s) failed. First failure — fetch_url: HTTP 403"
+# as a finding: non-empty, so the empty-content guard let it through, and it reached the verifier as
+# a real (if low-confidence) answer. These are failures and must be recorded as such.
+_TOOL_FAILURE_SIGNATURES = (
+    "max tool rounds reached",
+    "tool call(s) failed",
+)
+
+
+def is_tool_failure_text(text: str) -> bool:
+    """True if `text` is a tool-proxy failure diagnostic rather than a real answer."""
+    low = text.strip().lower()
+    return any(sig in low for sig in _TOOL_FAILURE_SIGNATURES)
+
 
 @dataclass(frozen=True)
 class LLMConfig:

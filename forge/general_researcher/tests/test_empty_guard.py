@@ -113,3 +113,17 @@ def test_synthesis_refuses_when_all_findings_empty(monkeypatch):
     assert synth.incomplete
     assert synth.confidence == "low"
     assert synth.open_questions == ["Why is the sky blue?"]
+
+
+def test_tool_failure_diagnostic_becomes_failure_finding(monkeypatch):
+    """A proxy tool-failure diagnostic is non-empty, so it must be caught by its own check."""
+    diag = (
+        "(max tool rounds reached) — 11 of 12 tool call(s) failed. "
+        "First failure — fetch_url: HTTP 403"
+    )
+    monkeypatch.setattr(researcher, "complete_with_retry", lambda *a, **k: diag)
+    sf = researcher.execute_sprint(_contract(["What is the docket status?"]))
+    f = sf.findings[0]
+    assert f.answer.startswith(RESEARCH_FAILED_PREFIX)
+    assert f.sources == []
+    assert not researcher.sprint_has_content(sf)
