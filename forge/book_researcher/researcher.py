@@ -4,7 +4,12 @@ from forge.book_researcher.config import settings
 from forge.book_researcher.models import ResearchFinding, SprintContract, SprintFindings
 from forge.book_researcher.renderer import render_sprint_findings
 from forge.shared.datectx import researcher_date_context
-from forge.shared.llm import RESEARCH_FAILED_PREFIX, complete_with_retry, extract_json
+from forge.shared.llm import (
+    RESEARCH_FAILED_PREFIX,
+    complete_with_retry,
+    extract_json,
+    is_tool_failure_text,
+)
 
 
 def sprint_has_content(findings: SprintFindings) -> bool:
@@ -30,6 +35,13 @@ USE THESE TOOLS. Do not rely on memory for facts that may be outdated, \
 specific (dates, figures, names), or contested. For every non-trivial \
 claim, ground it in a source you actually retrieved this session. Prefer \
 primary sources, seminal works, and named authors over generic summaries.
+
+ANSWER THE QUESTION ASKED, OR SAY YOU COULD NOT. If you cannot retrieve \
+sources about the specific case, entity, filing, or person named in the \
+question, say so plainly and set confidence to "low". Never substitute a \
+different subject you happened to find — an answer about a similar-sounding \
+case or a neighbouring entity is worse than no answer, because it reads as \
+responsive and is not. Report retrieval failures explicitly; they are useful.
 
 For each question, return ONLY valid JSON:
 {
@@ -67,7 +79,19 @@ def execute_sprint(contract: SprintContract, chapter_context: str = "") -> Sprin
                 user_message=user_msg,
                 model=settings.research_model,
             )
-            if not response_text.strip():
+            if is_tool_failure_text(response_text):
+                # A proxy tool-failure diagnostic arrives in `content`, so it is non-empty and
+                # slips past the empty-content guard below — landing in the chapter's knowledge as
+                # a real low-confidence answer. Record it as the failure it is.
+                print(f"    WARNING: tool failure: {response_text.strip()[:120]}")
+                finding = ResearchFinding(
+                    question=question,
+                    answer=f"{RESEARCH_FAILED_PREFIX} {response_text.strip()[:300]}",
+                    sources=[],
+                    confidence="low",
+                )
+                raw_notes.append(f"--- Question: {question} ---\n{response_text}\n")
+            elif not response_text.strip():
                 # Empty content (even after a retry) means the tool proxy / web egress silently
                 # failed. Record it as an explicit failure so the sprint loop can abort a dead
                 # sprint instead of scoring emptiness. See Forge task 41c3a3b3.

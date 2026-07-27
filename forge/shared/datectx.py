@@ -39,15 +39,29 @@ def researcher_date_context(today: date | None = None) -> str:
 def verifier_date_context(today: date | None = None) -> str:
     """Date context for a grading role (verifier panel).
 
-    The critical one. Without it the panel treats every post-cutoff finding as a hallucination,
-    which inverts the quality signal: the better the retrieval, the worse the score.
+    The critical one, and it took two passes to get right. Without any date the panel treats every
+    post-cutoff finding as a hallucination, inverting the quality signal. But merely *stating* the
+    date was not enough: on a heavily-covered subject the panel would acknowledge "as of the current
+    date (July 2026)" and in the same breath call an August 2025 ruling a "future event", then
+    assert its own remembered dates ("the actual judgment was issued in November 2023") over the
+    cited ones. Strong training priors beat a bare date statement, so the instruction has to forbid
+    substituting recollection for citations, not just forbid the word "future".
     """
     return (
         f"{today_line(today)} IMPORTANT: the findings you are grading were produced with live web "
         "search, so they legitimately contain events, dates, appointments, and publications that "
         "postdate your training data. A claim is NOT a hallucination merely because you do not "
         "recognise it or because it is later than your knowledge cutoff — you have no basis to "
-        "call a date 'future' or an event 'fabricated' from your own knowledge alone. Judge each "
-        "claim on whether the findings cite a source that actually supports it. Unsourced, vague, "
-        "source-mismatched claims are still fair game and you should attack them; recency is not."
+        "call a date 'future' or an event 'fabricated' from your own knowledge alone.\n\n"
+        "Your own memory is NOT evidence here. Do not correct a cited date, ruling, holding, or "
+        "outcome using your recollection: on subjects with heavy pre-cutoff coverage your priors "
+        "describe an earlier state of the world and the findings may describe a later one. If you "
+        "believe a cited fact is wrong, you must point to the specific source in the findings that "
+        "contradicts it, or say the citation does not support the claim — never assert a competing "
+        "fact from memory, and never label something fabricated because it disagrees with what you "
+        "remember.\n\n"
+        "Judge each claim on whether the findings cite a source that actually supports it. "
+        "Unsourced, vague, and source-mismatched claims are still fair game and you should attack "
+        "them hard; an answer that does not address the question it was asked is fair game; "
+        "recency is not."
     )
