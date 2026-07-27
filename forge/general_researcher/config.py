@@ -27,6 +27,17 @@ class GeneralResearcherSettings(BaseSettings):
     score_threshold: int = 7
     max_findings_tokens: int = 4000
 
+    # Fetch every cited URL and drop the ones that 404. The research model fabricates citations —
+    # complete plausible URLs, including one invented ProPublica article manufactured to support a
+    # claim that something did NOT happen. "Has sources" does not catch that, because the sources
+    # are non-empty, just fake. Existence is decidable without a model, so this runs before a
+    # finding is written. Set check_sources_proxy to the router tool proxy's egress so a source the
+    # researcher could reach is one this check can reach (otherwise blocked-but-real sources look
+    # dead from here). Only 404/410 are dropped; 403/timeouts are treated as unknown, never dead.
+    check_sources: bool = True
+    check_sources_timeout: float = 15.0
+    check_sources_proxy: str | None = None
+
     # Adversarial verification panel: instead of one verifier, fan out these diverse router models
     # (harness consumer #3) — each scores + challenges adversarially, then scores are median-
     # aggregated (robust to a lenient/harsh outlier) and the challenges drive the next sprint. The

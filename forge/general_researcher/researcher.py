@@ -13,6 +13,7 @@ from forge.shared.llm import (
     extract_json,
     is_tool_failure_text,
 )
+from forge.shared.source_check import scrub_citations
 
 
 def sprint_has_content(findings: SprintFindings) -> bool:
@@ -116,12 +117,27 @@ def execute_sprint(
             else:
                 raw_notes.append(f"--- Question: {question} ---\n{response_text}\n")
                 data = extract_json(response_text)
+                answer = data.get("answer") or response_text[:2500]
+                sources = data.get("sources", [])
+                conf = data.get("confidence", "low")
+                if settings.check_sources and sources:
+                    answer, sources, conf, dead = scrub_citations(
+                        answer,
+                        sources,
+                        conf,
+                        timeout=settings.check_sources_timeout,
+                        proxy=settings.check_sources_proxy,
+                    )
+                    if dead:
+                        print(
+                            f"    WARNING: {len(dead)} fabricated citation(s) removed: "
+                            + "; ".join(v.url or "?" for v in dead)
+                        )
                 finding = ResearchFinding(
                     question=data.get("question", question),
-                    # `or` (not dict default) so an empty "answer" string also falls back to prose
-                    answer=data.get("answer") or response_text[:2500],
-                    sources=data.get("sources", []),
-                    confidence=data.get("confidence", "low"),
+                    answer=answer,
+                    sources=sources,
+                    confidence=conf,
                 )
         except Exception as e:
             print(f"    WARNING: LLM call failed for question: {e}")
