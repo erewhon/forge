@@ -15,6 +15,13 @@ from forge.book_researcher.renderer import render_knowledge_summary, render_veri
 from forge.book_researcher.researcher import execute_sprint, sprint_has_content
 from forge.book_researcher.scaffold import DEFAULT_FILENAME, write_skeleton
 from forge.book_researcher.verifier import verify_sprint
+from forge.shared.llm import RESEARCH_FAILED_PREFIX
+
+# Failed attempts on one chapter before the planner is told to go elsewhere. Low on purpose: the
+# point is coverage across the outline, and a chapter that has missed the threshold twice is
+# usually blocked by something a third identical attempt will not fix (unreachable sources, a
+# question that cannot be satisfied as posed) rather than by insufficient effort.
+MAX_ATTEMPTS_PER_CHAPTER = 2
 
 
 def _load_book_config(config_path: str) -> BookConfig:
@@ -66,20 +73,42 @@ def _scan_existing_knowledge() -> dict[int, list[str]]:
 
 
 def _get_chapter_context(chapter_num: int) -> str:
-    """Load existing research for a chapter as context for the researcher."""
+    """Load existing research for a chapter as context for the researcher.
+
+    Reads the structured JSON rather than the rendered markdown so unsourced and failed findings
+    can be filtered out. That filter matters: a fabricated court docket entered chapter 2 in
+    sprint 1 with ZERO sources, and because the whole markdown was fed forward verbatim as
+    "existing research context", sprint 2 restated it at HIGH confidence with sources gathered for
+    adjacent facts — laundering an invention into apparent fact across four further sprints.
+
+    Surviving claims are labelled unverified so the model re-verifies rather than treating the
+    harness's own memory as authority.
+    """
     chapter_dir = settings.knowledge_dir / f"chapter-{chapter_num:02d}"
     if not chapter_dir.exists():
         return ""
 
     context_parts: list[str] = []
-    for md_file in sorted(chapter_dir.glob("sprint-*.md")):
+    for json_file in sorted(chapter_dir.glob("sprint-*.json")):
         try:
-            content = md_file.read_text()
-            context_parts.append(content)
+            sf = SprintFindings.model_validate(json.loads(json_file.read_text()))
         except Exception:
             continue
+        for f in sf.findings:
+            if f.answer.startswith(RESEARCH_FAILED_PREFIX) or not f.sources:
+                continue  # never feed an unsourced or failed claim forward
+            context_parts.append(f"### {f.question}\n{f.answer}\nSources: {', '.join(f.sources)}\n")
 
-    full_context = "\n\n".join(context_parts)
+    if not context_parts:
+        return ""
+
+    header = (
+        "The following are UNVERIFIED CLAIMS from earlier sprints on this chapter, not established "
+        "facts. They may contain errors. Do not restate any of them as settled — if you rely on "
+        "one, verify it against a source you retrieve yourself this session and cite that source. "
+        "Never treat this section as itself a source.\n\n"
+    )
+    full_context = header + "\n---\n".join(context_parts)
     # Truncate to avoid overwhelming the researcher's context
     max_chars = settings.max_findings_tokens * 4
     if len(full_context) > max_chars:
@@ -123,6 +152,12 @@ def run(config_path: str, *, max_sprints: int | None = None, dry_run: bool = Fal
     sprint_limit = max_sprints if max_sprints is not None else settings.max_sprints_per_run
     sprint_offset = _count_existing_sprints()
     follow_up_feedback: str | None = None
+    # Attempts per chapter this run. A failing sprint's feedback pushes the planner back at the
+    # same chapter, so without a cap one unpassable chapter absorbs every sprint — observed live,
+    # six of six sprints on chapter 2 while chapters 3-10 got nothing. After the cap the chapter is
+    # declared exhausted and the planner is told to go elsewhere.
+    chapter_attempts: dict[int, int] = {}
+    exhausted_chapters: set[int] = set()
 
     # 3. Sprint cycle
     for i in range(sprint_limit):
@@ -138,6 +173,7 @@ def run(config_path: str, *, max_sprints: int | None = None, dry_run: bool = Fal
             book_config,
             existing_knowledge,
             sprint_number,
+            exhausted_chapters=exhausted_chapters,
             follow_up_feedback=follow_up_feedback,
         )
         print(f"  Target: Chapter {contract.chapter}")
@@ -176,6 +212,7 @@ def run(config_path: str, *, max_sprints: int | None = None, dry_run: bool = Fal
         print()
 
         # d/e. Decide next action
+        chapter_attempts[contract.chapter] = chapter_attempts.get(contract.chapter, 0) + 1
         if result.passed:
             print(f"  PASSED (score: {result.scores.overall}/10)")
             follow_up_feedback = None
@@ -191,6 +228,17 @@ def run(config_path: str, *, max_sprints: int | None = None, dry_run: bool = Fal
                 f"Feedback: {result.feedback}\n"
                 f"Follow-up questions: {', '.join(result.follow_up_questions)}"
             )
+            if chapter_attempts[contract.chapter] >= MAX_ATTEMPTS_PER_CHAPTER:
+                exhausted_chapters.add(contract.chapter)
+                print(
+                    f"  Chapter {contract.chapter} has now failed "
+                    f"{chapter_attempts[contract.chapter]} attempts — moving on so the remaining "
+                    f"sprints reach other chapters. Its findings are kept; re-run to revisit it."
+                )
+                if len(exhausted_chapters) >= len(book_config.chapters):
+                    print("  Every chapter has hit its attempt limit — stopping.")
+                    print()
+                    break
 
         print()
 
