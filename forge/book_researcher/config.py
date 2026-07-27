@@ -34,6 +34,15 @@ class BookResearcherSettings(BaseSettings):
     score_threshold: int = 7  # minimum score (1-10) to accept findings
     max_findings_tokens: int = 4000  # truncate findings context for verifier
 
+    # Fetch every cited URL and drop the ones that 404 — the research model fabricates citations,
+    # and "has sources" does not catch it because the sources are non-empty, just fake. Existence
+    # is decidable without a model. Set check_sources_proxy to the router tool proxy's egress so a
+    # source the researcher could reach is one this check can reach. Only 404/410 are dropped;
+    # 403s and timeouts are unknown, never dead. See forge/shared/source_check.py.
+    check_sources: bool = True
+    check_sources_timeout: float = 15.0
+    check_sources_proxy: str | None = None
+
     # Adversarial verification panel (ensemble harness consumer #3): instead of one verifier, fan
     # out these diverse router models — each scores + challenges adversarially; scores are median-
     # aggregated (robust to a lenient/harsh outlier) and the challenges drive the next sprint. The
