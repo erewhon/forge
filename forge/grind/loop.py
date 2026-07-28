@@ -51,7 +51,7 @@ def grind(
     cycle_fn: CycleFn = run_cycle,
 ) -> GrindOutcome:
     """Run the grind loop until the goal is met, the loop gets stuck, or the cap is hit."""
-    ensure_jj(repo)
+    root = ensure_jj(repo)  # may be above *repo* (monorepo); jj ops target the workspace root
     hill_climb = cfg.check.score_regex is not None
     goal_dir = cfg.check.score_goal
 
@@ -67,19 +67,19 @@ def grind(
         )
 
     best_score = baseline.score
-    best_op = current_op(repo)
+    best_op = current_op(root)
     observation = baseline.observation
     recent_sigs: list[str] = []
 
     for i in range(1, cfg.max_iterations + 1):
         log(f"── turn {i}/{cfg.max_iterations} " + ("─" * 32))
-        pre_op = current_op(repo)
+        pre_op = current_op(root)
         spec = build_spec(cfg, repo, observation, i)
         ok, tail, blocked = edit_fn(repo, spec, model, cfg.edit_timeout)
 
         if blocked:
             log(f"model refused (BLOCKED). Rolling back turn {i}.\n{tail}")
-            restore_op(repo, pre_op)
+            restore_op(root, pre_op)
             _append_journal(
                 run_dir,
                 IterationRecord(
@@ -103,7 +103,7 @@ def grind(
             log("opencode turn exited non-zero (advisory) — scoring the working copy anyway.")
 
         cycle = cycle_fn(cfg, repo)
-        edited = _safe_changed(repo)
+        edited = _safe_changed(root)
         sig = failure_signature(cycle.reason)
 
         if cycle.passed:
@@ -132,14 +132,14 @@ def grind(
         if hill_climb:
             if score_improves(cycle.score, best_score, goal_dir):
                 best_score = cycle.score
-                best_op = current_op(repo)
+                best_op = current_op(root)
                 log(f"  score improved → {cycle.score} (kept as best)")
             else:
-                restore_op(repo, best_op)
+                restore_op(root, best_op)
                 kept = False
                 log(f"  score {cycle.score} did not beat best {best_score} → rolled back")
         else:
-            best_op = current_op(repo)  # linear keep-last: this turn is the new tip
+            best_op = current_op(root)  # linear keep-last: this turn is the new tip
 
         _append_journal(
             run_dir,
@@ -173,7 +173,7 @@ def grind(
 
         observation = cycle.observation
 
-    restore_op(repo, best_op)
+    restore_op(root, best_op)
     log(f"iteration cap ({cfg.max_iterations}) reached without meeting the goal. Best state kept.")
     return GrindOutcome(
         status="exhausted",

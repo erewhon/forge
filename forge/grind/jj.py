@@ -11,8 +11,6 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from forge.task_worker.vcs import detect_vcs
-
 _TIMEOUT = 30
 
 
@@ -30,13 +28,17 @@ def _run(args: list[str], repo: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def ensure_jj(repo: Path) -> None:
-    """Raise unless *repo* is a jj repo — grind's checkpoint/rollback needs the jj op log."""
-    if detect_vcs(repo) != "jj":
-        raise JJError(
-            f"{repo} is not a jj repo. grind uses the jj operation log for commit-less "
-            f"checkpoints; run it in a jj working copy (`jj git init` if needed)."
-        )
+def ensure_jj(repo: Path) -> Path:
+    """Return the enclosing jj workspace root, or raise — grind's checkpoint/rollback needs the
+    jj op log. Walks up from *repo* so grind works from a project subdirectory of a monorepo:
+    the runbook's steps still run in *repo*, while jj snapshots/restores the whole workspace."""
+    for candidate in (repo, *repo.parents):
+        if (candidate / ".jj").is_dir():
+            return candidate
+    raise JJError(
+        f"{repo} is not inside a jj repo. grind uses the jj operation log for commit-less "
+        f"checkpoints; run it in (or under) a jj working copy (`jj git init` if needed)."
+    )
 
 
 def current_op(repo: Path) -> str:

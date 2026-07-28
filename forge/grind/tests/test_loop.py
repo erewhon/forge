@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
-from forge.grind.jj import current_op, restore_op
+from forge.grind.jj import JJError, current_op, ensure_jj, restore_op
 from forge.grind.loop import grind
 from forge.grind.models import GrindConfig
 
@@ -166,3 +167,40 @@ def test_jj_op_roundtrip_reverts_working_copy(tmp_path):
     current_op(repo)  # snapshot the edit
     restore_op(repo, op)
     assert (repo / "value.txt").read_text().strip() == "0"
+
+
+def test_ensure_jj_walks_up_to_the_workspace_root(tmp_path):
+    """A project subdirectory of a monorepo resolves to the enclosing .jj root."""
+    repo = _init_repo(tmp_path)
+    sub = repo / "projects" / "app"
+    sub.mkdir(parents=True)
+    assert ensure_jj(sub) == repo
+    assert ensure_jj(repo) == repo
+    with pytest.raises(JJError, match="not inside a jj repo"):
+        ensure_jj(Path("/nonexistent-grind-test-dir"))
+
+
+def test_monorepo_subdir_checkpoints_via_parent_repo(tmp_path):
+    """grind run in a subdir (.jj one level up) still snapshots and rolls back correctly."""
+    _init_repo(tmp_path)
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "value.txt").write_text("0\n")
+    # turn 1 → 5 (improves, kept); turn 2 → 2 (regression, rolled back via the parent repo).
+    plan = iter([5, 2])
+
+    def edit_fn(_repo, _spec, _model, _timeout):
+        (project / "value.txt").write_text(f"{next(plan)}\n")
+        return True, "", False
+
+    outcome = grind(
+        _cfg(target=99, score=True, max_iter=2),
+        project,
+        model="fake",
+        run_dir=project / "runs",
+        log=lambda *_: None,
+        edit_fn=edit_fn,
+    )
+    assert outcome.status == "exhausted"
+    assert outcome.best_score == 5.0
+    assert (project / "value.txt").read_text().strip() == "5"
