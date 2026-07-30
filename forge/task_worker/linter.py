@@ -42,6 +42,17 @@ def _tail(text: str, n: int = _OUTPUT_TAIL) -> str:
     return cut
 
 
+_UV_NOISE_PREFIXES = ("Downloading ", "Downloaded ", "Installed ", "Resolved ", "Prepared ")
+
+
+def _strip_uv_noise(text: str) -> str:
+    """Drop uv/uvx progress lines so the evidence tail keeps ruff's violations, not
+    package-manager chatter (belt to the ``uvx -q`` suspenders — ``uv run`` emits the
+    same noise when the sandbox venv is cold)."""
+    kept = [ln for ln in text.splitlines() if not ln.strip().startswith(_UV_NOISE_PREFIXES)]
+    return "\n".join(kept)
+
+
 def _ruff_cmd(repo_path: Path) -> list[str] | None:
     """The ruff invocation for this repo, or None when the repo shows no ruff intent.
 
@@ -60,7 +71,11 @@ def _ruff_cmd(repo_path: Path) -> list[str] | None:
         return None
     config_only = "[tool.ruff" in content and "ruff" not in content.replace("[tool.ruff", "")
     if config_only:
-        return ["uvx", "ruff"]
+        # -q: uvx's download/install progress goes to stderr and, in an ephemeral
+        # sandbox with a cold cache, is long enough to push ruff's actual violation
+        # list out of the tailed evidence — the retry prompt then shows noise instead
+        # of what to fix, and the leaf loops (test-as-spec live finding, 2026-07-30).
+        return ["uvx", "-q", "ruff"]
     return ["uv", "run", "ruff"]
 
 
@@ -115,4 +130,4 @@ def run_lint(
     rc, out = check()
     if rc == 0:
         return True, "lint clean after autofix", True
-    return False, _tail(out), True
+    return False, _tail(_strip_uv_noise(out)), True
