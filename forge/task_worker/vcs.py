@@ -87,6 +87,26 @@ def get_changed_files(repo_path: Path) -> list[str]:
     raise VCSError(f"No VCS detected in {repo_path}")
 
 
+def get_file_diff(repo_path: Path, file: str) -> str:
+    """Unified (git-style) diff of the working copy's change to one file.
+
+    Empty string when the file is untouched. Used by the objective gate to
+    prove a spec test file lost nothing but its xfail marker.
+    """
+    vcs = detect_vcs(repo_path)
+    if vcs == "jj":
+        result = _run(["jj", "diff", "--no-pager", "--git", "--", file], repo_path)
+        if result.returncode != 0:
+            raise VCSError(f"jj diff failed for {file}: {result.stderr.strip()}")
+        return result.stdout
+    if vcs == "git":
+        result = _run(["git", "diff", "HEAD", "--", file], repo_path)
+        if result.returncode != 0:
+            raise VCSError(f"git diff failed for {file}: {result.stderr.strip()}")
+        return result.stdout
+    raise VCSError(f"No VCS detected in {repo_path}")
+
+
 # ---------------------------------------------------------------------------
 # Revert
 # ---------------------------------------------------------------------------

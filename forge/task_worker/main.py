@@ -35,6 +35,7 @@ from forge.task_worker.config import settings
 from forge.task_worker.executor import execute_task_with_opencode
 from forge.task_worker.linter import run_lint
 from forge.task_worker.models import RunOutcome, TaskInfo
+from forge.task_worker.objective import run_objective, spec_test_path
 from forge.task_worker.sandbox import make_sandbox
 from forge.task_worker.tester import run_build, run_tests
 from forge.task_worker.vcs import (
@@ -503,6 +504,41 @@ def run_one(
                 notes_written=nw,
             )
         print("Tests passed")
+
+    # 9.5 Objective gate — code-as-spec leaves only. Suite-green is not objective-met:
+    # an unimplemented spec test is green-by-xfail, so every other gate can pass on a
+    # diff that never touched the objective (test-as-spec pilot escape, 2026-07-30).
+    # Proves the declared spec test file lost its marker (and nothing else) and passes
+    # under --runxfail. Leaves that declare no spec test skip this entirely.
+    if spec_test_path(spec) is not None:
+        print("Objective check...")
+        try:
+            objective_met, objective_out = run_objective(project_dir, spec, sandbox=sandbox)
+        except Exception as e:  # noqa: BLE001
+            objective_met, objective_out = False, f"objective gate raised: {e}"
+        if not objective_met:
+            print(f"Objective not met. Reverting. Tail: {_tail(objective_out, 200)}")
+            _safe_revert(project_dir, "objective-failed")
+            nw = _safe_status(
+                task.task,
+                "Ready",
+                notes=(
+                    "Worker change did not meet the leaf objective:\n\n"
+                    f"{_tail(objective_out, 1500)}"
+                ),
+            )
+            return _outcome(
+                "failed",
+                _gate_failure(
+                    "objective",
+                    "expected the leaf's declared spec test to genuinely pass; the change "
+                    "does not meet the objective",
+                    _tail(objective_out, 500),
+                ),
+                changed=changed,
+                notes_written=nw,
+            )
+        print("Objective met")
 
     # 10. Commit (on host)
     if settings.dry_run:
