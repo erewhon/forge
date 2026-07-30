@@ -565,3 +565,50 @@ def test_deterministic_escalations_distinguishes_cap_from_no_progress():
     assert "no-progress" in by["looping"]  # stuck-under-cap gets the Ralph-loop framing
     assert by["capped"] == "boom"  # capped-only keeps its raw reason, no no-progress tag
     assert "no-progress" not in by["capped"]
+
+
+def test_replan_identical_failure_wave_halts_without_model(monkeypatch):
+    """≥3 failed leaves sharing one failure signature = infra: single halt, no
+    escalations, no respecs, and the model is never consulted (the pilot burned two
+    runs on respecs of good specs before this rule)."""
+    spy = _structured_spy(monkeypatch)
+    same = "opencode gate failed — Tokenization error: chat template rejected message 85"
+    report = _report(
+        outcomes=[
+            _failed_leaf("a", same),
+            _failed_leaf("b", same.replace("85", "12")),  # numbers normalize away
+            _failed_leaf("c", same),
+        ]
+    )
+    actions = arch.replan(_proposal(approved=True), [_leaf("a")], report, {"a": 9, "b": 9})
+    assert len(actions) == 1
+    assert isinstance(actions[0], arch.HaltAction)
+    assert "infra-failure signature" in actions[0].reason
+    assert spy == []  # model never consulted
+
+
+def test_replan_mixed_signatures_do_not_trip_infra_halt(monkeypatch):
+    """Distinct failure reasons keep the normal path (model consulted as usual)."""
+    _envelope(monkeypatch, [])
+    report = _report(
+        outcomes=[
+            _failed_leaf("a", "tests red: assertion mismatch in area"),
+            _failed_leaf("b", "lint gate failed — unused import"),
+            _failed_leaf("c", "opencode gate failed — timeout"),
+        ]
+    )
+    actions = arch.replan(_proposal(approved=True), [_leaf("a")], report, {})
+    assert not any(isinstance(a, arch.HaltAction) for a in actions)
+
+
+def test_replan_two_identical_failures_below_threshold(monkeypatch):
+    """Two identical failures can be a shared legitimate cause a retry fixes — no halt."""
+    _envelope(monkeypatch, [])
+    report = _report(
+        outcomes=[
+            _failed_leaf("a", "lint gate failed — line too long"),
+            _failed_leaf("b", "lint gate failed — line too long"),
+        ]
+    )
+    actions = arch.replan(_proposal(approved=True), [_leaf("a")], report, {})
+    assert not any(isinstance(a, arch.HaltAction) for a in actions)

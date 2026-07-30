@@ -66,6 +66,16 @@ def _gate_failure(gate: str, expectation: str, tail: str) -> str:
     return f"{gate} gate failed — {expectation}. Evidence:\n{tail}"
 
 
+# Toolchain-death signatures in an opencode session tail: the model never got to work,
+# so the failure hint must point at the environment, not the spec (the hint is replanner
+# input — see the opencode gate below).
+_TOOLCHAIN_ERR_RE = re.compile(
+    r"tokenization error|chat template|jinja|err_stream_destroyed|econnrefused"
+    r"|connection refused|connect etimedout",
+    re.IGNORECASE,
+)
+
+
 # A BLOCKED marker is a LINE starting with "BLOCKED:" (the model protocol) or the guardrail
 # "> **Blocked:**" that get_task_spec injects. Line-anchored on purpose: a spec that merely
 # *mentions* the protocol ("print a line starting with BLOCKED:") must not trip it.
@@ -341,14 +351,23 @@ def run_one(
                 "Ready",
                 notes=f"Autonomous worker failed:\n\n{_tail(stdout_tail, 500)}",
             )
+            # A toolchain death gets its own hint: blaming the spec for a tokenization
+            # or connection error sent the replanner off respeccing five good specs
+            # (test-as-spec pilot, runs 1-2) — the hint text IS replanner input.
+            if _TOOLCHAIN_ERR_RE.search(stdout_tail):
+                expectation = (
+                    "the session died on a toolchain/environment error before the model "
+                    "could work (tokenization/template/connection class) — fix the "
+                    "environment; a spec rewrite will not help"
+                )
+            else:
+                expectation = (
+                    "the model exited non-zero and left no usable change; the spec may be "
+                    "too large or unclear — split or clarify it, then re-dispatch"
+                )
             return _outcome(
                 "failed",
-                _gate_failure(
-                    "opencode",
-                    "the model exited non-zero and left no usable change; the spec may be too "
-                    "large or unclear — split or clarify it, then re-dispatch",
-                    _tail(stdout_tail, 200),
-                ),
+                _gate_failure("opencode", expectation, _tail(stdout_tail, 200)),
                 notes_written=nw,
             )
         print(

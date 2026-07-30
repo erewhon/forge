@@ -585,3 +585,19 @@ def test_requires_tests_floors_max_files_at_three(wired):
     # decomposition can't revert correct work. The 2-file diff passes under the floor.
     out = tw.run_one(_task(max_files=1, requires_tests=True))
     assert "max_files exceeded" not in out.reason
+
+
+def test_toolchain_error_regex_classifies_hints():
+    """The opencode-gate hint text is replanner input: a toolchain death must not be
+    blamed on the spec (the pilot's replanner respecced five good specs off that hint)."""
+    from forge.task_worker.main import _TOOLCHAIN_ERR_RE
+
+    toolchain = [
+        "Error: Tokenization error: Failed to render Jinja chat template: invalid operation",
+        'code: "ERR_STREAM_DESTROYED"\nat _write (internal:streams/writable:240:29)',
+        "connect ECONNREFUSED 127.0.0.1:4010",
+    ]
+    for tail in toolchain:
+        assert _TOOLCHAIN_ERR_RE.search(tail), tail
+    for tail in ["model replied with plan text only", "BLOCKED: cannot proceed", ""]:
+        assert not _TOOLCHAIN_ERR_RE.search(tail), tail
