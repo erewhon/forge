@@ -53,6 +53,14 @@ class TaskWorkerSettings(BaseSettings):
     runonce_extra_mounts: list[Path] = [
         Path.home() / ".cache" / "uv",
     ]
+    # Env vars injected into every run-once sandbox (--env K=V). The default carries
+    # the open-mem kill switch: open-mem's context-inject hook inserts a mid-array
+    # system message that strict local-model chat templates reject ("System message
+    # must be at the beginning") — every leaf fails identically at tokenization.
+    # The dx-container path gets this from the container spec's environment map;
+    # run-once sandboxes start env-clean, so workspace-dispatched leaves silently
+    # lose it unless injected here (test-as-spec live finding, 2026-07-30).
+    runonce_env: dict[str, str] = {"OPEN_MEM_CONTEXT_INJECTION": "false"}
 
     # Degenerate-session retry: a session that ends this fast with zero file changes is
     # an empty generation (router hiccup), not a real attempt — retry in-process up to

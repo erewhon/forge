@@ -177,11 +177,35 @@ def test_run_once_argv_shape(tmp_path, monkeypatch, bare_home):
     assert args[args.index("--add-host") + 1] == "llm-router.internal:192.0.2.7"
     # DHCP readiness gate — a network command must not start before the NIC is up
     assert args[args.index("--wait-network") + 1] == "30"
+    # open-mem kill switch rides along by default: run-once sandboxes start env-clean,
+    # so without it every workspace-dispatched leaf on a strict-template local model
+    # dies at tokenization (mid-array system message)
+    assert "OPEN_MEM_CONTEXT_INJECTION=false" in args
     assert args[args.index("--timeout") + 1] == "600"
     assert args[args.index("--") + 1 :] == ["uv", "run", "pytest"]
     # host-side kill is a delayed backstop beyond the in-container timeout
     assert seen["kwargs"]["timeout"] == 600 + GaolRunOnceSandbox._HOST_GRACE_S
     assert seen["kwargs"]["cwd"] == repo
+
+
+def test_run_once_env_setting_forwarded(tmp_path, monkeypatch, bare_home):
+    """Every runonce_env entry becomes an --env K=V flag; PWD/HOME stay intact."""
+    from forge.task_worker.config import settings as tw_settings
+
+    seen = _capture_run(monkeypatch)
+    monkeypatch.setattr(
+        tw_settings, "runonce_env", {"OPEN_MEM_CONTEXT_INJECTION": "false", "FOO": "bar"}
+    )
+    repo = tmp_path / "leaf"
+    repo.mkdir()
+    GaolRunOnceSandbox(repo).run(["true"], timeout=60)
+
+    args = seen["args"]
+    assert "OPEN_MEM_CONTEXT_INJECTION=false" in args
+    assert "FOO=bar" in args
+    assert args[args.index("FOO=bar") - 1] == "--env"
+    assert f"PWD={repo}" in args
+    assert "HOME=/home/dev" in args
 
 
 def test_run_once_extra_mounts_same_path_and_missing_skipped(tmp_path, monkeypatch, bare_home):
