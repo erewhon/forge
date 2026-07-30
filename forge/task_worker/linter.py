@@ -29,7 +29,11 @@ if TYPE_CHECKING:
     from forge.task_worker.sandbox import Sandbox
 
 _LINT_TIMEOUT = 120
-_OUTPUT_TAIL = 1000
+# 4000, not 1000: ruff renders each violation as a multi-line code frame, and the
+# retry prompt is built from this tail — a budget that fits only the format-check
+# block leaves the retry blind to the violations it must fix (observed: a leaf
+# looped rewriting the same unsafe-fix idiom because the evidence never showed it).
+_OUTPUT_TAIL = 4000
 
 
 def _tail(text: str, n: int = _OUTPUT_TAIL) -> str:
