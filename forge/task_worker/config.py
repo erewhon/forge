@@ -60,7 +60,16 @@ class TaskWorkerSettings(BaseSettings):
     # The dx-container path gets this from the container spec's environment map;
     # run-once sandboxes start env-clean, so workspace-dispatched leaves silently
     # lose it unless injected here (test-as-spec live finding, 2026-07-30).
-    runonce_env: dict[str, str] = {"OPEN_MEM_CONTEXT_INJECTION": "false"}
+    # PLATFORM_OPENCODE=false disables the plugin's opencode hook entirely in
+    # ephemeral workers: beyond the injection bug, its folder-context feature writes
+    # an AGENTS.md activity block into the repo mid-session, which dirties the
+    # workspace and let a no-op session land as a completed task (suite stayed green
+    # because the leaf's spec tests were still xfail-marked). Workers have no use
+    # for cross-session memory.
+    runonce_env: dict[str, str] = {
+        "OPEN_MEM_CONTEXT_INJECTION": "false",
+        "OPEN_MEM_PLATFORM_OPENCODE": "false",
+    }
 
     # Degenerate-session retry: a session that ends this fast with zero file changes is
     # an empty generation (router hiccup), not a real attempt — retry in-process up to

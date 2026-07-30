@@ -177,10 +177,12 @@ def test_run_once_argv_shape(tmp_path, monkeypatch, bare_home):
     assert args[args.index("--add-host") + 1] == "llm-router.internal:192.0.2.7"
     # DHCP readiness gate — a network command must not start before the NIC is up
     assert args[args.index("--wait-network") + 1] == "30"
-    # open-mem kill switch rides along by default: run-once sandboxes start env-clean,
-    # so without it every workspace-dispatched leaf on a strict-template local model
-    # dies at tokenization (mid-array system message)
+    # open-mem kill switches ride along by default: run-once sandboxes start env-clean,
+    # so without them every workspace-dispatched leaf on a strict-template local model
+    # dies at tokenization (mid-array system message), and the plugin's folder-context
+    # AGENTS.md writes can dirty the workspace enough to land a no-op session as done
     assert "OPEN_MEM_CONTEXT_INJECTION=false" in args
+    assert "OPEN_MEM_PLATFORM_OPENCODE=false" in args
     assert args[args.index("--timeout") + 1] == "600"
     assert args[args.index("--") + 1 :] == ["uv", "run", "pytest"]
     # host-side kill is a delayed backstop beyond the in-container timeout
