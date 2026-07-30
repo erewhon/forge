@@ -10,14 +10,16 @@ from forge.task_worker import linter
 class FakeSandbox:
     """Records commands; returns scripted returncodes per invocation order."""
 
-    def __init__(self, returncodes: list[int]):
+    def __init__(self, returncodes: list[int], outputs: dict[int, str] | None = None):
         self.returncodes = list(returncodes)
+        self.outputs = outputs or {}  # invocation index -> stdout
         self.commands: list[list[str]] = []
 
     def run(self, cmd, *, timeout):
+        idx = len(self.commands)
         self.commands.append(cmd)
         rc = self.returncodes.pop(0) if self.returncodes else 0
-        return SimpleNamespace(returncode=rc, stdout=f"rc={rc}", stderr="")
+        return SimpleNamespace(returncode=rc, stdout=self.outputs.get(idx, f"rc={rc}"), stderr="")
 
 
 def _repo(tmp_path, pyproject: str | None):
@@ -76,4 +78,17 @@ def test_config_only_repo_uses_uvx(tmp_path):
     sb = FakeSandbox([0, 0])
     ok, _, _ = linter.run_lint(_repo(tmp_path, CONFIG_ONLY_PYPROJECT), ["a.py"], sandbox=sb)
     assert ok
-    assert sb.commands[0][:2] == ["uvx", "ruff"]
+    assert sb.commands[0][:3] == ["uvx", "-q", "ruff"]
+
+
+def test_failure_evidence_strips_uv_noise(tmp_path):
+    """The failing tail must carry ruff's violations, not uv download chatter —
+    the retry prompt is built from it (a cold-cache sandbox produced evidence that
+    was 100% download noise, so the model looped on an invisible violation)."""
+    noise = "Downloading ruff (10.9MiB)\n Downloaded ruff\nInstalled 1 package in 18ms\n"
+    violation = "src/x.py:1:1: E501 Line too long (120 > 100)\nFound 1 error.\n"
+    sb = FakeSandbox([1, 0, 0, 0, 1, 0], outputs={4: violation + noise * 40})
+    ok, out, fixed = linter.run_lint(_repo(tmp_path, DEP_PYPROJECT), ["a.py"], sandbox=sb)
+    assert not ok and fixed
+    assert "E501" in out
+    assert "Downloading" not in out
