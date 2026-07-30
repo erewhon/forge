@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from forge.coding_pipeline.config import settings
 from forge.coding_pipeline.inventory import render_inventory
+from forge.coding_pipeline.journal import failure_signature
 from forge.coding_pipeline.models import (
     BoundednessCheck,
     EscalateAction,
@@ -601,6 +602,22 @@ def _replan_user(
     )
 
 
+def _identical_failure_wave(report: WaveReport) -> tuple[str, int, str] | None:
+    """One shared failure signature across every failed leaf (≥3) = one environment or
+    toolchain cause, not N bad specs. Byte-identical failures are how infra breaks look
+    from the replanner's seat; treating them as spec-quality evidence downgraded five
+    good leaves twice and appended hallucinated respecs (test-as-spec pilot, runs 1-2,
+    live). Threshold 3: two identical failures can still be a shared legitimate cause a
+    retry fixes (e.g. two lint nits of the same class). Returns (sig, count, sample)."""
+    failed = report.failed
+    if len(failed) < 3:
+        return None
+    sigs = {failure_signature(o.reason) for o in failed}
+    if len(sigs) != 1 or "" in sigs:
+        return None
+    return next(iter(sigs)), len(failed), failed[0].reason
+
+
 def replan(
     framing: FramingProposal,
     tree: list[LeafSpec],
@@ -625,6 +642,20 @@ def replan(
     is not a finding confirmed in THIS wave (invented slugs defeat the ref-dedup that
     keys on the slug), including integration fixes when the suite is green.
     """
+    infra = _identical_failure_wave(report)
+    if infra is not None:
+        sig, count, sample = infra
+        return [
+            HaltAction(
+                reason=(
+                    f"infra-failure signature: all {count} failed leaves this wave share one "
+                    f"failure signature ({sig}) — one environment/toolchain cause, not "
+                    f"{count} bad specs. No leaf was respecced or escalated; fix the shared "
+                    f"cause, then re-run. Sample evidence:\n{sample[:400]}"
+                )
+            )
+        ]
+
     escalated = deterministic_escalations(report, attempts, stuck)
     escalated_titles = {e.leaf_title for e in escalated}
     terminal_titles = set(landed_titles) | {o.leaf for o in report.landed}
