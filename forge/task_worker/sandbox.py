@@ -202,6 +202,8 @@ class GaolRunOnceSandbox:
         args += self._extra_host_args()
         if settings.runonce_wait_network_secs > 0:
             args += ["--wait-network", str(settings.runonce_wait_network_secs)]
+        for key, value in settings.runonce_env.items():
+            args += ["--env", f"{key}={value}"]
         args += [
             "--workdir",
             ws,
