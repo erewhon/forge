@@ -107,6 +107,24 @@ def get_file_diff(repo_path: Path, file: str) -> str:
     raise VCSError(f"No VCS detected in {repo_path}")
 
 
+def get_base_file_content(repo_path: Path, file: str) -> str | None:
+    """The file's content at the working copy's base revision, or None when the file
+    did not exist there (a new file: every violation in it is genuinely new). Used by
+    the lint gate's baseline comparison."""
+    vcs = detect_vcs(repo_path)
+    if vcs == "jj":
+        result = _run(["jj", "file", "show", "-r", "@-", "--", file], repo_path)
+        if result.returncode != 0:
+            return None
+        return result.stdout
+    if vcs == "git":
+        result = _run(["git", "show", f"HEAD:{file}"], repo_path)
+        if result.returncode != 0:
+            return None
+        return result.stdout
+    raise VCSError(f"No VCS detected in {repo_path}")
+
+
 # ---------------------------------------------------------------------------
 # Revert
 # ---------------------------------------------------------------------------

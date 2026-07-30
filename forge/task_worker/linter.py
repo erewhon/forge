@@ -12,6 +12,13 @@ shape this gate:
   code with E501s. ``ruff check --fix`` + ``ruff format`` on the changed files runs
   first; only violations that SURVIVE autofix fail the gate (revert-on-fail upstream).
   The gate runs before tests so a single test run validates the final, fixed state.
+- **Baseline-relative, not per-file absolute.** Changed-FILES scoping still inherits
+  same-file debt: a pre-existing unsafe-fix violation in cli.py failed every leaf that
+  touched the file across four runs, and since retries rewrite the leaf's code (not the
+  pre-existing function), none could converge (test-as-spec pilot, live). Violations
+  that survive autofix are compared against the same files at the leaf's BASE revision
+  (keyed rule + digit-normalized message + file, line-drift tolerant); only NEW ones
+  fail the leaf. Pre-existing ones are disclosed in the pass message, never blocking.
 
 Scope: Python/ruff only, and only when the repo shows ruff intent (``ruff`` appears in
 pyproject.toml — config section or dependency). Repo-scoped linters (``pnpm lint``,
@@ -21,7 +28,10 @@ pre-existing-debt wall, so non-Python changes pass vacuously for now.
 
 from __future__ import annotations
 
+import re
+import shutil
 import subprocess
+import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -55,6 +65,72 @@ def _strip_uv_noise(text: str) -> str:
     same noise when the sandbox venv is cold)."""
     kept = [ln for ln in text.splitlines() if not ln.strip().startswith(_UV_NOISE_PREFIXES)]
     return "\n".join(kept)
+
+
+# One ruff violation line: "path.py:12:5: E501 Line too long (105 > 100)".
+_VIOLATION_RE = re.compile(
+    r"^(?P<path>[^\s:][^:]*\.pyi?):(?P<line>\d+):(?P<col>\d+):\s+(?P<code>[A-Z]+\d+)\s+(?P<msg>.*)$"
+)
+
+
+def _violation_keys(output: str, strip_prefix: str = "") -> set[tuple[str, str, str]]:
+    """Line-drift-tolerant violation identities: (file, rule, digit-normalized message).
+
+    Digits in the message are normalized away so an E501 whose measured length shifted
+    with unrelated edits still matches its baseline twin."""
+    keys: set[tuple[str, str, str]] = set()
+    for raw in output.splitlines():
+        m = _VIOLATION_RE.match(raw.strip())
+        if not m:
+            continue
+        path = m.group("path")
+        if strip_prefix and path.startswith(strip_prefix):
+            path = path[len(strip_prefix) :].lstrip("/")
+        msg = re.sub(r"\d+", "#", m.group("msg")).strip()
+        keys.add((path, m.group("code"), msg))
+    return keys
+
+
+def _baseline_keys(
+    repo_path: Path,
+    py_files: list[str],
+    ruff_base: list[str],
+    sandbox: Sandbox,
+) -> set[tuple[str, str, str]] | None:
+    """Violations already present in the touched files at the leaf's base revision.
+
+    Materializes the base version of each touched file under the self-ignored
+    ``.task_worker/`` dir (the sandbox sees the repo mount, so ruff must run on paths
+    inside it; config discovery walks up and finds the repo's pyproject). Returns None
+    when the baseline cannot be established — the caller fails closed on the full set
+    rather than guessing."""
+    from forge.task_worker.vcs import VCSError, get_base_file_content
+
+    mirror_rel = f".task_worker/lint_base_{uuid.uuid4().hex[:8]}"
+    mirror = repo_path / mirror_rel
+    materialized: list[str] = []
+    try:
+        for f in py_files:
+            try:
+                content = get_base_file_content(repo_path, f)
+            except VCSError:
+                return None
+            if content is None:
+                continue  # new file at base: everything in it is genuinely new
+            target = mirror / f
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+            materialized.append(f"{mirror_rel}/{f}")
+        if not materialized:
+            return set()
+        rc, out = _run(sandbox, [*ruff_base, "check", "--output-format", "concise", *materialized])
+        # rc 0 = clean base, rc 1 = violations found; anything else is a ruff/config
+        # error and the baseline is not trustworthy.
+        if rc not in (0, 1):
+            return None
+        return _violation_keys(out, strip_prefix=mirror_rel)
+    finally:
+        shutil.rmtree(mirror, ignore_errors=True)
 
 
 def _ruff_cmd(repo_path: Path) -> list[str] | None:
@@ -118,20 +194,60 @@ def run_lint(
 
         sandbox = make_sandbox(repo_path)
 
-    def check() -> tuple[int, str]:
-        rc_check, out_check = _run(sandbox, [*base, "check", *py_files])
+    def check() -> tuple[int, int, str]:
+        # concise output: one parseable line per violation — both the baseline
+        # comparison and the evidence tail need identities, not code frames.
+        rc_check, out_check = _run(
+            sandbox, [*base, "check", "--output-format", "concise", *py_files]
+        )
         rc_fmt, out_fmt = _run(sandbox, [*base, "format", "--check", *py_files])
-        return rc_check or rc_fmt, f"{out_check}\n{out_fmt}"
+        return rc_check, rc_fmt, f"{out_check}\n{out_fmt}"
 
-    rc, out = check()
-    if rc == 0:
+    rc_check, rc_fmt, out = check()
+    if rc_check == 0 and rc_fmt == 0:
         return True, "lint clean", False
 
     # Autofix on the changed files only, then re-judge: only violations that
-    # survive the fix fail the leaf.
+    # survive the fix can fail the leaf.
     _run(sandbox, [*base, "check", "--fix", *py_files])
     _run(sandbox, [*base, "format", *py_files])
-    rc, out = check()
-    if rc == 0:
+    rc_check, rc_fmt, out = check()
+    if rc_check == 0 and rc_fmt == 0:
         return True, "lint clean after autofix", True
-    return False, _tail(_strip_uv_noise(out)), True
+    if rc_fmt != 0 or rc_check not in (0, 1):
+        # Format still red after formatting, or ruff itself errored (rc 2): not the
+        # pre-existing-debt shape — fail on the full evidence.
+        return False, _tail(_strip_uv_noise(out)), True
+
+    # Violations survived autofix: judge them relative to the leaf's BASE revision.
+    # Only violations NEW in this change fail the leaf; inherited same-file debt is
+    # disclosed but never blocking (and never silently hidden — the count is stated).
+    final_keys = _violation_keys(out)
+    if not final_keys:
+        return False, _tail(_strip_uv_noise(out)), True  # red but unparseable: fail closed
+    base_keys = _baseline_keys(repo_path, py_files, base, sandbox)
+    if base_keys is None:
+        return False, _tail(_strip_uv_noise(out)), True  # no trustworthy baseline: fail closed
+    new_keys = final_keys - base_keys
+    ignored = len(final_keys & base_keys)
+    if not new_keys:
+        return (
+            True,
+            (
+                f"lint clean relative to base ({ignored} pre-existing violation(s) in "
+                f"touched files ignored)"
+            ),
+            True,
+        )
+    new_lines = [
+        line
+        for line in out.splitlines()
+        if _violation_keys(line) and _violation_keys(line) <= new_keys
+    ]
+    evidence = "\n".join(new_lines) or out
+    if ignored:
+        evidence += (
+            f"\n({ignored} pre-existing violation(s) in touched files ignored — "
+            f"only the violations above are yours)"
+        )
+    return False, _tail(_strip_uv_noise(evidence)), True
