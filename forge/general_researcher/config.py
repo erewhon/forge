@@ -54,12 +54,22 @@ class GeneralResearcherSettings(BaseSettings):
     # ungraded entirely. Nominally 3-family, actually 1-family, and silent about it.
     #
     # So: keep the local Qwen seat and buy real family diversity from two vetted OpenCode Zen models
-    # — glm=GLM-5.2 (Zhipu), m3=MiniMax-M3. Per Zen's docs those are zero-retention and not trained
-    # on; the free tier (data may train the model) and the OpenAI/Anthropic routes (30-day
-    # retention) are excluded, and test_config_privacy enforces both exclusions. Findings DO leave
-    # the homelab for verification under this config — an explicit, temporary trade for a panel that
-    # functions at all. Revert to self-hosted-only once non-Qwen models can run on GPU.
-    verifier_panel_models: list[str] = ["coder", "glm", "m3"]
+    # — glm=GLM-5.2 (Zhipu), kimi=Kimi-K2.7-Code (Moonshot). Per Zen's docs those are zero-retention
+    # and not trained on; the free tier (data may train the model) and the OpenAI/Anthropic routes
+    # (30-day retention) are excluded, and test_config_privacy enforces both exclusions. Findings DO
+    # leave the homelab for verification under this config — an explicit, temporary trade for a
+    # panel that functions at all. Revert to self-hosted-only once a non-Qwen model that is NOT the
+    # research model can run on GPU.
+    #
+    # UPDATE (2026-07-31): m3 swapped for kimi. The GPU condition above was met in a twist:
+    # MiniMax-M2.7-REAP landed on archimedes — but as the `research`/`thinker` alias, i.e. it IS the
+    # research model now, so it is barred from its own panel (no self-grading), and m3=MiniMax-M3
+    # would have a MiniMax model grading MiniMax research output (family-correlated leniency, the
+    # soft version of the same problem). kimi keeps the seat vetted-Zen and adds a fourth family.
+    # The remaining local candidates (ling-flash-local ~80s at 1.9k-tok prompts, gptoss 521s on a
+    # real sprint, both hekaton CPU) only fit if the 120s panel timeout is raised; deliberately not
+    # taken — revert stays gated on a GPU seat (e.g. gpt-oss on delphi, weights already staged).
+    verifier_panel_models: list[str] = ["coder", "glm", "kimi"]
     verifier_panel_floor: int = 2  # min members that must respond+parse, else degrade
 
     # Synthesizer ensemble (research panel followup #2): instead of one model writing the final
@@ -68,11 +78,12 @@ class GeneralResearcherSettings(BaseSettings):
     # through the router. Floor 1 means a single parseable candidate is enough; 0 candidates falls
     # back to a single-model synthesis so the run always produces an answer. Both members are
     # self-hosted (models.yaml backend=vllm, never external) — synthesis stays local *deliberately*,
-    # even while the verifier panel is temporarily on Zen: these are fast GPU Qwen aliases
-    # (coder=Qwen3.6-35B hypatia, research=Qwen3-Next-80B archimedes) with no latency problem to
-    # solve, so there is nothing to buy by sending findings off-box here. Keeping them local bounds
-    # the exposure to the verification step alone. The ≥2-family diversity requirement applies to
-    # the adversarial verifier, not this generator, so a single-family pair is fine here.
+    # even while the verifier panel is temporarily on Zen: these are fast GPU aliases
+    # (coder=Qwen3.6-35B hypatia; research=MiniMax-M2.7-REAP archimedes since 2026-07-31, formerly
+    # Qwen3-Next-80B) with no latency problem to solve, so there is nothing to buy by sending
+    # findings off-box here. Keeping them local bounds the exposure to the verification step alone.
+    # The ≥2-family diversity requirement applies to the adversarial verifier, not this generator —
+    # though the pair happens to span two families (Qwen + MiniMax) since the alias swap.
     synthesizer_panel_models: list[str] = ["coder", "research"]
     synthesizer_panel_floor: int = 1
 

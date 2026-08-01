@@ -25,8 +25,6 @@ from forge.general_researcher.config import GeneralResearcherSettings
 SELF_HOSTED_FAMILY: dict[str, str] = {
     # Qwen (GPU nodes)
     "coder": "qwen",
-    "research": "qwen",
-    "thinker": "qwen",
     "qwen3.6-hypatia": "qwen",
     "qwen3.6-local": "qwen",
     "coder-next": "qwen",
@@ -35,7 +33,12 @@ SELF_HOSTED_FAMILY: dict[str, str] = {
     "gptoss": "gpt-oss",
     "gpt-oss": "gpt-oss",
     "gpt-oss-120b-local": "gpt-oss",
-    # MiniMax (hekaton CPU)
+    # MiniMax — thinker/research moved from Qwen3-Next-80B to MiniMax-M2.7-REAP on
+    # archimedes GPU 2026-07-31; m2.7-local is the full 256-expert build on hekaton CPU.
+    "research": "minimax",
+    "thinker": "minimax",
+    "minimax": "minimax",
+    "minimax-m2.7-reap": "minimax",
     "m2.7-local": "minimax",
     "minimax-local": "minimax",
     # Ling (hekaton CPU)
@@ -135,6 +138,17 @@ def test_verifier_panel_excludes_research_model_no_self_grading() -> None:
     banned = {settings.research_model, "research", "thinker"}
     overlap = set(settings.verifier_panel_models) & banned
     assert not overlap, f"no self-grading: research model {overlap} in verifier panel"
+
+
+def test_verifier_panel_excludes_research_models_family() -> None:
+    """The family-level form of no-self-grading. Exact-alias exclusion missed a soft variant:
+    when thinker/research became MiniMax (2026-07-31), the then-panel-member m3=MiniMax-M3 had a
+    MiniMax model grading MiniMax research output — family-correlated leniency the median can't
+    fully wash out with only 3 seats. Ban the research model's whole family from the panel."""
+    research_family = ALLOWED_FAMILY.get(settings.research_model)
+    assert research_family is not None, f"unknown research model {settings.research_model!r}"
+    offenders = {a for a in settings.verifier_panel_models if ALLOWED_FAMILY[a] == research_family}
+    assert not offenders, f"panel seats {offenders} share the research model's family"
 
 
 def test_panels_satisfy_their_floors() -> None:

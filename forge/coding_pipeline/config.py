@@ -90,8 +90,10 @@ class CodingPipelineSettings(BaseSettings):
     epic_gate_max_chunks: int = 64
     # Slice summaries are mechanical, so the map pool tries this seat first (failover to the
     # rest) instead of spending metered tokens on every slice. The reduce verdict is still the
-    # full cross-family quorum — every seat, unanimous.
-    epic_gate_map_preferred: str = "m3"
+    # full cross-family quorum — every seat, unanimous. Seat renamed m3 -> minimax 2026-07-31
+    # (primary is now the self-hosted M2.7-REAP; an unmatched name here would silently fall
+    # back to rotation order, i.e. sonnet, spending metered tokens on every slice).
+    epic_gate_map_preferred: str = "minimax"
 
     def llm_cfg(self) -> LLMConfig:
         return LLMConfig(
