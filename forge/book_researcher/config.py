@@ -56,12 +56,17 @@ class BookResearcherSettings(BaseSettings):
     # 3-family, actually 1-family, with three lenses ungraded and no complaint in the output.
     #
     # So: keep the local Qwen seat and buy real family diversity from two vetted OpenCode Zen models
-    # — glm=GLM-5.2 (Zhipu), m3=MiniMax-M3. Per Zen's docs those are zero-retention and not trained
-    # on; the free tier (data may train the model) and the OpenAI/Anthropic routes (30-day
-    # retention) are excluded, and test_config_privacy enforces both exclusions. Book findings DO
-    # leave the homelab for verification under this config — an explicit, temporary trade for a
-    # panel that functions. Revert to self-hosted-only once non-Qwen models can run on GPU.
-    verifier_panel_models: list[str] = ["coder", "glm", "m3"]
+    # — glm=GLM-5.2 (Zhipu), kimi=Kimi-K2.7-Code (Moonshot). Per Zen's docs those are zero-retention
+    # and not trained on; the free tier (data may train the model) and the OpenAI/Anthropic routes
+    # (30-day retention) are excluded, and test_config_privacy enforces both exclusions. Book
+    # findings DO leave the homelab for verification under this config — an explicit, temporary
+    # trade for a panel that functions.
+    #
+    # UPDATE (2026-07-31): m3 swapped for kimi — the `research` alias is now MiniMax-M2.7-REAP on
+    # archimedes, so any MiniMax panel seat would grade its own family's research output. See the
+    # general researcher's config for the full rationale; revert to self-hosted-only stays gated on
+    # a GPU seat for a non-Qwen model that is not the research model.
+    verifier_panel_models: list[str] = ["coder", "glm", "kimi"]
     verifier_panel_floor: int = 2  # min members that must respond+parse, else degrade
 
     @property

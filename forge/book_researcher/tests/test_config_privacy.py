@@ -18,8 +18,6 @@ from forge.book_researcher.config import BookResearcherSettings
 # Self-hosted router aliases (models.yaml backend=vllm/lmstudio), tagged by family.
 SELF_HOSTED_FAMILY: dict[str, str] = {
     "coder": "qwen",
-    "research": "qwen",
-    "thinker": "qwen",
     "qwen3.6-hypatia": "qwen",
     "qwen3.6-local": "qwen",
     "coder-next": "qwen",
@@ -27,6 +25,11 @@ SELF_HOSTED_FAMILY: dict[str, str] = {
     "gptoss": "gpt-oss",
     "gpt-oss": "gpt-oss",
     "gpt-oss-120b-local": "gpt-oss",
+    # thinker/research → MiniMax-M2.7-REAP on archimedes GPU since 2026-07-31 (was Qwen3-Next-80B).
+    "research": "minimax",
+    "thinker": "minimax",
+    "minimax": "minimax",
+    "minimax-m2.7-reap": "minimax",
     "m2.7-local": "minimax",
     "minimax-local": "minimax",
     "ling-flash": "ling",
@@ -100,6 +103,14 @@ def test_verifier_panel_excludes_research_model_no_self_grading() -> None:
     banned = {settings.research_model, "research", "thinker"}
     overlap = set(settings.verifier_panel_models) & banned
     assert not overlap, f"no self-grading: research model {overlap} in verifier panel"
+
+
+def test_verifier_panel_excludes_research_models_family() -> None:
+    """Family-level no-self-grading — see the general researcher's twin test for the rationale."""
+    research_family = ALLOWED_FAMILY.get(settings.research_model)
+    assert research_family is not None, f"unknown research model {settings.research_model!r}"
+    offenders = {a for a in settings.verifier_panel_models if ALLOWED_FAMILY[a] == research_family}
+    assert not offenders, f"panel seats {offenders} share the research model's family"
 
 
 def test_verifier_panel_satisfies_floor() -> None:

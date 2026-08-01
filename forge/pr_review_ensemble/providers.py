@@ -4,10 +4,11 @@ creds server-side), so the whole roster is one endpoint + one key.
 
 The roster is the single source of reviewers shared by the PR-review ensemble, the coding-pipeline
 epic gate, wave-verify, the testing ensemble, and the Dependabot bumper — reconfigure it here and
-every reviewer changes at once. Default: three diverse primary seats (Claude Sonnet, GLM, MiniMax
-M3) with cheaper backups (a local coder model, Kimi). Diversity (distinct model families) over
-count. A disabled seat becomes a ``SkipExecutor`` slot: attempted-but-never-ok for quorum
-accounting, without a doomed network call.
+every reviewer changes at once. Default: three diverse primary seats (Claude Sonnet, GLM, and the
+self-hosted MiniMax-M2.7-REAP on archimedes — deployed 2026-07-31 precisely to give ensemble review
+a third, local model family) with cheaper backups (a local coder model, MiniMax M3, Kimi).
+Diversity (distinct model families) over count. A disabled seat becomes a ``SkipExecutor`` slot:
+attempted-but-never-ok for quorum accounting, without a doomed network call.
 """
 
 from __future__ import annotations
@@ -116,18 +117,21 @@ def _glm_slot() -> ReviewerSlot:
     return _failover_slot("glm", _router_executor("glm", "glm"), "glm", ["kimi"])
 
 
-def _m3_slot() -> ReviewerSlot:
-    return _failover_slot("m3", _router_executor("m3", "m3"), "m3", ["kimi"])
+def _minimax_slot() -> ReviewerSlot:
+    """MiniMax seat: primary is the self-hosted M2.7-REAP on archimedes (router alias `minimax`,
+    ~26 tok/s GPU — this seat's diffs stay in the homelab); Zen-hosted m3 then kimi as backups."""
+    primary = _router_executor("minimax", "minimax")
+    return _failover_slot("minimax", primary, "minimax", ["m3", "kimi"])
 
 
 def build_reviewer_slots() -> list[ReviewerSlot]:
     """The roster, in a stable order: three primary seats, each a router-backed failover chain."""
-    return [_sonnet_slot(), _glm_slot(), _m3_slot()]
+    return [_sonnet_slot(), _glm_slot(), _minimax_slot()]
 
 
 # Capability-ordered rotation for the aggregator/digest failover pool. All seats route through the
 # router, so ordering is by review capability; a `preferred` seat is promoted to the front.
-ROTATION_ORDER = ("sonnet-5", "glm", "m3")
+ROTATION_ORDER = ("sonnet-5", "glm", "minimax")
 
 
 def rotation_pool(slots: list[ReviewerSlot], *, role: str, preferred: str | None = None) -> Pool:

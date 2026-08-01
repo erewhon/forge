@@ -1,5 +1,5 @@
-"""The reviewer roster: three primary seats (sonnet-5, glm, m3), each a failover Pool whose backup
-is pulled in only when the primary is down, and every model routed through the local LLM router so
+"""The reviewer roster: three primary seats (sonnet-5, glm, minimax), each a failover Pool whose
+backup is pulled in only when the primary is down, and every model routed through the LLM router so
 the whole roster is one endpoint + key. The sonnet seat keeps the Claude-family identity (proxied
 by default, native SDK when ``anthropic_base_url`` is cleared) and its ``anthropic_enabled`` toggle.
 """
@@ -18,7 +18,7 @@ def _route_to_router(monkeypatch):
 def test_build_reviewer_slots_is_the_three_seat_roster(monkeypatch):
     monkeypatch.setattr(settings, "anthropic_enabled", True)
     slots = providers.build_reviewer_slots()
-    assert [s.provider for s in slots] == ["sonnet-5", "glm", "m3"]
+    assert [s.provider for s in slots] == ["sonnet-5", "glm", "minimax"]
     assert all(s.active for s in slots)
 
 
@@ -27,23 +27,23 @@ def test_each_seat_is_a_failover_chain_with_the_expected_backup(monkeypatch):
     monkeypatch.setattr(settings, "anthropic_base_url", "http://router.internal:4010/v1")
     _route_to_router(monkeypatch)
 
-    sonnet, glm, m3 = providers.build_reviewer_slots()
+    sonnet, glm, minimax = providers.build_reviewer_slots()
 
     # sonnet-5: Claude primary + local coder break-glass backup.
     assert [e.model for e in sonnet.pool.executors] == [settings.anthropic_model, "coder"]
-    # glm and m3: primary + kimi backup, all via the router.
+    # glm: primary + kimi backup; minimax: local primary + Zen m3/kimi backups, all via the router.
     assert [e.model for e in glm.pool.executors] == ["glm", "kimi"]
-    assert [e.model for e in m3.pool.executors] == ["m3", "kimi"]
+    assert [e.model for e in minimax.pool.executors] == ["minimax", "m3", "kimi"]
 
 
-def test_glm_and_m3_and_backups_route_through_the_router(monkeypatch):
+def test_glm_and_minimax_and_backups_route_through_the_router(monkeypatch):
     monkeypatch.setattr(settings, "anthropic_enabled", True)
     monkeypatch.setattr(settings, "anthropic_base_url", "http://router.internal:4010/v1")
     _route_to_router(monkeypatch)
 
-    _, glm, m3 = providers.build_reviewer_slots()
+    _, glm, minimax = providers.build_reviewer_slots()
 
-    for slot in (glm, m3):
+    for slot in (glm, minimax):
         for ex in slot.pool.executors:
             assert ex.kind == "openai"
             assert ex.base_url == "http://router.internal:4010/v1"
@@ -81,6 +81,6 @@ def test_sonnet_seat_skipped_when_disabled(monkeypatch):
 
     assert not slot.active
     assert slot.skipped_reason == "disabled in config"
-    # Still in the roster (attempted-but-skipped for quorum accounting), but glm/m3 stay active.
+    # Still in the roster (attempted-but-skipped for quorum accounting); glm/minimax stay active.
     labels = [(s.provider, s.active) for s in providers.build_reviewer_slots()]
-    assert labels == [("sonnet-5", False), ("glm", True), ("m3", True)]
+    assert labels == [("sonnet-5", False), ("glm", True), ("minimax", True)]

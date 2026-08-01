@@ -192,19 +192,19 @@ def test_status_mapping():
 
 
 def test_aggregator_rotation_excludes_inactive():
-    # preferred="sonnet-5" (default) is inactive here -> rotation falls to glm then m3.
-    slots = [skip_slot("sonnet-5"), fake_slot("glm"), fake_slot("m3")]
+    # preferred="sonnet-5" (default) is inactive here -> rotation falls to glm then minimax.
+    slots = [skip_slot("sonnet-5"), fake_slot("glm"), fake_slot("minimax")]
     agg = build_aggregator(slots, pr_ref="PR", n_reviews=2)
-    assert [e.label for e in agg.pool.executors] == ["glm:m", "m3:m"]
+    assert [e.label for e in agg.pool.executors] == ["glm:m", "minimax:m"]
 
 
 def test_aggregator_promotes_configured_preferred(monkeypatch):
-    monkeypatch.setattr(settings, "aggregator_provider", "m3")
-    slots = [fake_slot("sonnet-5"), fake_slot("glm"), fake_slot("m3")]
+    monkeypatch.setattr(settings, "aggregator_provider", "minimax")
+    slots = [fake_slot("sonnet-5"), fake_slot("glm"), fake_slot("minimax")]
     agg = build_aggregator(slots, pr_ref="PR", n_reviews=3)
     labels = [e.label for e in agg.pool.executors]
-    assert labels[0] == "m3:m"
-    assert set(labels) == {"m3:m", "sonnet-5:m", "glm:m"}
+    assert labels[0] == "minimax:m"
+    assert set(labels) == {"minimax:m", "sonnet-5:m", "glm:m"}
 
 
 # --- render + log ------------------------------------------------------------

@@ -22,7 +22,7 @@ class PRReviewEnsembleSettings(BaseSettings):
     anthropic_max_tokens: int = 4096
 
     # The local LLM router (OpenAI-compatible LiteLLM proxy) — now the shared endpoint for the
-    # WHOLE roster (glm/m3/kimi/coder all resolve here, and sonnet is proxied through it too), so
+    # WHOLE roster (glm/minimax/m3/kimi/coder all resolve here, and sonnet is proxied too), so
     # creds live once, server-side. .env points this at localhost:4010.
     local_enabled: bool = True
     local_base_url: str = "http://localhost:4000/v1"
@@ -45,10 +45,15 @@ class PRReviewEnsembleSettings(BaseSettings):
     aggregator_provider: str = "sonnet-5"
     aggregator_max_tokens: int = 4096
 
-    # Runner
-    per_provider_timeout_seconds: float = 120.0
+    # Runner. Both budgets resized 2026-07-31 for the local minimax seat (M2.7-REAP on
+    # archimedes): a reasoning model at ~26 tok/s spends thousands of tokens thinking before
+    # the review — at 4096 its output truncated (same failure the epic-gate verifier hit with
+    # glm and fixed by raising to 16k; a ceiling, not a reservation, so slack costs nothing),
+    # and at 120s a full review would routinely blow the timeout and fail over to Zen m3,
+    # quietly turning the local seat into a cloud seat that also wastes 120s per run.
+    per_provider_timeout_seconds: float = 300.0
     review_max_tokens: int = (
-        4096  # max_tokens for each reviewer's pass (Prompt-level in the harness)
+        16384  # max_tokens for each reviewer's pass (Prompt-level in the harness)
     )
     quorum_floor: int = 2
 
