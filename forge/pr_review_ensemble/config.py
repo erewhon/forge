@@ -22,7 +22,7 @@ class PRReviewEnsembleSettings(BaseSettings):
     anthropic_max_tokens: int = 4096
 
     # The local LLM router (OpenAI-compatible LiteLLM proxy) — now the shared endpoint for the
-    # WHOLE roster (glm/minimax/m3/kimi/coder all resolve here, and sonnet is proxied too), so
+    # WHOLE roster (glm/lightning/m3/kimi/coder all resolve here, and sonnet is proxied too), so
     # creds live once, server-side. .env points this at localhost:4010.
     local_enabled: bool = True
     local_base_url: str = "http://localhost:4000/v1"
