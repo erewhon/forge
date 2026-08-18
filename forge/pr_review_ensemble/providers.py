@@ -4,13 +4,18 @@ creds server-side), so the whole roster is one endpoint + one key.
 
 The roster is the single source of reviewers shared by the PR-review ensemble, the coding-pipeline
 epic gate, wave-verify, the testing ensemble, and the Dependabot bumper — reconfigure it here and
-every reviewer changes at once. Default: three diverse primary seats (Claude Sonnet, GLM, and the
-self-hosted Nemotron 3.5 Lightning on the talos B70 — seated 2026-08-16; qualeval v2 code_review
-0.84, the fleet's strongest local reviewer by ~0.17, at ~100 t/s. It replaced the MiniMax-M2.7-REAP
-seat whose archimedes primary was disabled at the 2026-08-13 Coder-Next cutover, which had quietly
-turned this into a two-cloud ensemble via failover). Cheaper backups: a local coder model, MiniMax
-M3, Kimi. Diversity (distinct model families) over count. A disabled seat becomes a
-``SkipExecutor`` slot: attempted-but-never-ok for quorum accounting, without a doomed network call.
+every reviewer changes at once. Default: three diverse primary seats, two of them local — Claude
+Sonnet (the frontier anchor), the self-hosted gpt-oss-120b on delphi (seated 2026-08-18, replacing
+the metered GLM seat at ~equal review score and adding a model family the fleet lacked), and the
+self-hosted Nemotron 3.5 Lightning on the talos B70 (seated 2026-08-16; qualeval v2 code_review
+0.84, the fleet's strongest local reviewer by ~0.17, at ~100 t/s). Cheaper backups: GLM, a local
+coder model, MiniMax M3, Kimi. Diversity (distinct model families) over count. A disabled seat
+becomes a ``SkipExecutor`` slot: attempted-but-never-ok for quorum accounting, without a doomed
+network call.
+
+``build_local_reviewer_slots`` is the all-local shadow roster (Lightning/gpt-oss/Coder-Next —
+three families, zero cloud seats), run by the ``shadow`` pass side by side with production to
+decide whether sonnet can be unseated.
 """
 
 from __future__ import annotations
@@ -115,8 +120,16 @@ def _sonnet_slot() -> ReviewerSlot:
     return _failover_slot("sonnet-5", _anthropic_primary(), settings.anthropic_model, ["coder"])
 
 
-def _glm_slot() -> ReviewerSlot:
-    return _failover_slot("glm", _router_executor("glm", "glm"), "glm", ["kimi"])
+def _gptoss_slot() -> ReviewerSlot:
+    """Local OpenAI-family seat: primary is gpt-oss-120b on delphi (router alias `gpt-oss`,
+    ~49 t/s Vulkan — this seat's diffs stay in the homelab). qualeval v2 0.87 composite,
+    code_review 0.64: FP-heavy on defect probes but passes the clean-code canary — it over-reports
+    on buggy code, doesn't invent bugs in clean code, and the quorum labeling absorbs the noise.
+    Seated 2026-08-18 replacing the metered GLM seat (GLM-family review ≤0.67) at ~equal review
+    score and zero marginal cost. GLM stays reachable as the first backup, then kimi (both
+    family-diverse cloud)."""
+    primary = _router_executor("gpt-oss", "gpt-oss")
+    return _failover_slot("gpt-oss", primary, "gpt-oss", ["glm", "kimi"])
 
 
 def _lightning_slot() -> ReviewerSlot:
@@ -128,16 +141,35 @@ def _lightning_slot() -> ReviewerSlot:
     return _failover_slot("lightning", primary, "lightning", ["m3", "kimi"])
 
 
+def _coder_next_slot() -> ReviewerSlot:
+    """Local Qwen seat (shadow roster only): primary is Qwen3-Coder-Next on archimedes (router
+    alias `coder-next`, vLLM FP8, ~46 t/s). qualeval v2 0.90 composite but code_review 0.67 and a
+    terse non-thinker — a builder, not a reviewer; it sits in the shadow roster to give the
+    all-local trio its third model family. Backup is the local `coder` role alias (qwen3.6 on
+    hypatia), keeping the seat fully local on failover."""
+    primary = _router_executor("coder-next", "coder-next")
+    return _failover_slot("coder-next", primary, "coder-next", ["coder"])
+
+
 def build_reviewer_slots() -> list[ReviewerSlot]:
     """The roster, in a stable order: three primary seats, each a router-backed failover chain."""
-    return [_sonnet_slot(), _glm_slot(), _lightning_slot()]
+    return [_sonnet_slot(), _gptoss_slot(), _lightning_slot()]
+
+
+def build_local_reviewer_slots() -> list[ReviewerSlot]:
+    """The all-local shadow roster: Lightning (NVIDIA), gpt-oss-120b (OpenAI family), Coder-Next
+    (Qwen) — three distinct families with zero cloud seats, every diff staying in the homelab.
+    Not wired into production consumers; the ``shadow`` pass runs it beside ``build_reviewer_slots``
+    so the two advisories can be compared on real diffs before deciding whether to unseat sonnet."""
+    return [_lightning_slot(), _gptoss_slot(), _coder_next_slot()]
 
 
 # Capability-ordered rotation for the aggregator/digest failover pool. All seats route through the
 # router, so ordering is by review capability; a `preferred` seat is promoted to the front.
-# Lightning ahead of glm: stronger reviewer on qualeval v2 (0.84 vs GLM-family ≤0.67) and
-# zero-marginal-cost local tokens, so failover degrades to it before a metered cloud seat.
-ROTATION_ORDER = ("sonnet-5", "lightning", "glm")
+# Lightning first among locals (review 0.84); gpt-oss ahead of coder-next for synthesis duty
+# (instruction 1.00 and a disciplined reasoner vs a terse non-thinker) despite near-equal review
+# scores (0.64 vs 0.67). Local seats outrank any metered cloud fallback.
+ROTATION_ORDER = ("sonnet-5", "lightning", "gpt-oss", "coder-next")
 
 
 def rotation_pool(slots: list[ReviewerSlot], *, role: str, preferred: str | None = None) -> Pool:

@@ -209,9 +209,9 @@ def test_map_reduce_caps_chunks(monkeypatch):
 
 def test_build_digest_pool_rotation_excludes_inactive(monkeypatch):
     monkeypatch.setattr(settings, "aggregator_provider", "sonnet-5")  # preferred, inactive here
-    slots = [_slot("sonnet-5", active=False), _slot("glm"), _slot("lightning")]
+    slots = [_slot("sonnet-5", active=False), _slot("gpt-oss"), _slot("lightning")]
     pool = build_digest_pool(slots)
-    assert [e.label for e in pool.executors] == ["lightning:m", "glm:m"]
+    assert [e.label for e in pool.executors] == ["lightning:m", "gpt-oss:m"]
 
 
 def _result(**kw) -> DigestResult:
