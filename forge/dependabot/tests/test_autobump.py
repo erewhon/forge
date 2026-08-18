@@ -312,3 +312,24 @@ def test_reachability_repo_root_reaches_collect_evidence(loop, tmp_path):
     reachability signal never fires."""
     ab.auto_bump(tmp_path, log=lambda m: None)
     assert loop["collect_evidence"].call_args.kwargs.get("repo_root") == tmp_path
+
+
+def test_signoff_seats_come_from_the_routine_lane(monkeypatch):
+    """Lane split (2026-08-18): the bump sign-off quorum seats the all-local roster by default
+    (signoff_lane="local"), not the sonnet-anchored frontier roster."""
+    from forge.dependabot.config import settings as dep_settings
+
+    captured: dict[str, list[str]] = {}
+
+    def fake_quorum(diff_text, *, seats, **kwargs):
+        captured["providers"] = [s.provider for s in seats]
+        return _approved()
+
+    monkeypatch.setattr(ab, "full_quorum_signoff", fake_quorum)
+    assert dep_settings.signoff_lane == "local"
+    ab._signoff("diff", pr_ref="x", context="c")
+    assert captured["providers"] == ["lightning", "gpt-oss", "coder-next"]
+
+    monkeypatch.setattr(dep_settings, "signoff_lane", "frontier")
+    ab._signoff("diff", pr_ref="x", context="c")
+    assert captured["providers"][0] == "sonnet-5"

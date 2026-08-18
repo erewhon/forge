@@ -10,6 +10,7 @@ from pathlib import Path
 
 from forge.pr_review_ensemble.digest import run_digest
 from forge.pr_review_ensemble.logger import log_digest, log_run, log_supply_chain
+from forge.pr_review_ensemble.providers import roster_for_lane
 from forge.pr_review_ensemble.renderer import render_digest, render_markdown, render_supply_chain
 from forge.pr_review_ensemble.runner import run_ensemble
 from forge.pr_review_ensemble.shadow import render_shadow, run_shadow
@@ -69,7 +70,9 @@ def _emit(markdown: str, args: argparse.Namespace, *, label: str) -> None:
 async def _run_review(diff_text: str, pr_ref: str, args: argparse.Namespace) -> int:
     diff_lines = diff_text.count("\n") + 1
     print(f"Running review ensemble on {pr_ref} ({diff_lines} lines)...", file=sys.stderr)
-    result = await run_ensemble(diff_text=diff_text, pr_ref=pr_ref)
+    result = await run_ensemble(
+        diff_text=diff_text, pr_ref=pr_ref, slots=roster_for_lane(args.roster)
+    )
     markdown = render_markdown(result)
     _emit(markdown, args, label="Advisory")
     _maybe_post(markdown, args, label="Advisory")
@@ -173,6 +176,14 @@ def main(argv: list[str] | None = None) -> int:
         "digest of a large PR), 'supply-chain' (deterministic pre-scan + focused audit of "
         "dependency/hook/CI/obfuscation changes), or 'shadow' (production AND all-local rosters "
         "on the same diff, rendered side by side — the full-local trial). Default: review.",
+    )
+    parser.add_argument(
+        "--roster",
+        choices=["frontier", "local"],
+        default="frontier",
+        help="Which reviewer roster seats the 'review' pass: 'frontier' (sonnet-anchored — the "
+        "default, for gates and anything security-adjacent) or 'local' (the all-local trio, for "
+        "routine diffs; zero metered tokens). Other passes ignore this flag.",
     )
     parser.add_argument(
         "--pr",

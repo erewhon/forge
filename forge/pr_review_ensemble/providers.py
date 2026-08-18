@@ -157,11 +157,20 @@ def build_reviewer_slots() -> list[ReviewerSlot]:
 
 
 def build_local_reviewer_slots() -> list[ReviewerSlot]:
-    """The all-local shadow roster: Lightning (NVIDIA), gpt-oss-120b (OpenAI family), Coder-Next
+    """The all-local roster: Lightning (NVIDIA), gpt-oss-120b (OpenAI family), Coder-Next
     (Qwen) — three distinct families with zero cloud seats, every diff staying in the homelab.
-    Not wired into production consumers; the ``shadow`` pass runs it beside ``build_reviewer_slots``
-    so the two advisories can be compared on real diffs before deciding whether to unseat sonnet."""
+    Serves the ROUTINE lane (see ``roster_for_lane``) and the ``shadow`` pass; the frontier
+    roster keeps the gates where sonnet's unique catches clustered in the shadow trial."""
     return [_lightning_slot(), _gptoss_slot(), _coder_next_slot()]
+
+
+def roster_for_lane(lane: str) -> list[ReviewerSlot]:
+    """Lane split (2026-08-18, from the 7-run shadow trial): ``"local"`` — the all-local trio,
+    for routine work (dependency bumps, config moves, mechanical passes) where it reviewed at
+    parity and costs nothing; anything else — the frontier roster, for the merge-blocking gates
+    and security-adjacent diffs where sonnet's unique catches clustered. Unknown values fall
+    through to frontier on purpose: the expensive-but-safer roster is the fail-closed default."""
+    return build_local_reviewer_slots() if lane == "local" else build_reviewer_slots()
 
 
 # Capability-ordered rotation for the aggregator/digest failover pool. All seats route through the
