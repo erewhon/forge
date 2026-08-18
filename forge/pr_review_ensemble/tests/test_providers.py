@@ -53,6 +53,17 @@ def test_gptoss_and_lightning_and_backups_route_through_the_router(monkeypatch):
             assert ex.api_key == "sk-router"
 
 
+def test_roster_for_lane_routes_local_and_fails_closed_to_frontier(monkeypatch):
+    monkeypatch.setattr(settings, "anthropic_enabled", True)
+    _route_to_router(monkeypatch)
+
+    local = providers.roster_for_lane("local")
+    assert [s.provider for s in local] == ["lightning", "gpt-oss", "coder-next"]
+    assert [s.provider for s in providers.roster_for_lane("frontier")][0] == "sonnet-5"
+    # An unknown lane value gets the expensive-but-safer frontier roster, never local.
+    assert [s.provider for s in providers.roster_for_lane("bogus")][0] == "sonnet-5"
+
+
 def test_local_roster_is_the_three_family_trio_and_fully_local(monkeypatch):
     _route_to_router(monkeypatch)
 

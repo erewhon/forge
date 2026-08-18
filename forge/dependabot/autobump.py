@@ -43,12 +43,13 @@ from forge.task_worker.vcs import VCSError, detect_vcs, get_changed_files, rever
 
 
 def _signoff(diff_text: str, *, pr_ref: str, context: str) -> SignoffResult:
-    """Seat the shared full-quorum gate from pr_review's active provider roster."""
-    from forge.pr_review_ensemble.providers import build_reviewer_slots
+    """Seat the shared full-quorum gate from the routine-lane roster (all-local by default;
+    DEPENDABOT_SIGNOFF_LANE=frontier restores the sonnet-anchored seats)."""
+    from forge.pr_review_ensemble.providers import roster_for_lane
 
     seats = [
         SignoffSeat(provider=s.provider, executor=s.pool)  # whole Pool = per-seat failover
-        for s in build_reviewer_slots()
+        for s in roster_for_lane(settings.signoff_lane)
         if s.active
     ]
     return full_quorum_signoff(

@@ -15,6 +15,13 @@ class DependabotSettings(BaseSettings):
 
     signoff_max_tokens: int = 4096
     signoff_timeout: float = 180.0
+    # Which reviewer roster seats the sign-off quorum. Dependency bumps are the routine lane, so
+    # the default is the all-local trio (lightning/gpt-oss/coder-next — zero metered tokens);
+    # set DEPENDABOT_SIGNOFF_LANE=frontier to restore the sonnet-anchored roster. Decided
+    # 2026-08-18 after the 7-run shadow trial: local was at parity on routine diffs; sonnet's
+    # unique catches clustered on security-critical code, which bumps route to the supply-chain
+    # lens anyway.
+    signoff_lane: str = "local"
     scan_timeout: int = 120
     audit_timeout: int = 300
     metadata_timeout: float = 20.0
