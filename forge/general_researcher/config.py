@@ -69,7 +69,17 @@ class GeneralResearcherSettings(BaseSettings):
     # The remaining local candidates (ling-flash-local ~80s at 1.9k-tok prompts, gptoss 521s on a
     # real sprint, both hekaton CPU) only fit if the 120s panel timeout is raised; deliberately not
     # taken — revert stays gated on a GPU seat (e.g. gpt-oss on delphi, weights already staged).
-    verifier_panel_models: list[str] = ["coder", "glm", "kimi"]
+    #
+    # UPDATE (2026-08-18): coder swapped for gpt-oss — two reasons, one overdue. (1) The GPU gate
+    # above was met: gpt-oss-120b now serves on delphi GPU (~49 t/s vs the 521s CPU run that
+    # disqualified it; a ~2k-tok verdict fits the 120s panel timeout with room). (2) The router's
+    # `research` role flipped to qwen3-coder-next on 2026-08-13, which made the `coder` seat (also
+    # Qwen) a family self-grader — the exact soft failure the 07-31 rewire banned; the family map
+    # in test_config_privacy had gone stale ("research": "minimax") so the guard test never fired.
+    # Lightning (NVIDIA, talos) is deliberately NOT seated: it is the research role's #2 failover,
+    # so on an archimedes outage it becomes the research model and would self-grade. Deriving the
+    # family maps from models.yaml (so role flips can't silently rot the invariant) is a filed task.
+    verifier_panel_models: list[str] = ["gpt-oss", "glm", "kimi"]
     verifier_panel_floor: int = 2  # min members that must respond+parse, else degrade
 
     # Synthesizer ensemble (research panel followup #2): instead of one model writing the final
