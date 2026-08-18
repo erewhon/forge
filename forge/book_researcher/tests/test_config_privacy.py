@@ -23,11 +23,17 @@ SELF_HOSTED_FAMILY: dict[str, str] = {
     "coder-next": "qwen",
     "coder-next-local": "qwen",
     "gptoss": "gpt-oss",
-    "gpt-oss": "gpt-oss",
+    "gpt-oss": "gpt-oss",  # delphi GPU since 2026-08-18 (was hekaton CPU)
     "gpt-oss-120b-local": "gpt-oss",
-    # thinker/research → MiniMax-M2.7-REAP on archimedes GPU since 2026-07-31 (was Qwen3-Next-80B).
-    "research": "minimax",
-    "thinker": "minimax",
+    # Role aliases track the router's CURRENT resolution and go stale when models.yaml flips a
+    # role — that staleness let a Qwen seat family-self-grade for five days in Aug 2026. Until the
+    # map is derived from models.yaml (filed task), update these WITH every role flip:
+    # research → qwen3-coder-next (Qwen) since 2026-08-13; thinker → Lightning (NVIDIA) 2026-08-18.
+    "research": "qwen",
+    "thinker": "nvidia",
+    # Nemotron (talos B70 GPU)
+    "lightning": "nvidia",
+    "nemotron-3.5-lightning": "nvidia",
     "minimax": "minimax",
     "minimax-m2.7-reap": "minimax",
     "m2.7-local": "minimax",

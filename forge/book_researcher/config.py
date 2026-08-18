@@ -66,7 +66,13 @@ class BookResearcherSettings(BaseSettings):
     # archimedes, so any MiniMax panel seat would grade its own family's research output. See the
     # general researcher's config for the full rationale; revert to self-hosted-only stays gated on
     # a GPU seat for a non-Qwen model that is not the research model.
-    verifier_panel_models: list[str] = ["coder", "glm", "kimi"]
+    #
+    # UPDATE (2026-08-18): coder swapped for gpt-oss. The GPU gate was met (gpt-oss-120b on delphi
+    # GPU, ~49 t/s), and the `research` role's 2026-08-13 flip to qwen3-coder-next had quietly made
+    # the Qwen `coder` seat a family self-grader while the stale family map in test_config_privacy
+    # kept the guard test green. Lightning stays out: it is research's #2 failover and can BE the
+    # research model. Full rationale in the general researcher's config.
+    verifier_panel_models: list[str] = ["gpt-oss", "glm", "kimi"]
     verifier_panel_floor: int = 2  # min members that must respond+parse, else degrade
 
     @property
