@@ -12,6 +12,7 @@ from forge.pr_review_ensemble.digest import run_digest
 from forge.pr_review_ensemble.logger import log_digest, log_run, log_supply_chain
 from forge.pr_review_ensemble.renderer import render_digest, render_markdown, render_supply_chain
 from forge.pr_review_ensemble.runner import run_ensemble
+from forge.pr_review_ensemble.shadow import render_shadow, run_shadow
 from forge.pr_review_ensemble.supply_chain import run_supply_chain_audit
 
 
@@ -81,6 +82,28 @@ async def _run_review(diff_text: str, pr_ref: str, args: argparse.Namespace) -> 
     return 2 if result.quorum_state == "failed" else 0
 
 
+async def _run_shadow(diff_text: str, pr_ref: str, args: argparse.Namespace) -> int:
+    diff_lines = diff_text.count("\n") + 1
+    print(
+        f"Running shadow comparison (production vs all-local roster) on {pr_ref} "
+        f"({diff_lines} lines, sequential)...",
+        file=sys.stderr,
+    )
+    shadow = await run_shadow(diff_text=diff_text, pr_ref=pr_ref)
+    markdown = render_shadow(shadow)
+    _emit(markdown, args, label="Shadow comparison")
+    # Deliberately never posted to the PR: the comparison is an internal trial artifact.
+    for name, result in (("baseline", shadow.baseline), ("local", shadow.local)):
+        print(f"{name} run logged to {log_run(result)}", file=sys.stderr)
+        print(
+            f"{name} quorum: {result.quorum_state} "
+            f"({len(result.providers_succeeded)}/{len(result.providers_attempted)})",
+            file=sys.stderr,
+        )
+    failed = "failed" in (shadow.baseline.quorum_state, shadow.local.quorum_state)
+    return 2 if failed else 0
+
+
 async def _run_digest(diff_text: str, pr_ref: str, args: argparse.Namespace) -> int:
     diff_lines = diff_text.count("\n") + 1
     print(f"Running digest on {pr_ref} ({diff_lines} lines)...", file=sys.stderr)
@@ -134,6 +157,8 @@ async def _run(args: argparse.Namespace) -> int:
         return await _run_digest(diff_text, pr_ref, args)
     if args.pass_ == "supply-chain":
         return await _run_supply_chain(diff_text, pr_ref, args)
+    if args.pass_ == "shadow":
+        return await _run_shadow(diff_text, pr_ref, args)
     return await _run_review(diff_text, pr_ref, args)
 
 
@@ -142,11 +167,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--pass",
         dest="pass_",
-        choices=["review", "digest", "supply-chain"],
+        choices=["review", "digest", "supply-chain", "shadow"],
         default="review",
         help="Which lens to run: 'review' (fan-out + synthesize advisory), 'digest' (navigational "
-        "digest of a large PR), or 'supply-chain' (deterministic pre-scan + focused audit of "
-        "dependency/hook/CI/obfuscation changes). Default: review.",
+        "digest of a large PR), 'supply-chain' (deterministic pre-scan + focused audit of "
+        "dependency/hook/CI/obfuscation changes), or 'shadow' (production AND all-local rosters "
+        "on the same diff, rendered side by side — the full-local trial). Default: review.",
     )
     parser.add_argument(
         "--pr",
