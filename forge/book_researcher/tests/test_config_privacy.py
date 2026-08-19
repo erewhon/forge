@@ -121,3 +121,19 @@ def test_verifier_panel_excludes_research_models_family() -> None:
 
 def test_verifier_panel_satisfies_floor() -> None:
     assert len(settings.verifier_panel_models) >= settings.verifier_panel_floor
+
+
+def test_local_lane_panel_is_fully_self_hosted() -> None:
+    """The privacy lane's whole point: no seat may resolve off-box. Family purity is an accepted
+    trade in this lane (see the general researcher's config) — self-hosting is not negotiable."""
+    for alias in settings.verifier_panel_models_local:
+        assert alias in SELF_HOSTED_FAMILY, f"local-lane seat {alias!r} is not self-hosted"
+
+
+def test_active_panel_routes_by_lane() -> None:
+    local = BookResearcherSettings(panel_lane="local")
+    assert local.active_verifier_panel() == local.verifier_panel_models_local
+    default = BookResearcherSettings()
+    assert default.active_verifier_panel() == default.verifier_panel_models
+    bogus = BookResearcherSettings(panel_lane="bogus")
+    assert bogus.active_verifier_panel() == default.verifier_panel_models

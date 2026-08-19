@@ -361,7 +361,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Just print current knowledge summary and exit",
     )
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Privacy lane: verify with the all-self-hosted panel — no findings leave the "
+        "homelab. Trades family purity for privacy (see config); default panel stays vetted-Zen.",
+    )
     args = parser.parse_args(argv)
+    if args.local:
+        settings.panel_lane = "local"
 
     if args.summary:
         print_summary(args.config)

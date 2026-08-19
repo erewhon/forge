@@ -182,7 +182,7 @@ def _verify(contract: SprintContract, findings: SprintFindings) -> VerificationR
     user_msg = _build_user_message(contract, findings)
     members = build_lens_members(
         _LENSES,
-        settings.verifier_panel_models,
+        settings.active_verifier_panel(),  # lane-aware: --local keeps verification on-box
         base_url=settings.openai_base_url,
         api_key=settings.openai_api_key,
         # Date context FIRST: without it the panel reads correctly-retrieved post-cutoff events as
