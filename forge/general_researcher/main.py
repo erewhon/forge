@@ -285,7 +285,15 @@ def main(argv: list[str] | None = None) -> int:
         "--summary", action="store_true", help="Print existing research status and exit"
     )
     parser.add_argument("--slug", default=None, help="Override the auto-derived directory slug")
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Privacy lane: verify with the all-self-hosted panel — no findings leave the "
+        "homelab. Trades family purity for privacy (see config); default panel stays vetted-Zen.",
+    )
     args = parser.parse_args(argv)
+    if args.local:
+        settings.panel_lane = "local"
 
     topic = _load_topic_config(args.topic)
     if args.slug:

@@ -82,6 +82,22 @@ class GeneralResearcherSettings(BaseSettings):
     verifier_panel_models: list[str] = ["gpt-oss", "glm", "kimi"]
     verifier_panel_floor: int = 2  # min members that must respond+parse, else degrade
 
+    # Lane switch (2026-08-18, mirroring the code-review roster_for_lane): "default" = the panel
+    # above (one local seat + two vetted-Zen cloud seats); "local" = verifier_panel_models_local —
+    # NOTHING leaves the homelab. In the local lane family purity is a deliberate, accepted trade
+    # for privacy (Steven's call): `coder` shares the research model's Qwen family and `lightning`
+    # is the research role's #2 failover, but the alternative is shipping findings to the cloud.
+    # The no-self-grading tests pin the DEFAULT panel only; the local lane pins full self-hosting
+    # instead. Unknown lane values fall through to the default panel (the vetted one).
+    # Env: GENERAL_RESEARCHER_PANEL_LANE=local, or the CLI's --local flag.
+    panel_lane: str = "default"
+    verifier_panel_models_local: list[str] = ["gpt-oss", "lightning", "coder"]
+
+    def active_verifier_panel(self) -> list[str]:
+        if self.panel_lane == "local":
+            return self.verifier_panel_models_local
+        return self.verifier_panel_models
+
     # Synthesizer ensemble (research panel followup #2): instead of one model writing the final
     # answer, generate a candidate synthesis from each of these models, judge-pick the most
     # coherent, then graft in the unique key_sources / open_questions the runners-up surfaced. Runs

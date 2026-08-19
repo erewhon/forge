@@ -75,6 +75,18 @@ class BookResearcherSettings(BaseSettings):
     verifier_panel_models: list[str] = ["gpt-oss", "glm", "kimi"]
     verifier_panel_floor: int = 2  # min members that must respond+parse, else degrade
 
+    # Lane switch (2026-08-18): "local" swaps the panel to verifier_panel_models_local — nothing
+    # leaves the homelab; family purity deliberately traded for privacy (see the general
+    # researcher's config for the full rationale). Env: BOOK_RESEARCHER_PANEL_LANE=local, or the
+    # CLI's --local flag. Unknown lane values fall through to the default (vetted) panel.
+    panel_lane: str = "default"
+    verifier_panel_models_local: list[str] = ["gpt-oss", "lightning", "coder"]
+
+    def active_verifier_panel(self) -> list[str]:
+        if self.panel_lane == "local":
+            return self.verifier_panel_models_local
+        return self.verifier_panel_models
+
     @property
     def sprints_dir(self) -> Path:
         return self.project_dir / "sprints"
