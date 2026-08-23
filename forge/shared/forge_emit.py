@@ -26,11 +26,16 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from forge.shared.envfile import ENV_FILES
+
 
 class ForgeEmitSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="FORGE_EMIT_")
+    model_config = SettingsConfigDict(
+        env_prefix="FORGE_EMIT_", env_file=ENV_FILES, extra="ignore"
+    )
 
     daemon_url: str = "http://127.0.0.1:7667"
+    api_key: str = ""  # PAT for a remote daemon; empty = local key-file discovery
     notebook: str = "Forge"
     database: str = "Project Tasks"
     max_per_run: int = 25  # safety cap on tasks created in a single emission
@@ -140,7 +145,9 @@ def _ctx() -> _NousCtx:
     from nous_mcp.storage import NousStorage
     from nous_mcp.workflow import register_workflow_tools
 
-    daemon = NousDaemonClient(base_url=settings.daemon_url)
+    daemon = NousDaemonClient(
+        base_url=settings.daemon_url, api_key=settings.api_key or None
+    )
     storage = NousStorage(daemon)  # daemon-backed; reads/writes go through the daemon
     stub = _CaptureMCP()
     register_workflow_tools(stub, lambda: storage, lambda: daemon, lambda: True)

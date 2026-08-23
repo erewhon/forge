@@ -40,6 +40,12 @@ SELF_HOSTED_FAMILY: dict[str, str] = {
     # research → qwen3-coder-next (Qwen) since 2026-08-13; thinker → Lightning (NVIDIA) 2026-08-18.
     "research": "qwen",
     "thinker": "nvidia",
+    # Ling 3 flash (hekaton CPU, seated 2026-08-22) and Gemma 4 26B (talos B70 card 1,
+    # seated 2026-08-22) — the 2026-08-22 review-roster rewire seats
+    "ling": "bailing",
+    "ling-3-flash-slow": "bailing",
+    "gemma": "google",
+    "gemma4-26b": "google",
     # Nemotron (talos B70 GPU)
     "lightning": "nvidia",
     "nemotron-3.5-lightning": "nvidia",

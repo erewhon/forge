@@ -5,17 +5,25 @@ creds server-side), so the whole roster is one endpoint + one key.
 The roster is the single source of reviewers shared by the PR-review ensemble, the coding-pipeline
 epic gate, wave-verify, the testing ensemble, and the Dependabot bumper — reconfigure it here and
 every reviewer changes at once. Default: three diverse primary seats, two of them local — Claude
-Sonnet (the frontier anchor), the self-hosted gpt-oss-120b on delphi (seated 2026-08-18, replacing
-the metered GLM seat at ~equal review score and adding a model family the fleet lacked), and the
-self-hosted Nemotron 3.5 Lightning on the talos B70 (seated 2026-08-16; qualeval v2 code_review
-0.84, the fleet's strongest local reviewer by ~0.17, at ~100 t/s). Cheaper backups: GLM, a local
-coder model, MiniMax M3, Kimi. Diversity (distinct model families) over count. A disabled seat
-becomes a ``SkipExecutor`` slot: attempted-but-never-ok for quorum accounting, without a doomed
-network call.
+Sonnet (the frontier anchor), Ling 3 flash on hekaton (seated 2026-08-22; qualeval v2 code_review
+0.91, the best local reviewer ever measured), and Gemma 4 26B on the talos B70 card 1 (seated
+2026-08-22; board #1 composite 0.93, code_review 0.84, the analyst seat: adversarial 0.90 /
+research 0.92, and the fleet's only Google-family model). Lightning (NVIDIA, code_review 0.84,
+~100 t/s) is the fast local backup on both local seats and holds a primary seat in the all-local
+roster. gpt-oss-120b (code_review 0.64, FP-heavy) lost its review seat on the 2026-08-22 board
+but stays reachable as a backup; cheaper cloud backups: GLM, MiniMax M3, Kimi. Diversity
+(distinct model families) over count. A disabled seat becomes a ``SkipExecutor`` slot:
+attempted-but-never-ok for quorum accounting, without a doomed network call.
 
-``build_local_reviewer_slots`` is the all-local shadow roster (Lightning/gpt-oss/Coder-Next —
-three families, zero cloud seats), run by the ``shadow`` pass side by side with production to
-decide whether sonnet can be unseated.
+``build_local_reviewer_slots`` is the all-local roster (Ling 3 / Gemma 4 / Lightning — three
+families, Ant/Google/NVIDIA, zero cloud seats), serving the ROUTINE lane and the ``shadow``
+pass run side by side with production to decide whether sonnet can be unseated.
+
+Serving contract for the Gemma seat: its 16k completion budget cannot be enforced server-side,
+so reviewers must send generous max_tokens — ``review_max_tokens`` (16384) covers it; do not
+lower it below 8192 or the v1 truncate-mid-flight trait returns. Ling 3 decodes on hekaton CPU
+(~7 t/s with DSpark): a big-diff review can near the 300s per-provider timeout, at which point
+the seat fails over to Lightning by design.
 """
 
 from __future__ import annotations
@@ -120,16 +128,26 @@ def _sonnet_slot() -> ReviewerSlot:
     return _failover_slot("sonnet-5", _anthropic_primary(), settings.anthropic_model, ["coder"])
 
 
-def _gptoss_slot() -> ReviewerSlot:
-    """Local OpenAI-family seat: primary is gpt-oss-120b on delphi (router alias `gpt-oss`,
-    ~49 t/s Vulkan — this seat's diffs stay in the homelab). qualeval v2 0.87 composite,
-    code_review 0.64: FP-heavy on defect probes but passes the clean-code canary — it over-reports
-    on buggy code, doesn't invent bugs in clean code, and the quorum labeling absorbs the noise.
-    Seated 2026-08-18 replacing the metered GLM seat (GLM-family review ≤0.67) at ~equal review
-    score and zero marginal cost. GLM stays reachable as the first backup, then kimi (both
-    family-diverse cloud)."""
-    primary = _router_executor("gpt-oss", "gpt-oss")
-    return _failover_slot("gpt-oss", primary, "gpt-oss", ["glm", "kimi"])
+def _ling3_slot() -> ReviewerSlot:
+    """Local Ant/Bailing seat: primary is Ling-3.0-flash on hekaton (router alias `ling`,
+    llama-server-ling3 :5393, DSpark drafter — this seat's diffs stay in the homelab). qualeval
+    v2 0.92 composite, code_review 0.91 — the best local reviewer ever measured (seated
+    2026-08-22, displacing gpt-oss from the review seat). Its known flaw (tu-07: fabricates
+    instead of surfacing tool errors) never fires in a review seat — reviews use no tools.
+    Slow CPU decode: Lightning (local, fast, review 0.84) is the first backup, then kimi."""
+    primary = _router_executor("ling3", "ling")
+    return _failover_slot("ling3", primary, "ling", ["lightning", "kimi"])
+
+
+def _gemma_slot() -> ReviewerSlot:
+    """Local Google seat: primary is Gemma 4 26B on the talos B70 card 1 (router alias `gemma`,
+    gemma-server :5392, ~62 t/s Vulkan — diffs stay in the homelab). qualeval v2 board #1
+    (0.93): code_review 0.84 (ties Lightning), adversarial 0.90 / research 0.92 — the panel's
+    analyst. Sampling params are held server-side; the 16k completion budget is NOT — callers
+    must keep max_tokens generous (review_max_tokens 16384 does). gpt-oss (local, the demoted
+    executor) is the first backup, then glm (family-diverse cloud)."""
+    primary = _router_executor("gemma", "gemma")
+    return _failover_slot("gemma", primary, "gemma", ["gpt-oss", "glm"])
 
 
 def _lightning_slot() -> ReviewerSlot:
@@ -141,27 +159,23 @@ def _lightning_slot() -> ReviewerSlot:
     return _failover_slot("lightning", primary, "lightning", ["m3", "kimi"])
 
 
-def _coder_next_slot() -> ReviewerSlot:
-    """Local Qwen seat (shadow roster only): primary is Qwen3-Coder-Next on archimedes (router
-    alias `coder-next`, vLLM FP8, ~46 t/s). qualeval v2 0.90 composite but code_review 0.67 and a
-    terse non-thinker — a builder, not a reviewer; it sits in the shadow roster to give the
-    all-local trio its third model family. Backup is the local `coder` role alias (qwen3.6 on
-    hypatia), keeping the seat fully local on failover."""
-    primary = _router_executor("coder-next", "coder-next")
-    return _failover_slot("coder-next", primary, "coder-next", ["coder"])
-
-
 def build_reviewer_slots() -> list[ReviewerSlot]:
-    """The roster, in a stable order: three primary seats, each a router-backed failover chain."""
-    return [_sonnet_slot(), _gptoss_slot(), _lightning_slot()]
+    """The frontier roster, in a stable order: sonnet (anchor) plus the two strongest local
+    reviewers on the 2026-08-22 board — Ling 3 (review 0.91) and Gemma 4 (review 0.84 + the
+    analyst profile). Each seat is a router-backed failover chain; Lightning covers the ling3
+    seat's failover so a hekaton outage degrades to a fast local reviewer, not a cloud seat."""
+    return [_sonnet_slot(), _ling3_slot(), _gemma_slot()]
 
 
 def build_local_reviewer_slots() -> list[ReviewerSlot]:
-    """The all-local roster: Lightning (NVIDIA), gpt-oss-120b (OpenAI family), Coder-Next
-    (Qwen) — three distinct families with zero cloud seats, every diff staying in the homelab.
+    """The all-local roster: Ling 3 (Ant), Gemma 4 (Google), Lightning (NVIDIA) — three
+    distinct families with zero cloud seats, every diff staying in the homelab, and three
+    complementary failure modes (slow-but-thorough, few-FP analyst, fast-and-disciplined).
     Serves the ROUTINE lane (see ``roster_for_lane``) and the ``shadow`` pass; the frontier
-    roster keeps the gates where sonnet's unique catches clustered in the shadow trial."""
-    return [_lightning_slot(), _gptoss_slot(), _coder_next_slot()]
+    roster keeps the gates where sonnet's unique catches clustered in the shadow trial.
+    Rewired 2026-08-22 from Lightning/gpt-oss/coder-next on the qualeval v2 board: gpt-oss
+    review 0.64 and coder-next 0.67 were the weakest links; both stay reachable as backups."""
+    return [_ling3_slot(), _gemma_slot(), _lightning_slot()]
 
 
 def roster_for_lane(lane: str) -> list[ReviewerSlot]:
@@ -174,11 +188,12 @@ def roster_for_lane(lane: str) -> list[ReviewerSlot]:
 
 
 # Capability-ordered rotation for the aggregator/digest failover pool. All seats route through the
-# router, so ordering is by review capability; a `preferred` seat is promoted to the front.
-# Lightning first among locals (review 0.84); gpt-oss ahead of coder-next for synthesis duty
-# (instruction 1.00 and a disciplined reasoner vs a terse non-thinker) despite near-equal review
-# scores (0.64 vs 0.67). Local seats outrank any metered cloud fallback.
-ROTATION_ORDER = ("sonnet-5", "lightning", "gpt-oss", "coder-next")
+# router, so ordering is by synthesis capability; a `preferred` seat is promoted to the front.
+# After sonnet: Lightning first among locals for synthesis duty (instruction 0.99, disciplined,
+# ~100 t/s), then Ling 3 (instruction 1.00, best reviewer, but slow hekaton CPU decode), then
+# Gemma (instruction 1.00 but the most verbose thinker — fine work, slow synthesis). Only
+# providers actually present in the given slots are used, so this order spans both rosters.
+ROTATION_ORDER = ("sonnet-5", "lightning", "ling3", "gemma")
 
 
 def rotation_pool(slots: list[ReviewerSlot], *, role: str, preferred: str | None = None) -> Pool:
