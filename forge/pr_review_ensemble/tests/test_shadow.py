@@ -17,12 +17,12 @@ def _run_shadow(monkeypatch) -> shadow_mod.ShadowResult:
     monkeypatch.setattr(
         shadow_mod,
         "build_reviewer_slots",
-        lambda: [fake_slot("sonnet-5"), fake_slot("gpt-oss"), fake_slot("lightning")],
+        lambda: [fake_slot("sonnet-5"), fake_slot("ling3"), fake_slot("gemma")],
     )
     monkeypatch.setattr(
         shadow_mod,
         "build_local_reviewer_slots",
-        lambda: [fake_slot("lightning"), fake_slot("gpt-oss"), fake_slot("coder-next")],
+        lambda: [fake_slot("ling3"), fake_slot("gemma"), fake_slot("lightning")],
     )
     return asyncio.run(shadow_mod.run_shadow(diff_text="diff --git a b", pr_ref="repo#1"))
 
@@ -30,8 +30,8 @@ def _run_shadow(monkeypatch) -> shadow_mod.ShadowResult:
 def test_shadow_runs_both_rosters(monkeypatch):
     result = _run_shadow(monkeypatch)
 
-    assert result.baseline.providers_attempted == ["sonnet-5", "gpt-oss", "lightning"]
-    assert result.local.providers_attempted == ["lightning", "gpt-oss", "coder-next"]
+    assert result.baseline.providers_attempted == ["sonnet-5", "ling3", "gemma"]
+    assert result.local.providers_attempted == ["ling3", "gemma", "lightning"]
     # The two runs log under distinguishable refs.
     assert result.baseline.pr_ref == "repo#1 [baseline]"
     assert result.local.pr_ref == "repo#1 [local]"
@@ -45,4 +45,4 @@ def test_render_shadow_carries_both_advisories(monkeypatch):
     assert md.startswith("# Shadow review comparison — repo#1\n")
     assert "## Production advisory (baseline)" in md
     assert "## All-local advisory" in md
-    assert "coder-next" in md  # the local trio's third family is visible in the summary table
+    assert "lightning" in md  # the local trio's third family is visible in the summary table

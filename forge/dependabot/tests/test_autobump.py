@@ -328,7 +328,7 @@ def test_signoff_seats_come_from_the_routine_lane(monkeypatch):
     monkeypatch.setattr(ab, "full_quorum_signoff", fake_quorum)
     assert dep_settings.signoff_lane == "local"
     ab._signoff("diff", pr_ref="x", context="c")
-    assert captured["providers"] == ["lightning", "gpt-oss", "coder-next"]
+    assert captured["providers"] == ["ling3", "gemma", "lightning"]
 
     monkeypatch.setattr(dep_settings, "signoff_lane", "frontier")
     ab._signoff("diff", pr_ref="x", context="c")

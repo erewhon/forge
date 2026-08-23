@@ -91,10 +91,11 @@ class CodingPipelineSettings(BaseSettings):
     # Slice summaries are mechanical, so the map pool tries this seat first (failover to the
     # rest) instead of spending metered tokens on every slice. The reduce verdict is still the
     # full cross-family quorum — every seat, unanimous. Seat renamed minimax -> lightning
-    # 2026-08-16 (primary is the self-hosted Nemotron 3.5 Lightning on talos, ~100 t/s local;
-    # an unmatched name here would silently fall back to rotation order, i.e. sonnet,
-    # spending metered tokens on every slice).
-    epic_gate_map_preferred: str = "lightning"
+    # 2026-08-16, lightning -> gemma 2026-08-22 (the roster rewire dropped lightning from the
+    # frontier seats; gemma is the faster of the two remaining locals — B70 Vulkan 62 t/s vs
+    # Ling 3's hekaton CPU decode. An unmatched name here would silently fall back to rotation
+    # order, i.e. sonnet, spending metered tokens on every slice).
+    epic_gate_map_preferred: str = "gemma"
 
     def llm_cfg(self) -> LLMConfig:
         return LLMConfig(
