@@ -5,6 +5,7 @@ Usage::
     forge map targets                     # list configured targets and their mirror state
     forge map sync [--target NAME ...]    # rsync checkouts into <output_root>/mirror/
     forge map structure [--target NAME ...]   # tree-sitter pass → out/<key>/{map.md,index.json}
+    forge map summarize [--target NAME ...]   # LLM stage (local router only; guarded) → summaries
 
 Config lives at ``~/.config/forge/map.toml`` (override with ``--config``)::
 
@@ -38,6 +39,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         ("targets", "list configured targets and their mirror state"),
         ("sync", "mirror the configured checkouts"),
         ("structure", "run the structural pass over existing mirrors"),
+        ("summarize", "run the guarded LLM stage over existing structural indexes"),
     ):
         cmd = sub.add_parser(name, help=summary)
         if name != "targets":
@@ -106,6 +108,34 @@ def _cmd_structure(config: MapConfig, targets: list[TargetConfig]) -> int:
     return 1 if targets and failures == len(targets) else 0
 
 
+def _cmd_summarize(config: MapConfig, targets: list[TargetConfig]) -> int:
+    # Deferred import: plain sync/structure must never require the LLM settings stack.
+    from forge.cartographer.config import settings
+    from forge.cartographer.guards import run_guards
+    from forge.cartographer.summarize import summarize_target
+
+    run_guards(settings.openai_base_url, config.output_root)  # refuses via SystemExit
+    failures = 0
+    for target in targets:
+        try:
+            stats = summarize_target(config, settings, target)
+        except FileNotFoundError as exc:
+            failures += 1
+            print(f"WARN: summarize failed for {target.name}: {exc}", file=sys.stderr)
+            continue
+        note = f", {len(stats.failed)} FAILED" if stats.failed else ""
+        print(
+            f"summarized {target.name}: {stats.summarized} new, {stats.cache_hits} cached, "
+            f"{stats.rollups_built} rollups, {stats.llm_calls} LLM calls, "
+            f"{len(stats.skipped)} skipped{note}"
+        )
+        for line in stats.skipped:
+            print(f"  skipped {line}", file=sys.stderr)
+        for line in dict.fromkeys(stats.errors):  # dedup, keep order
+            print(f"  error {line}", file=sys.stderr)
+    return 1 if targets and failures == len(targets) else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     config = _load(args)
@@ -114,7 +144,9 @@ def main(argv: list[str] | None = None) -> int:
     targets = _selected(config, args)
     if args.command == "sync":
         return _cmd_sync(config, targets)
-    return _cmd_structure(config, targets)
+    if args.command == "structure":
+        return _cmd_structure(config, targets)
+    return _cmd_summarize(config, targets)
 
 
 if __name__ == "__main__":
