@@ -19,6 +19,7 @@ dependencies = [
 
 [project.optional-dependencies]
 nous = ["nous-ai"]
+map = ["tree-sitter>=0.23", "tree-sitter-language-pack>=0.13"]
 
 [project.scripts]
 forge = "forge.cli:main"
@@ -48,4 +49,7 @@ pythonpath = ["."]
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    # The cartographer's structural tests exercise real parsers (they importorskip otherwise).
+    "tree-sitter>=0.23",
+    "tree-sitter-language-pack>=0.13",
 ]
