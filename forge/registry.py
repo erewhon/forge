@@ -123,6 +123,13 @@ REGISTRY: list[AgentCommand] = [
         exposes_mcp=False,
     ),
     AgentCommand(
+        name="map",
+        summary="Repo cartographer: mirror checkouts, emit structural maps (no-LLM stage).",
+        module="forge.cartographer.main",
+        # CLI-only: it rsyncs real checkouts over SSH; nothing an agent should call mid-task yet.
+        exposes_mcp=False,
+    ),
+    AgentCommand(
         name="evals",
         summary="Judgment eval harness: score models against frozen gold sets.",
         module="forge.evals.main",
