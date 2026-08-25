@@ -59,6 +59,7 @@ __all__ = [
 # endpoint is intentionally excluded: it is a separate, non-router backend.
 ROUTER_URL_ENVS: tuple[str, ...] = (
     "BOOK_RESEARCHER_OPENAI_BASE_URL",
+    "CARTOGRAPHER_OPENAI_BASE_URL",
     "CODE_AUDIT_OPENAI_BASE_URL",
     "CODE_REVIEWER_OPENAI_BASE_URL",
     "CODING_PIPELINE_OPENAI_BASE_URL",
