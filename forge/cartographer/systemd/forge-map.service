@@ -1,0 +1,25 @@
+[Unit]
+Description=forge map - nightly repo cartographer run (sync, structure, summarize, render)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# forge is installed as a uv tool; the disclosure guards run inside `forge map run` before any
+# inference and refuse non-local routers / public-remote output roots.
+ExecStart=%h/.local/bin/forge map run
+WorkingDirectory=%h
+
+Environment=PATH=/home/linuxbrew/.linuxbrew/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Overrides that shouldn't live in a repo (router URL/key, model seats)
+EnvironmentFile=-%h/.config/forge/map.env
+
+# A first full sweep of a large repo is overnight-scale on the local seats; incremental
+# steady-state runs finish in minutes.
+TimeoutStartSec=21600
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
