@@ -6,6 +6,8 @@ Usage::
     forge map sync [--target NAME ...]    # rsync checkouts into <output_root>/mirror/
     forge map structure [--target NAME ...]   # tree-sitter pass → out/<key>/{map.md,index.json}
     forge map summarize [--target NAME ...]   # LLM stage (local router only; guarded) → summaries
+    forge map render [--target NAME ...]      # assemble modules/*.md + architecture.md from cache
+    forge map run [--target NAME ...]         # full pipeline: sync → structure → summarize → render
 
 Config lives at ``~/.config/forge/map.toml`` (override with ``--config``)::
 
@@ -40,6 +42,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         ("sync", "mirror the configured checkouts"),
         ("structure", "run the structural pass over existing mirrors"),
         ("summarize", "run the guarded LLM stage over existing structural indexes"),
+        ("render", "assemble module and architecture docs from the summary cache"),
+        ("run", "full pipeline: sync, structure, summarize, render + report"),
     ):
         cmd = sub.add_parser(name, help=summary)
         if name != "targets":
@@ -136,6 +140,42 @@ def _cmd_summarize(config: MapConfig, targets: list[TargetConfig]) -> int:
     return 1 if targets and failures == len(targets) else 0
 
 
+def _cmd_render(config: MapConfig, targets: list[TargetConfig]) -> int:
+    from forge.cartographer.guards import guard_output_root
+    from forge.cartographer.render import render_target
+
+    guard_output_root(config.output_root)  # render writes derived artifacts too
+    failures = 0
+    for target in targets:
+        try:
+            stats = render_target(config, target)
+        except FileNotFoundError as exc:
+            failures += 1
+            print(f"WARN: render failed for {target.name}: {exc}", file=sys.stderr)
+            continue
+        missing = f", {len(stats.files_missing_summary)} without summaries" \
+            if stats.files_missing_summary else ""
+        print(
+            f"rendered {target.name}: {stats.modules_written} module docs, architecture="
+            f"{'yes' if stats.architecture_written else 'no'}{missing} → {config.out_dir(target)}"
+        )
+    return 1 if targets and failures == len(targets) else 0
+
+
+def _cmd_run(config: MapConfig, targets: list[TargetConfig]) -> int:
+    from forge.cartographer.config import settings
+    from forge.cartographer.guards import run_guards
+    from forge.cartographer.render import run_all
+
+    run_guards(settings.openai_base_url, config.output_root)  # before any inference; no bypass
+    exit_code, reports = run_all(config, settings, targets)
+    for r in reports:
+        line = "OK" if r.ok else f"FAILED — {r.error}"
+        print(f"{r.name}: {line} ({r.wall_seconds:.0f}s)")
+    print(f"report → {config.output_root / 'report.md'}")
+    return exit_code
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     config = _load(args)
@@ -146,7 +186,11 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_sync(config, targets)
     if args.command == "structure":
         return _cmd_structure(config, targets)
-    return _cmd_summarize(config, targets)
+    if args.command == "summarize":
+        return _cmd_summarize(config, targets)
+    if args.command == "render":
+        return _cmd_render(config, targets)
+    return _cmd_run(config, targets)
 
 
 if __name__ == "__main__":
