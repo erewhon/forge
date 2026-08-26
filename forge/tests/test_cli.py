@@ -23,6 +23,7 @@ EXPECTED_VERBS = {
     "queue",
     "switcheroo",
     "build",
+    "map",
     "radar",
     "evals",
     "deps",
