@@ -23,10 +23,10 @@ class CartographerSettings(BaseSettings):
 
     # Router aliases per tier. Sweep handles the high-volume file/module summaries; synthesis
     # handles the low-volume rollups and the architecture doc, where judgment matters more.
-    # Sweep default is gemma for now: lightning (the preferred seat) 502s on plain completions
-    # through the router's tool proxy as of 2026-08-25 — reseat via CARTOGRAPHER_SWEEP_MODEL once
-    # that's fixed (LLM Router task filed).
-    sweep_model: str = "gemma"
+    # (The 2026-08-25 lightning-502-via-tool-proxy bug is fixed; a request that exhausts
+    # max_tokens while the model is still reasoning now returns 200 with empty content and
+    # finish_reason "length" — keep the budgets below above the model's reasoning appetite.)
+    sweep_model: str = "lightning"
     synthesis_model: str = "ling"  # the Ling 3 router alias ("ling3" is the ensemble SEAT label)
 
     # Token budgets per call kind. Sized for reasoning models: the local seats (gemma, ling,
