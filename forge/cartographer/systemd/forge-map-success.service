@@ -1,0 +1,7 @@
+[Unit]
+Description=forge map success notification (ntfy homeops-jobs)
+
+[Service]
+Type=oneshot
+ExecStart=%h/Projects/erewhon/forge/forge/cartographer/systemd/forge-map-notify.sh "forge map nightly run completed" "forge-map.service finished on %H. Report: /home/erewhon/source-maps/report.md" low world_map,white_check_mark
+Environment=PATH=/home/linuxbrew/.linuxbrew/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
