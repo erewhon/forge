@@ -51,6 +51,10 @@ class LLMConfig:
     openai_base_url: str = "http://localhost:4000/v1"
     openai_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-6"
+    # Per-request wall-clock ceiling for the openai backend; None keeps the SDK default (600s).
+    # Callers sending near-context-window prompts to local seats need more — prefill alone can
+    # exceed 600s there.
+    timeout_seconds: float | None = None
 
 
 def complete(
@@ -78,7 +82,12 @@ def complete(
 
     import openai
 
-    client = openai.OpenAI(base_url=cfg.openai_base_url, api_key=cfg.openai_api_key)
+    # An explicit timeout=None would mean "no timeout" to the SDK; omit the kwarg to keep its
+    # default when unset.
+    timeout_kwargs = {} if cfg.timeout_seconds is None else {"timeout": cfg.timeout_seconds}
+    client = openai.OpenAI(
+        base_url=cfg.openai_base_url, api_key=cfg.openai_api_key, **timeout_kwargs
+    )
     response = client.chat.completions.create(
         model=model,
         max_tokens=max_tokens,
