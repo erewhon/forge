@@ -2,6 +2,8 @@
 Description=forge map - nightly repo cartographer run (sync, structure, summarize, render)
 Wants=network-online.target
 After=network-online.target
+OnFailure=forge-map-notify.service
+OnSuccess=forge-map-success.service
 
 [Service]
 Type=oneshot
@@ -14,9 +16,11 @@ Environment=PATH=/home/linuxbrew/.linuxbrew/bin:%h/.local/bin:/usr/local/bin:/us
 # Overrides that shouldn't live in a repo (router URL/key, model seats)
 EnvironmentFile=-%h/.config/forge/map.env
 
-# A first full sweep of a large repo is overnight-scale on the local seats; incremental
-# steady-state runs finish in minutes.
-TimeoutStartSec=21600
+# A first full sweep of a large repo can run well past a day on the local seats
+# (2026-08-26: the 6h cap killed the first sweep mid-run with ~13h still to go), so no
+# start timeout. Overlap is safe: a timer trigger while a run is still activating is a
+# no-op, and steady-state incremental runs finish in minutes anyway.
+TimeoutStartSec=0
 
 NoNewPrivileges=true
 PrivateTmp=true
