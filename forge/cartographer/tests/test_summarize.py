@@ -145,6 +145,69 @@ def test_call_exception_degrades_to_recorded_error(tmp_path: Path) -> None:
     assert stats2.summarized == 1, "nothing was cached by the failed run"
 
 
+class SizingModel(CountingModel):
+    """Counting model that also records the size of every user prompt it receives."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.prompt_sizes: list[int] = []
+
+    def __call__(self, system: str, user: str, max_tokens: int) -> str:
+        self.prompt_sizes.append(len(user))
+        return super().__call__(system, user, max_tokens)
+
+
+def test_oversized_rollup_is_reduced_to_fit_the_budget(tmp_path: Path) -> None:
+    budget = 600
+    config = _config(tmp_path)
+    shas = {f"app/f{i}.py": f"{i:02d}" * 20 for i in range(8)}
+    _write_target(config, config.targets[0], shas)
+    sweep = SizingModel()
+    sweep.reply = "s" * 200  # 8 sections of ~210 chars — far over a 600-char budget
+    synth = SizingModel()
+
+    settings = CartographerSettings(_env_file=None, synthesis_prompt_budget_chars=budget)
+    stats = summarize_target(config, settings, config.targets[0], sweep, synth)
+    assert stats.rollups_built == 1 and stats.architecture_built
+    assert len(sweep.calls) > 8, "condense passes must run on the sweep tier"
+    assert len(synth.calls) == 2, "synthesis must get only the final rollup + architecture"
+    assert all(size <= budget for size in sweep.prompt_sizes + synth.prompt_sizes), (
+        "every prompt (condense, rollup, architecture) must fit the budget"
+    )
+
+    synth2 = SizingModel()
+    stats2 = summarize_target(config, settings, config.targets[0], CountingModel(), synth2)
+    assert stats2.llm_calls == 0 and not synth2.calls, "the reduced rollup must still cache"
+
+
+def test_condense_failure_fails_the_rollup_and_is_retried(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+    shas = {f"app/f{i}.py": f"{i:02d}" * 20 for i in range(8)}
+    _write_target(config, config.targets[0], shas)
+
+    class SummarizeThenFail(CountingModel):
+        """Sweep model that summarizes files fine but fails every condense call."""
+
+        def __call__(self, system: str, user: str, max_tokens: int) -> str:
+            if "interim digest" in system:
+                return ""
+            return "s" * 200
+
+    settings = CartographerSettings(_env_file=None, synthesis_prompt_budget_chars=600)
+    stats = summarize_target(
+        config, settings, config.targets[0], SummarizeThenFail(), CountingModel()
+    )
+    assert "rollup:app" in stats.failed and stats.rollups_built == 0
+    assert "architecture" in stats.failed and not stats.architecture_built, (
+        "an architecture doc over a missing rollup would cache permanently — must fail closed"
+    )
+
+    retry = CountingModel()
+    retry.reply = "s" * 200
+    stats2 = summarize_target(config, settings, config.targets[0], retry, CountingModel())
+    assert stats2.rollups_built == 1, "a failed reduction must be retried on the next run"
+
+
 def test_manifest_lists_cache_paths(tmp_path: Path) -> None:
     config = _config(tmp_path)
     _write_target(config, config.targets[0], _SHAS)

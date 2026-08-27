@@ -40,6 +40,12 @@ _ARCH_SYSTEM = (
     "data enter and leave, and where a newcomer should start reading. Max ~40 lines of plain "
     "markdown; '##' headings allowed."
 )
+_CONDENSE_SYSTEM = (
+    "You condense part of a repository's summaries into an interim digest that a later "
+    "synthesis pass will merge with its sibling digests. Keep concrete names (files, modules, "
+    "key symbols), responsibilities, and dependencies; drop repetition and filler. Plain "
+    "markdown bullet lines, no headings, at most ~30 lines."
+)
 
 
 @dataclass
@@ -62,6 +68,7 @@ def _default_complete(settings: CartographerSettings, model: str) -> CompleteFn:
         # The OpenAI SDK refuses an empty key outright; routers that don't check auth accept
         # any placeholder, and ones that do will 401 with a message naming the real problem.
         openai_api_key=settings.openai_api_key or "unset",
+        timeout_seconds=settings.llm_timeout_seconds,
     )
 
     def call(system: str, user: str, max_tokens: int) -> str:
@@ -84,6 +91,61 @@ def _guarded(fn: CompleteFn, label: str, stats: SummarizeStats) -> CompleteFn:
             return ""
 
     return call
+
+
+def _packed(sections: list[str], budget: int) -> list[list[str]]:
+    """Greedy-pack sections into batches whose joined length stays under ``budget``."""
+    batches: list[list[str]] = [[]]
+    size = 0
+    for section in sections:
+        section = section[:budget]  # a single oversized section can't be split further
+        if batches[-1] and size + len(section) > budget:
+            batches.append([])
+            size = 0
+        batches[-1].append(section)
+        size += len(section)
+    return batches
+
+
+def _fit_to_budget(
+    sections: list[str],
+    header: str,
+    budget: int,
+    condense: CompleteFn,
+    condense_max_tokens: int,
+    stats: SummarizeStats,
+    concurrency: int = 1,
+) -> list[str] | None:
+    """Condense sections (map-reduce, repeated) until one synthesis prompt fits ``budget``.
+
+    Condensing is mechanical compression, so it runs on the sweep tier — high-volume,
+    judgment-light, and the sweep seat demonstrably handles budget-sized prompts (the
+    synthesis seat 502s on near-context prefills). Returns None when a condense call fails —
+    the caller leaves the artifact uncached so the next run retries the whole chain.
+    """
+    while sum(len(s) for s in sections) + len(header) > budget and len(sections) > 1:
+        batches = _packed(sections, budget - len(header))
+        stats.llm_calls += len(batches)
+
+        def condense_batch(numbered: tuple[int, list[str]]) -> str:
+            i, batch = numbered
+            prompt = f"{header} (part {i})\n\n" + "\n\n".join(batch)
+            text = condense(_CONDENSE_SYSTEM, prompt, condense_max_tokens)
+            if not text.strip():
+                # One flaky call (proxy deadline, seat hiccup) must not sink a 25-batch
+                # reduction — a 2026-08-28 run lost a whole module rollup to a single 502.
+                text = condense(_CONDENSE_SYSTEM, prompt, condense_max_tokens)
+            return text
+
+        with ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
+            results = list(pool.map(condense_batch, enumerate(batches, start=1)))
+        if any(not text.strip() for text in results):
+            return None
+        condensed = [f"### part {i}\n{text}" for i, text in enumerate(results, start=1)]
+        if len(condensed) >= len(sections):  # completions as large as their inputs; give up
+            return condensed
+        sections = condensed
+    return sections
 
 
 def _file_prompt(entry: FileEntry, content: str, limit: int) -> str:
@@ -169,9 +231,21 @@ def summarize_target(
         module_digests[module.name] = digest
         if SummaryCache.get(cache.rollup(digest)) is not None:
             continue
-        body = "\n\n".join(f"### {e.path}\n{text}" for e, text in members)
+        header = f"Module: {module.name} ({module.path})"
+        sections = _fit_to_budget(
+            [f"### {e.path}\n{text}" for e, text in members],
+            header,
+            settings.synthesis_prompt_budget_chars,
+            sweep,
+            settings.condense_max_tokens,
+            stats,
+            concurrency=config.concurrency,
+        )
+        if sections is None:
+            stats.failed.append(f"rollup:{module.name}")
+            continue
         stats.llm_calls += 1
-        text = synthesis(_ROLLUP_SYSTEM, f"Module: {module.name} ({module.path})\n\n{body}",
+        text = synthesis(_ROLLUP_SYSTEM, f"{header}\n\n" + "\n\n".join(sections),
                          settings.rollup_max_tokens)
         if text.strip():
             SummaryCache.put(cache.rollup(digest), text)
@@ -183,14 +257,31 @@ def summarize_target(
     arch_digest = None
     if module_digests:
         arch_digest = architecture_digest(module_digests.values())
-        if SummaryCache.get(cache.architecture(arch_digest)) is None:
-            body = "\n\n".join(
-                f"## {name}\n{SummaryCache.get(cache.rollup(digest)) or '(rollup failed)'}"
-                for name, digest in sorted(module_digests.items())
+        rollup_texts = {
+            name: SummaryCache.get(cache.rollup(digest))
+            for name, digest in sorted(module_digests.items())
+        }
+        if any(text is None for text in rollup_texts.values()):
+            # The arch digest is keyed on member digests, not rollup content — a doc built
+            # over a missing rollup would cache permanently and never heal. Fail closed.
+            stats.failed.append("architecture")
+            arch_digest = None
+        elif SummaryCache.get(cache.architecture(arch_digest)) is None:
+            header = f"Repository: {index.target.name}"
+            sections = _fit_to_budget(
+                [f"## {name}\n{text}" for name, text in rollup_texts.items()],
+                header,
+                settings.synthesis_prompt_budget_chars,
+                sweep,
+                settings.condense_max_tokens,
+                stats,
+                concurrency=config.concurrency,
             )
-            stats.llm_calls += 1
-            text = synthesis(_ARCH_SYSTEM, f"Repository: {index.target.name}\n\n{body}",
-                             settings.architecture_max_tokens)
+            text = ""
+            if sections is not None:
+                stats.llm_calls += 1
+                text = synthesis(_ARCH_SYSTEM, f"{header}\n\n" + "\n\n".join(sections),
+                                 settings.architecture_max_tokens)
             if text.strip():
                 SummaryCache.put(cache.architecture(arch_digest), text)
                 stats.architecture_built = True

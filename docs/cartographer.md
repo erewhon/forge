@@ -43,6 +43,14 @@ Model seats and the router endpoint come from the standard forge env layers
 `router_url`/`api_key_env` fan-out. Token budgets default high (2048/3072/4096) because the local
 seats are reasoning models: too small a budget returns `finish_reason=length` with zero content.
 
+Rollup and architecture prompts are capped at `CARTOGRAPHER_SYNTHESIS_PROMPT_BUDGET_CHARS`
+(default 48,000 — the same envelope as `max_prompt_chars`, which the sweep seat serves
+reliably). A module whose file summaries exceed the cap is reduced map-reduce style —
+batches → interim digests on the *sweep* seat → final rollup on the synthesis seat — so
+module size never overflows a seat's context window; you only pay the extra condense calls
+on modules that need them. Don't raise the budget without measuring both seats: the
+synthesis seat has been observed to 502 on ~24k-token prefills.
+
 Requires the `map` extra: `uv sync --extra map` (tree-sitter + language pack).
 
 ## Cost expectations
