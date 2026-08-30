@@ -54,15 +54,26 @@ For each question, return ONLY valid JSON:
 """
 
 
-def execute_sprint(contract: SprintContract, chapter_context: str = "") -> SprintFindings:
-    """Execute a research sprint by querying the LLM for each question."""
+def execute_sprint(
+    contract: SprintContract, chapter_context: str = "", brief: str = ""
+) -> SprintFindings:
+    """Execute a research sprint by querying the LLM for each question.
+
+    ``brief`` is the chapter brief (book + chapter description, guidance rules, source policy)
+    from :mod:`forge.book_researcher.brief`. Before it existed the question string was the
+    researcher's entire context, which is why outlines had to restate the subject, the
+    repository, and the blocked hosts inside every question.
+    """
     findings: list[ResearchFinding] = []
     raw_notes: list[str] = []
 
     for i, question in enumerate(contract.questions, 1):
         print(f"    Researching question {i}/{len(contract.questions)}: {question[:80]}...")
 
-        user_msg = (
+        user_msg = ""
+        if brief:
+            user_msg += f"{brief}\n\n---\n\n"
+        user_msg += (
             f"Research question: {question}\n\n"
             f"This is for Chapter {contract.chapter} of a non-fiction book.\n"
         )

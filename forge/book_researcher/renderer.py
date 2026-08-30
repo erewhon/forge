@@ -8,6 +8,7 @@ from forge.book_researcher.models import (
     SprintFindings,
     VerificationResult,
 )
+from forge.book_researcher.outline import match_question
 
 
 def render_sprint_findings(findings: SprintFindings) -> str:
@@ -162,9 +163,10 @@ def render_knowledge_summary(book_config: BookConfig, knowledge_dir: Path) -> st
             ]
         )
 
-        # Show coverage gaps
-        covered_set = {q.lower().strip() for q in questions_covered}
-        gaps = [q for q in ch.research_questions if q.lower().strip() not in covered_set]
+        # Show coverage gaps. Fuzzy on purpose: the planner rephrases questions when it
+        # writes the contract, and `forge book revise` rewrites them in the outline, so an
+        # exact-string match reported every edited question as an uncovered gap.
+        gaps = [q for q in ch.research_questions if match_question(q, questions_covered) is None]
         if gaps:
             lines.append("**Remaining gaps:**")
             for g in gaps:

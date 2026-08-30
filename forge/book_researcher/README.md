@@ -6,6 +6,29 @@ gradable criteria and feeding failures back into the next sprint until
 quality thresholds are met. All findings accumulate to disk, so runs are
 resumable across invocations.
 
+## The outline lifecycle
+
+The outline (`book.yaml`) is the contract, and it is where the friction was: every question had
+to carry its subject, its repository, and its blocked hosts because the question string was the
+researcher's entire brief. Four commands now maintain it, and the frequent ones need no strong
+model:
+
+| Command | What it does | Model? |
+|---|---|---|
+| `forge book lint book.yaml` | Deterministic checks for what the panel will dock: no counter-narrative question, several questions in one, demonstrative references ("these removals") that only resolve from sibling questions, blocked hosts named, placeholders, duplicates. `--critic` adds one structured call per chapter grading each question against the verifier rubric. | none (`--critic`: outline pool) |
+| `forge book probe book.yaml` | Fetches `https://<host>/` for every host the outline names through the researcher's egress and records reachable / blocked / unknown in `reachability.json` beside the sprints. The planner and researcher read it on every run. | none |
+| `forge book revise book.yaml` | Reads the sprint reviews, coverage, failures and probe results, and proposes narrow edits (`replace_question`, `add_question`, `remove_question`, `add_guidance`, `add_chapter_guidance`, `add_chapter_source`, `block_host`, `note`), each with a reason and the sprint ids it rests on. Writes `<name>.proposed.yaml` + `<name>.revision.md` and a diff; never touches `book.yaml` unless `--apply`, and `--apply` refuses on lint errors. `--report` prints the evidence digest with no model call. | outline pool |
+| `forge book decompose <recon-slug>` | Derives an outline from a `forge research` run in two gated steps: a **framing** (thesis, slicing options, chapter sketch, guidance) written to the project dir for a human to read, edit and `--approve` — or supplied by hand with `--framing my.yaml` — which runs the **decomposition** validated by the linter as the pool's predicate, so what lands on disk already passes `forge book lint`. | outline pool |
+
+`guidance:` (book-wide and per-chapter) and `sources:` (`reachable` / `blocked` / `notes`, plus
+per-chapter `sources`) are outline fields the prompts now carry, so discipline rules and source
+policy are written once instead of inside every question. Comments in the YAML survive `revise`
+(edits go through a round-trip loader).
+
+The outline pool is `BOOK_RESEARCHER_OUTLINE_MODELS` (JSON list, default `["coder"]`), tried in
+order with failover — local first, a vetted hosted alias after it as the fallback. The privacy
+test vets it like the panel.
+
 ## Pattern
 
 Three specialized roles, each a different LLM call:
