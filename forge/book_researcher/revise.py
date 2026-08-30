@@ -363,6 +363,10 @@ def resolve_edits(book: BookConfig, edits: list[OutlineEdit]) -> list[ResolvedEd
     resolve to an outline question (fuzzily) is kept in the report but not applied."""
     out: list[ResolvedEdit] = []
     for e in edits:
+        # Models say `add_guidance` with a chapter number when they mean a chapter rule (Gemma
+        # did, on the first real run); honour the chapter rather than promote the rule book-wide.
+        if e.op == "add_guidance" and e.chapter is not None:
+            e = e.model_copy(update={"op": "add_chapter_guidance"})
         ch = book.chapter(e.chapter) if e.chapter is not None else None
         if e.op == "note":
             out.append(ResolvedEdit(e, False, "note — no edit"))

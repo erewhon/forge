@@ -180,6 +180,15 @@ def test_resolve_edits_fuzzy_old_and_rejections():
     assert "near-duplicate" in resolved[6].note
 
 
+def test_add_guidance_with_chapter_becomes_chapter_guidance():
+    book = _book()
+    edit = OutlineEdit(op="add_guidance", chapter=2, new="Use official orders only.", reason="r")
+    resolved = resolve_edits(book, [edit])
+    assert resolved[0].applicable and resolved[0].edit.op == "add_chapter_guidance"
+    after = BookConfig.model_validate(yaml.safe_load(apply_edits(OUTLINE, resolved)))
+    assert after.chapters[1].guidance == ["Use official orders only."] and after.guidance == []
+
+
 def test_apply_edits_preserves_comments_and_layout():
     book = _book()
     edits = [
