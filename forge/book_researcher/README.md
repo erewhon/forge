@@ -25,9 +25,10 @@ per-chapter `sources`) are outline fields the prompts now carry, so discipline r
 policy are written once instead of inside every question. Comments in the YAML survive `revise`
 (edits go through a round-trip loader).
 
-The outline pool is `BOOK_RESEARCHER_OUTLINE_MODELS` (JSON list, default `["coder"]`), tried in
-order with failover — local first, a vetted hosted alias after it as the fallback. The privacy
-test vets it like the panel.
+The outline pool is `BOOK_RESEARCHER_OUTLINE_MODELS` (JSON list, default `["gemma4", "coder"]`), tried in
+order with failover. Gemma 4 leads because the Qualeval v2 board puts it at 0.92 on the outline's
+dimensions (instruction / research / adversarial / review) against coder's 0.77, at ~10 min per
+call vs 30 s; coder is the fast failover. The privacy test vets it like the panel.
 
 ## Pattern
 

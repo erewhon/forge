@@ -89,10 +89,17 @@ class BookResearcherSettings(BaseSettings):
 
     # Outline lifecycle (`forge book lint --critic` / `revise` / `decompose`): an ordered failover
     # pool, tried first-to-last. Every outline call is evidence-in / structured-out (the schema is
-    # the validator), so a local model does the frequent work — lint critiques and revisions from
-    # verifier reviews — and a vetted hosted alias appended after it is the fallback for the
-    # one-time decompose. Same vetting rules as the panel (test_config_privacy).
-    outline_models: list[str] = ["coder"]
+    # the validator). Same vetting rules as the panel (test_config_privacy).
+    #
+    # gemma4 first (2026-08-30): on the Qualeval v2 board the outline work's dimensions —
+    # instruction, research, adversarial, code_review-as-critique — put gemma4-26b at 0.92 vs
+    # coder (qwen3.6-hypatia) at 0.77, the weakest seated model on exactly those axes (its 0.85
+    # composite rides on tool_use/codegen, which the outline never exercises). Measured on the
+    # corruption book's 12 reviews: gemma4's revise proposal was better targeted (caption rule,
+    # verify-or-retract questions) at ~10 min per call vs coder's 30 s. A few calls a month per
+    # book, so quality wins; coder is the fast failover. lightning (0.87 fit, 97 t/s) truncated
+    # its JSON under the 16k budget both attempts — investigate before seating it here.
+    outline_models: list[str] = ["gemma4", "coder"]
     outline_timeout: float = 300.0
     outline_max_tokens: int = 16384
     # Reviews per chapter fed to `revise` (most recent first) — bounds the evidence prompt.
