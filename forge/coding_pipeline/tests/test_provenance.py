@@ -217,7 +217,7 @@ def _jj(args: list[str], cwd: Path) -> str:
 def test_note_lands_on_post_rebase_commit(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
-    _jj(["git", "init"], cwd=repo)
+    _jj(["git", "init", "--colocate"], cwd=repo)
     (repo / "base.txt").write_text("base\n")
     _jj(["describe", "-m", "base"], cwd=repo)
     base = _jj(["log", "-r", "@", "--no-graph", "-T", "commit_id"], cwd=repo)
