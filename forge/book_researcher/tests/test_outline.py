@@ -7,12 +7,6 @@ import yaml
 from forge.book_researcher.models import BookConfig, ChapterOutline, SourcePolicy
 from forge.book_researcher.outline import match_question, render_outline_yaml
 from forge.book_researcher.renderer import render_knowledge_summary
-from forge.book_researcher.tests.test_config_privacy import (
-    ALLOWED_FAMILY,
-    FREE_TIER_ALIASES,
-    RETAINING_ROUTE_ALIASES,
-    settings,
-)
 
 
 def test_match_question_exact_fuzzy_substring_and_miss():
@@ -97,10 +91,3 @@ def test_knowledge_summary_gaps_are_fuzzy(tmp_path):
     summary = render_knowledge_summary(book, tmp_path)
     assert "Who pardoned CZ" in summary  # still a gap
     assert "Justice Engoron" not in summary.split("Remaining gaps")[1]  # rephrased, but covered
-
-
-def test_outline_models_are_vetted():
-    for alias in settings.outline_models:
-        assert alias in ALLOWED_FAMILY, f"{alias!r} is not a vetted alias"
-        assert alias not in FREE_TIER_ALIASES
-        assert alias not in RETAINING_ROUTE_ALIASES

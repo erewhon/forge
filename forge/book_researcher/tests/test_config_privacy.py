@@ -44,9 +44,13 @@ SELF_HOSTED_FAMILY: dict[str, str] = {
     "minimax-m2.7-reap": "minimax",
     "m2.7-local": "minimax",
     "minimax-local": "minimax",
-    "ling-flash": "ling",
-    "ling": "ling",
-    "ling-flash-local": "ling",
+    # Ling flash 2.0 aliases share Ling 3's family (both bailingmoe).
+    "ling-flash": "bailing",
+    "ling-flash-local": "bailing",
+    # Router aliases for the seats above, as the outline pool names them.
+    "gemma4": "google",
+    "gemma-4": "google",
+    "nemotron-lightning": "nvidia",
 }
 
 # Vetted OpenCode Zen aliases: paid, zero-retention, not trained on, not an OpenAI/Anthropic route.
@@ -143,3 +147,16 @@ def test_active_panel_routes_by_lane() -> None:
     assert default.active_verifier_panel() == default.verifier_panel_models
     bogus = BookResearcherSettings(panel_lane="bogus")
     assert bogus.active_verifier_panel() == default.verifier_panel_models
+
+
+def test_outline_pool_uses_only_vetted_models() -> None:
+    """The outline pool (lint --critic / revise / decompose) reads the book's reviews and
+    outline; same vetting as the panel."""
+    for alias in settings.outline_models:
+        assert alias in ALLOWED_FAMILY, f"{alias!r} is not a vetted alias"
+        assert alias not in FREE_TIER_ALIASES, f"{alias!r} is free-tier — may train on data"
+        assert alias not in RETAINING_ROUTE_ALIASES, f"{alias!r} retains requests 30 days"
+
+
+def test_outline_pool_keeps_a_self_hosted_seat() -> None:
+    assert any(a in SELF_HOSTED_FAMILY for a in settings.outline_models)
