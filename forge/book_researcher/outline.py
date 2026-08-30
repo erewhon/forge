@@ -57,7 +57,9 @@ def outline_pool(models: list[str] | None = None) -> Pool:
 def _yaml() -> YAML:
     y = YAML()
     y.preserve_quotes = True
-    y.width = 100
+    # Never re-wrap scalars: a revise diff must show the edits, not a reflow of every long
+    # question in the file.
+    y.width = 1_000_000
     y.indent(mapping=2, sequence=4, offset=2)
     return y
 
@@ -76,10 +78,33 @@ def dump_yaml_doc(doc: CommentedMap) -> str:
 
 
 def _literal(text: str):
-    """Multi-line prose as a block scalar, single-line as a plain string."""
-    from ruamel.yaml.scalarstring import LiteralScalarString
+    """Multi-line prose as a block scalar, single-line as a double-quoted string."""
+    from ruamel.yaml.scalarstring import DoubleQuotedScalarString, LiteralScalarString
 
-    return LiteralScalarString(text) if "\n" in text else text
+    return LiteralScalarString(text) if "\n" in text else DoubleQuotedScalarString(text)
+
+
+def quoted(text: str):
+    """A double-quoted scalar, matching how outlines are written by hand (questions contain
+    colons, dashes and quotes that plain scalars would need escaping for)."""
+    from ruamel.yaml.scalarstring import DoubleQuotedScalarString
+
+    return DoubleQuotedScalarString(text)
+
+
+def insert_key(doc: CommentedMap, key: str, value, *, after: tuple[str, ...], before: str) -> None:
+    """Insert ``key`` where a human would put it: after the first present anchor in ``after``
+    (listed in priority order), else before ``before``, else at the end."""
+    keys = list(doc.keys())
+    pos = len(keys)
+    for anchor in after:
+        if anchor in keys:
+            pos = keys.index(anchor) + 1
+            break
+    else:
+        if before in keys:
+            pos = keys.index(before)
+    doc.insert(pos, key, value)
 
 
 def book_to_doc(book: BookConfig) -> CommentedMap:
@@ -89,7 +114,7 @@ def book_to_doc(book: BookConfig) -> CommentedMap:
     doc["title"] = book.title
     doc["description"] = _literal(book.description)
     if book.guidance:
-        doc["guidance"] = CommentedSeq(book.guidance)
+        doc["guidance"] = CommentedSeq(quoted(g) for g in book.guidance)
     if book.sources.reachable or book.sources.blocked or book.sources.notes:
         src = CommentedMap()
         if book.sources.reachable:
@@ -108,8 +133,8 @@ def book_to_doc(book: BookConfig) -> CommentedMap:
         if ch.sources:
             m["sources"] = CommentedSeq(ch.sources)
         if ch.guidance:
-            m["guidance"] = CommentedSeq(ch.guidance)
-        m["research_questions"] = CommentedSeq(ch.research_questions)
+            m["guidance"] = CommentedSeq(quoted(g) for g in ch.guidance)
+        m["research_questions"] = CommentedSeq(quoted(q) for q in ch.research_questions)
         chapters.append(m)
     doc["chapters"] = chapters
     return doc

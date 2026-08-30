@@ -166,8 +166,9 @@ def test_resolve_edits_fuzzy_old_and_rejections():
         OutlineEdit(
             op="add_question",
             chapter=1,
-            new="What statutes govern presidential conflicts of interest, per the U.S. Code?",
-            reason="dup",
+            new="What statutes govern presidential conflicts of interest, per the U.S. Code and "
+            "the OGE regulations, with citations?",
+            reason="paraphrase of an existing question",
         ),
         OutlineEdit(op="replace_question", chapter=1, old="What statutes govern", reason="no new"),
     ]
@@ -176,7 +177,7 @@ def test_resolve_edits_fuzzy_old_and_rejections():
     assert flags == [True, False, False, True, True, False, False, False]
     assert resolved[0].matched.startswith("Has the New York Court of Appeals")
     assert "does not match" in resolved[1].note
-    assert "already in the outline" in resolved[6].note
+    assert "near-duplicate" in resolved[6].note
 
 
 def test_apply_edits_preserves_comments_and_layout():
@@ -224,6 +225,18 @@ def test_apply_edits_preserves_comments_and_layout():
     assert ch2.sources == ["courtlistener.com"]
     diff = unified_diff(OUTLINE, after, "book.yaml")
     assert "+guidance:" in diff and '-      - "What statutes govern' in diff
+    # New top-level keys go where a human would put them, not at the end of the file.
+    keys = list(yaml.safe_load(after))
+    assert keys.index("description") < keys.index("guidance") < keys.index("sources")
+    assert keys.index("sources") < keys.index("chapters")
+    ch2_keys = list(yaml.safe_load(after)["chapters"][1])
+    assert ch2_keys.index("description") < ch2_keys.index("sources")
+    assert ch2_keys.index("sources") < ch2_keys.index("guidance")
+    assert ch2_keys.index("guidance") < ch2_keys.index("research_questions")
+    # Untouched long questions are not re-wrapped, and new strings are quoted like the rest.
+    assert "What findings of fact did Justice Engoron make about asset valuation, per the" in after
+    assert '- "Which rules exempt the President, per 18 U.S.C. 202?"' in after
+    assert '- "Never invent a docket number."' in after
 
 
 def _mock_propose(monkeypatch, proposal: RevisionProposal | None):
