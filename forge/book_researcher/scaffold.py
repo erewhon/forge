@@ -1,7 +1,7 @@
-"""Skeleton book-config scaffolding for `meta book init`.
+"""Skeleton book-config scaffolding for `forge book init`.
 
 Writes a ready-to-edit ``book.yaml`` that already validates against ``BookConfig`` (so
-``meta book ./book.yaml --dry-run`` works immediately) and nudges toward strong research
+``forge book ./book.yaml --dry-run`` works immediately) and nudges toward strong research
 questions — including a counter-narrative one per chapter, which the verifier weights 1.5×.
 """
 
@@ -15,11 +15,14 @@ DEFAULT_FILENAME = "book.yaml"
 # pre-filled with placeholder prose the user replaces. Kept valid so a fresh init can be dry-run
 # straight away.
 BOOK_SKELETON = """\
-# Book research config for `meta book`. Replace the placeholders, then run:
-#   meta book ./book.yaml --max-sprints 10
+# Book research config for `forge book`. Replace the placeholders, then run:
+#   forge book lint ./book.yaml          # catch what the verifier will dock, before spending a run
+#   forge book probe ./book.yaml         # test which source hosts the proxy can reach (no model)
+#   forge book ./book.yaml --max-sprints 10
+#   forge book revise ./book.yaml        # after some sprints: propose edits from the reviews
 #
-# Output defaults to an absolute path under the meta repo; to keep it beside this file:
-#   BOOK_RESEARCHER_PROJECT_DIR="$PWD/research" meta book ./book.yaml --max-sprints 10
+# Output defaults to ~/projects/book-research; to keep it beside this file:
+#   BOOK_RESEARCHER_PROJECT_DIR="$PWD/research" forge book ./book.yaml --max-sprints 10
 #
 # See RESEARCH-WORKFLOWS.md for how to write strong research questions: specific,
 # source-demanding, one claim each, with a counter-narrative question per chapter.
@@ -27,10 +30,25 @@ BOOK_SKELETON = """\
 title: "Untitled Book"
 description: "One or two sentences: what the book is about and its central thesis."
 
+# Rules the planner and researcher read on EVERY call. Put discipline here, not in each question
+# ("distinguish adjudicated from alleged", "never supply a docket number a source did not show").
+guidance:
+  - "Distinguish what is documented in a primary record from what is alleged in reporting."
+  - "Name the source for every figure; if no retrieved source states it, say so — never estimate."
+
+# Where the primary record lives and what the tool proxy can reach. `forge book probe` maintains
+# the machine-owned half (reachability.json); list hosts here to prefer or forbid them outright.
+sources:
+  reachable: []
+  blocked: []
+  notes: []
+
 chapters:
   - number: 1
     title: "Introduction"
     description: "Overview and thesis statement."
+    sources: []          # primary-source repositories for this chapter (optional)
+    guidance: []         # chapter-specific rules (optional)
     research_questions:
       - "What is the central argument, stated precisely?"
       - "What existing work covers this topic, and where does it disagree?"

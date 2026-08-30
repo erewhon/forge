@@ -87,6 +87,17 @@ class BookResearcherSettings(BaseSettings):
             return self.verifier_panel_models_local
         return self.verifier_panel_models
 
+    # Outline lifecycle (`forge book lint --critic` / `revise` / `decompose`): an ordered failover
+    # pool, tried first-to-last. Every outline call is evidence-in / structured-out (the schema is
+    # the validator), so a local model does the frequent work — lint critiques and revisions from
+    # verifier reviews — and a vetted hosted alias appended after it is the fallback for the
+    # one-time decompose. Same vetting rules as the panel (test_config_privacy).
+    outline_models: list[str] = ["coder"]
+    outline_timeout: float = 300.0
+    outline_max_tokens: int = 16384
+    # Reviews per chapter fed to `revise` (most recent first) — bounds the evidence prompt.
+    max_reviews_per_chapter: int = 4
+
     @property
     def sprints_dir(self) -> Path:
         return self.project_dir / "sprints"
@@ -98,6 +109,10 @@ class BookResearcherSettings(BaseSettings):
     @property
     def outline_file(self) -> Path:
         return self.project_dir / "outline.yaml"
+
+    @property
+    def framing_file(self) -> Path:
+        return self.project_dir / "outline-framing.json"
 
     def llm_cfg(self) -> LLMConfig:
         return LLMConfig(

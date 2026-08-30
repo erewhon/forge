@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from forge.book_researcher.brief import render_book_brief, render_chapter_line
 from forge.book_researcher.config import settings
-from forge.book_researcher.models import BookConfig, SprintContract
+from forge.book_researcher.models import BookConfig, SourcePolicy, SprintContract
 from forge.shared.datectx import researcher_date_context
 from forge.shared.llm import complete, extract_json
 
@@ -9,6 +10,10 @@ _SYSTEM_PROMPT = """\
 You are a research planner for a non-fiction book. Given the book outline and \
 existing research coverage, identify the most important gap and create a focused \
 research sprint. Each sprint should investigate 2-4 specific questions.
+
+Honour the book-wide research rules and the source policy in the brief: never plan a \
+question that depends on a host listed as unreachable, and phrase questions so a researcher \
+who sees only that question plus the chapter brief knows exactly which subject is meant.
 
 Return ONLY valid JSON with these fields:
 {
@@ -27,6 +32,7 @@ def create_sprint(
     sprint_number: int,
     follow_up_feedback: str | None = None,
     exhausted_chapters: set[int] | None = None,
+    policy: SourcePolicy | None = None,
 ) -> SprintContract:
     """Create a sprint contract identifying the next research priority.
 
@@ -50,14 +56,14 @@ def create_sprint(
         if ch.number in exhausted:
             coverage_note += " [ATTEMPT LIMIT REACHED — DO NOT TARGET THIS CHAPTER]"
         chapters_info.append(
-            f"  Chapter {ch.number}: {ch.title} - {ch.description}{coverage_note}\n"
-            f"    Open questions: {', '.join(ch.research_questions)}"
+            f"{render_chapter_line(ch)}{coverage_note}\n"
+            f"    Open questions: {' | '.join(ch.research_questions)}"
         )
 
     user_msg = (
-        f"Book: {book_config.title}\n"
-        f"Description: {book_config.description}\n\n"
-        f"Chapters:\n" + "\n".join(chapters_info)
+        render_book_brief(book_config, policy or book_config.sources)
+        + "\n\nChapters:\n"
+        + "\n".join(chapters_info)
     )
 
     if exhausted:
