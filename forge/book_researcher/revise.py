@@ -38,7 +38,14 @@ from forge.book_researcher.models import (
     SprintFindings,
     VerificationResult,
 )
-from forge.book_researcher.outline import dump_yaml_doc, load_yaml_doc, match_question
+from forge.book_researcher.outline import (
+    dump_yaml_doc,
+    insert_key,
+    load_yaml_doc,
+    match_question,
+    quoted,
+)
+from forge.shared.datectx import today_line
 from forge.shared.ensemble import Pool
 from forge.shared.llm import RESEARCH_FAILED_PREFIX
 from forge.shared.panel import structured
@@ -256,7 +263,9 @@ rewriting many questions the same way.
 Rules: every edit carries a one-sentence reason and the sprint ids it rests on. Do not invent \
 facts about the subject — reason from the evidence given. Do not rewrite questions that are \
 passing. Fewer, sharper edits beat many; ten is plenty. Questions must name their subject \
-explicitly, ask one thing, and demand a source.
+explicitly, ask one thing, and demand a source. Never point a question at a host listed as \
+unreachable. Do not write today's date or "as of <month>" into a rule or question — the \
+harness tells the researcher the date on every call, and a hard-coded one goes stale.
 
 Return ONLY JSON:
 {"summary": "<2-3 sentences>", "edits": [{"op": "<op>", "chapter": <n or null>, "old": \
@@ -300,7 +309,7 @@ def propose_revision(
     result = structured(
         pool=pool,
         schema=RevisionProposal,
-        system=REVISE_SYSTEM,
+        system=f"{today_line()}\n\n{REVISE_SYSTEM}",
         user=user,
         max_tokens=max_tokens,
         timeout=timeout,
@@ -327,6 +336,28 @@ class ResolvedEdit:
     matched: str | None = None  # the outline question `old` resolved to
 
 
+ADD_DUPLICATE_THRESHOLD = 0.6
+
+
+def _near_duplicate(new: str, existing: list[str]) -> bool:
+    """An added question that paraphrases one already in the chapter. The bar is lower than
+    for replace-matching: a model asked for gaps tends to restate a question it saw, with a
+    source demand bolted on, and that is a duplicate a human would reject."""
+    import difflib
+
+    from forge.book_researcher.outline import norm_question
+
+    n = norm_question(new)
+    for q in existing:
+        c = norm_question(q)
+        if difflib.SequenceMatcher(None, n, c).ratio() >= ADD_DUPLICATE_THRESHOLD:
+            return True
+        # Same opening clause (first eight words) is the usual paraphrase signature.
+        if " ".join(n.split()[:8]) == " ".join(c.split()[:8]):
+            return True
+    return False
+
+
 def resolve_edits(book: BookConfig, edits: list[OutlineEdit]) -> list[ResolvedEdit]:
     """Decide which edits can be applied mechanically. A replace/remove whose ``old`` does not
     resolve to an outline question (fuzzily) is kept in the report but not applied."""
@@ -346,8 +377,8 @@ def resolve_edits(book: BookConfig, edits: list[OutlineEdit]) -> list[ResolvedEd
         if e.op in ("add_question", "add_chapter_guidance", "add_chapter_source"):
             if not (e.new and e.new.strip()):
                 out.append(ResolvedEdit(e, False, "missing text"))
-            elif e.op == "add_question" and match_question(e.new, ch.research_questions):
-                out.append(ResolvedEdit(e, False, "already in the outline"))
+            elif e.op == "add_question" and _near_duplicate(e.new, ch.research_questions):
+                out.append(ResolvedEdit(e, False, "already in the outline (near-duplicate)"))
             else:
                 out.append(ResolvedEdit(e, True))
             continue
@@ -373,13 +404,20 @@ def _chapter_map(doc: CommentedMap, number: int) -> CommentedMap | None:
     return None
 
 
-def _append(container: CommentedMap, key: str, value: str) -> None:
+def _append(
+    container: CommentedMap,
+    key: str,
+    value: str,
+    *,
+    after: tuple[str, ...] = (),
+    before: str = "",
+) -> None:
     seq = container.get(key)
     if seq is None:
         seq = CommentedSeq()
-        container[key] = seq
+        insert_key(container, key, seq, after=after, before=before)
     if value not in seq:
-        seq.append(value)
+        seq.append(quoted(value))
 
 
 def apply_edits(yaml_text: str, resolved: list[ResolvedEdit]) -> str:
@@ -390,13 +428,25 @@ def apply_edits(yaml_text: str, resolved: list[ResolvedEdit]) -> str:
             continue
         e = r.edit
         if e.op == "add_guidance":
-            _append(doc, "guidance", e.new.strip())  # type: ignore[union-attr]
+            _append(
+                doc,
+                "guidance",
+                e.new.strip(),  # type: ignore[union-attr]
+                after=("description", "title"),
+                before="chapters",
+            )
             continue
         if e.op == "block_host":
             sources = doc.get("sources")
             if sources is None:
                 sources = CommentedMap()
-                doc["sources"] = sources
+                insert_key(
+                    doc,
+                    "sources",
+                    sources,
+                    after=("guidance", "description", "title"),
+                    before="chapters",
+                )
             _append(sources, "blocked", e.new.strip())  # type: ignore[union-attr]
             continue
         ch = _chapter_map(doc, e.chapter)  # type: ignore[arg-type]
@@ -405,9 +455,21 @@ def apply_edits(yaml_text: str, resolved: list[ResolvedEdit]) -> str:
         if e.op == "add_question":
             _append(ch, "research_questions", e.new.strip())  # type: ignore[union-attr]
         elif e.op == "add_chapter_guidance":
-            _append(ch, "guidance", e.new.strip())  # type: ignore[union-attr]
+            _append(
+                ch,
+                "guidance",
+                e.new.strip(),  # type: ignore[union-attr]
+                after=("sources", "description"),
+                before="research_questions",
+            )
         elif e.op == "add_chapter_source":
-            _append(ch, "sources", e.new.strip())  # type: ignore[union-attr]
+            _append(
+                ch,
+                "sources",
+                e.new.strip(),  # type: ignore[union-attr]
+                after=("description",),
+                before="guidance",
+            )
         elif e.op in ("replace_question", "remove_question"):
             qs = ch.get("research_questions")
             if qs is None:
