@@ -55,7 +55,9 @@ def _nous_client():
     require_nous()
     from nous_mcp.daemon_client import NousDaemonClient
 
-    return NousDaemonClient(base_url=settings.daemon_url)
+    return NousDaemonClient(
+        base_url=settings.daemon_url, api_key=settings.daemon_api_key or None
+    )
 
 
 def _default_store(home: Path | None) -> RadarStore:
