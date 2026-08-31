@@ -18,6 +18,7 @@ class TaskWorkerSettings(BaseSettings):
     notebook_name: str = "Forge"
     database_name: str = "Project Tasks"
     daemon_url: str = "http://127.0.0.1:7667"
+    daemon_api_key: str = ""  # PAT for a remote daemon; empty = local key-file discovery
 
     # Task execution
     task_timeout_seconds: int = 1800  # 30 min max per task
@@ -95,7 +96,9 @@ class TaskWorkerSettings(BaseSettings):
         from nous_mcp.daemon_client import NousDaemonClient
         from nous_mcp.storage import NousStorage
 
-        return NousStorage(NousDaemonClient(base_url=self.daemon_url))
+        return NousStorage(
+            NousDaemonClient(base_url=self.daemon_url, api_key=self.daemon_api_key or None)
+        )
 
     @cached_property
     def notebook_id(self) -> str:

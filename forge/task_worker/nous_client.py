@@ -67,7 +67,9 @@ def _get_storage() -> NousStorage:
 
 def _get_daemon() -> NousDaemonClient:
     require_nous()
-    return NousDaemonClient(base_url=settings.daemon_url)
+    return NousDaemonClient(
+        base_url=settings.daemon_url, api_key=settings.daemon_api_key or None
+    )
 
 
 def _read_db_content() -> dict:
