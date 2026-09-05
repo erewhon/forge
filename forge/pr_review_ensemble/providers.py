@@ -21,9 +21,16 @@ pass run side by side with production to decide whether sonnet can be unseated.
 
 Serving contract for the Gemma seat: its 16k completion budget cannot be enforced server-side,
 so reviewers must send generous max_tokens — ``review_max_tokens`` (16384) covers it; do not
-lower it below 8192 or the v1 truncate-mid-flight trait returns. Ling 3 decodes on hekaton CPU
-(~7 t/s with DSpark): a big-diff review can near the 300s per-provider timeout, at which point
-the seat fails over to Lightning by design.
+lower it below 8192 or the v1 truncate-mid-flight trait returns. Ling 3 decodes on hekaton with
+T4 offload (~16 t/s, 128K slot since 2026-09-05; was CPU-only ~7 t/s on a 32K slot). Prefill is
+the budget item, not decode: it falls from ~285 t/s at 2K depth to ~120-160 t/s at 35K, and
+reasoning scales with the diff (~800 tok on qualeval probes, the full 3000-token budget on a 35K
+diff). Against the 300s per-provider timeout that fits ~15K-token diffs comfortably and ~25K
+marginally; past that the seat fails over to Lightning by design (depth probes 2026-09-05).
+Keep thinking ON for this seat: the 2026-09-05 A/B (code_review, 5 probes x3) scored 0.89 with
+thinking vs 0.82 without, 1 vs 3 false positives in 15 runs — thinking-off asserts defects it
+has not reasoned through, the expensive failure for an ensemble member. Thinking-off is a triage
+mode only, and Lightning already fills that niche.
 """
 
 from __future__ import annotations
@@ -130,11 +137,14 @@ def _sonnet_slot() -> ReviewerSlot:
 
 def _ling3_slot() -> ReviewerSlot:
     """Local Ant/Bailing seat: primary is Ling-3.0-flash on hekaton (router alias `ling`,
-    llama-server-ling3 :5393, DSpark drafter — this seat's diffs stay in the homelab). qualeval
-    v2 0.92 composite, code_review 0.91 — the best local reviewer ever measured (seated
-    2026-08-22, displacing gpt-oss from the review seat). Its known flaw (tu-07: fabricates
-    instead of surfacing tool errors) never fires in a review seat — reviews use no tools.
-    Slow CPU decode: Lightning (local, fast, review 0.84) is the first backup, then kimi."""
+    llama-server-ling3 :5393, T4 offload, 128K slot, no drafter since 2026-09-05 — this seat's
+    diffs stay in the homelab). qualeval v2 0.92 composite, code_review 0.91 — the best local
+    reviewer ever measured (seated 2026-08-22, displacing gpt-oss from the review seat); the
+    2026-09-05 T4-path re-measure (cr 0.89) matched within noise. Its known flaw (tu-07:
+    fabricates instead of surfacing tool errors) never fires in a review seat — reviews use no
+    tools. ~16 t/s decode with depth-sensitive prefill (see module docstring): diffs past ~25K
+    tokens exceed the 300s timeout, so Lightning (local, fast, review 0.84) is the first backup,
+    then kimi."""
     primary = _router_executor("ling3", "ling")
     return _failover_slot("ling3", primary, "ling", ["lightning", "kimi"])
 
