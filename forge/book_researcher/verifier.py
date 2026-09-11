@@ -185,6 +185,7 @@ def _verify(contract: SprintContract, findings: SprintFindings) -> VerificationR
         settings.active_verifier_panel(),  # lane-aware: --local keeps verification on-box
         base_url=settings.openai_base_url,
         api_key=settings.openai_api_key,
+        privacy=settings.privacy_tier(),  # …and the router enforces the lane on the wire
         # Date context FIRST: without it the panel reads correctly-retrieved post-cutoff events as
         # "CRITICAL HALLUCINATION" and floors the scores, inverting the quality signal. Built per
         # call so it tracks the real date rather than freezing at import.

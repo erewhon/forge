@@ -4,6 +4,8 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from forge.shared.privacy import PrivacyTier
+
 
 class UpstreamSyncSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="UPSTREAM_SYNC_")
@@ -24,6 +26,10 @@ class UpstreamSyncSettings(BaseSettings):
     seat_max_tokens: int = 4096
     openai_base_url: str = "http://localhost:4000/v1"
     openai_api_key: str = ""
+    # X-Router-Privacy tier sent on every router call (see forge.shared.privacy). "zdr": local
+    # seats, or a cloud endpoint the router holds to zero retention on the wire (OpenRouter);
+    # the Zen member of a chain like `glm-5.1`/`qwen3.6-plus` is skipped, never used.
+    router_privacy: PrivacyTier = "zdr"
     # Full hunks are shown only for overlap files, capped; the rest of the upstream change
     # arrives as a complete --stat manifest (diff-literacy: absence from hunks != unchanged).
     diff_cap: int = 20000

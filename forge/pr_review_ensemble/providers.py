@@ -47,6 +47,7 @@ from forge.shared.ensemble import (
     Pool,
     Prompt,
 )
+from forge.shared.privacy import PrivacyTier
 
 
 @dataclass
@@ -85,21 +86,26 @@ class SkipExecutor:
         )
 
 
-def _router_executor(label: str, model: str) -> ApiExecutor:
+def _router_executor(label: str, model: str, *, privacy: PrivacyTier) -> ApiExecutor:
     """An OpenAI-compat executor pointed at the local LLM router (holds every provider's creds
-    server-side, so a bare alias like ``glm``/``m3``/``kimi``/``coder`` just works)."""
+    server-side, so a bare alias like ``glm``/``m3``/``kimi``/``coder`` just works). ``privacy``
+    is the X-Router-Privacy tier the seat sends — the roster's, so every seat and every backup
+    in a roster is held to the same tier."""
     return ApiExecutor(
         label=label,
         kind="openai",
         model=model,
+        privacy=privacy,
         base_url=settings.local_base_url,
         api_key=settings.local_api_key,
     )
 
 
-def _anthropic_primary() -> ApiExecutor:
-    """The premium Claude seat's primary executor: routed through the LiteLLM proxy by default (no
-    per-shell ANTHROPIC_API_KEY), or the native SDK when ``anthropic_base_url`` is cleared."""
+def _anthropic_primary(*, privacy: PrivacyTier) -> ApiExecutor:
+    """The premium Claude seat's primary executor: routed through the router by default (no
+    per-shell ANTHROPIC_API_KEY), or the native SDK when ``anthropic_base_url`` is cleared. The
+    native SDK bypasses the router, so it can only serve a roster whose tier is ``any`` —
+    ApiExecutor refuses anything stricter at construction."""
     model = settings.anthropic_model
     label = f"sonnet:{model}"
     if settings.anthropic_base_url:
@@ -107,22 +113,28 @@ def _anthropic_primary() -> ApiExecutor:
             label=label,
             kind="openai",
             model=model,
+            privacy=privacy,
             base_url=settings.anthropic_base_url,
             api_key=settings.anthropic_api_key,
         )
-    return ApiExecutor(label=label, kind="anthropic", model=model)
+    return ApiExecutor(label=label, kind="anthropic", model=model, privacy=privacy)
 
 
 def _failover_slot(
-    provider: str, primary: Executor, model: str, backups: list[str]
+    provider: str,
+    primary: Executor,
+    model: str,
+    backups: list[str],
+    *,
+    privacy: PrivacyTier,
 ) -> ReviewerSlot:
     """A seat whose Pool tries ``primary`` first, then each backup alias (via the router)."""
     executors: list[Executor] = [primary]
-    executors += [_router_executor(f"{provider}:backup:{m}", m) for m in backups]
+    executors += [_router_executor(f"{provider}:backup:{m}", m, privacy=privacy) for m in backups]
     return ReviewerSlot(provider, model, Pool(role=f"review:{provider}", executors=executors))
 
 
-def _sonnet_slot() -> ReviewerSlot:
+def _sonnet_slot(*, privacy: PrivacyTier) -> ReviewerSlot:
     """Premium Claude seat: sonnet primary, local ``coder`` break-glass backup. Honors the
     ``anthropic_enabled`` toggle — flip it off to drop the seat during an Anthropic outage."""
     if not settings.anthropic_enabled:
@@ -132,10 +144,16 @@ def _sonnet_slot() -> ReviewerSlot:
         return ReviewerSlot(
             "sonnet-5", settings.anthropic_model, pool, skipped_reason="disabled in config"
         )
-    return _failover_slot("sonnet-5", _anthropic_primary(), settings.anthropic_model, ["coder"])
+    return _failover_slot(
+        "sonnet-5",
+        _anthropic_primary(privacy=privacy),
+        settings.anthropic_model,
+        ["coder"],
+        privacy=privacy,
+    )
 
 
-def _ling3_slot() -> ReviewerSlot:
+def _ling3_slot(*, privacy: PrivacyTier) -> ReviewerSlot:
     """Local Ant/Bailing seat: primary is Ling-3.0-flash on hekaton (router alias `ling`,
     llama-server-ling3 :5393, T4 offload, 128K slot, no drafter since 2026-09-05 — this seat's
     diffs stay in the homelab). qualeval v2 0.92 composite, code_review 0.91 — the best local
@@ -145,47 +163,53 @@ def _ling3_slot() -> ReviewerSlot:
     tools. ~16 t/s decode with depth-sensitive prefill (see module docstring): diffs past ~25K
     tokens exceed the 300s timeout, so Lightning (local, fast, review 0.84) is the first backup,
     then kimi."""
-    primary = _router_executor("ling3", "ling")
-    return _failover_slot("ling3", primary, "ling", ["lightning", "kimi"])
+    primary = _router_executor("ling3", "ling", privacy=privacy)
+    return _failover_slot("ling3", primary, "ling", ["lightning", "kimi"], privacy=privacy)
 
 
-def _gemma_slot() -> ReviewerSlot:
+def _gemma_slot(*, privacy: PrivacyTier) -> ReviewerSlot:
     """Local Google seat: primary is Gemma 4 26B on the talos B70 card 1 (router alias `gemma`,
     gemma-server :5392, ~62 t/s Vulkan — diffs stay in the homelab). qualeval v2 board #1
     (0.93): code_review 0.84 (ties Lightning), adversarial 0.90 / research 0.92 — the panel's
     analyst. Sampling params are held server-side; the 16k completion budget is NOT — callers
     must keep max_tokens generous (review_max_tokens 16384 does). gpt-oss (local, the demoted
     executor) is the first backup, then glm (family-diverse cloud)."""
-    primary = _router_executor("gemma", "gemma")
-    return _failover_slot("gemma", primary, "gemma", ["gpt-oss", "glm"])
+    primary = _router_executor("gemma", "gemma", privacy=privacy)
+    return _failover_slot("gemma", primary, "gemma", ["gpt-oss", "glm"], privacy=privacy)
 
 
-def _lightning_slot() -> ReviewerSlot:
+def _lightning_slot(*, privacy: PrivacyTier) -> ReviewerSlot:
     """Local NVIDIA seat: primary is Nemotron 3.5 Lightning on the talos B70 (router alias
     `lightning`, ~100 t/s — this seat's diffs stay in the homelab). The serving side carries the
     load-bearing flags (reasoning-budget 3000, temp 0.6, MTP), so a bare alias gets the tuned
     0.91/0.84-review config. Zen-hosted MiniMax m3 then kimi as cloud backups (family-diverse)."""
-    primary = _router_executor("lightning", "lightning")
-    return _failover_slot("lightning", primary, "lightning", ["m3", "kimi"])
+    primary = _router_executor("lightning", "lightning", privacy=privacy)
+    return _failover_slot("lightning", primary, "lightning", ["m3", "kimi"], privacy=privacy)
 
 
-def build_reviewer_slots() -> list[ReviewerSlot]:
+def build_reviewer_slots(*, privacy: PrivacyTier | None = None) -> list[ReviewerSlot]:
     """The frontier roster, in a stable order: sonnet (anchor) plus the two strongest local
     reviewers on the 2026-08-22 board — Ling 3 (review 0.91) and Gemma 4 (review 0.84 + the
     analyst profile). Each seat is a router-backed failover chain; Lightning covers the ling3
-    seat's failover so a hekaton outage degrades to a fast local reviewer, not a cloud seat."""
-    return [_sonnet_slot(), _ling3_slot(), _gemma_slot()]
+    seat's failover so a hekaton outage degrades to a fast local reviewer, not a cloud seat.
+    Every seat sends ``privacy`` (default ``settings.frontier_privacy``) as X-Router-Privacy."""
+    tier = privacy or settings.frontier_privacy
+    return [_sonnet_slot(privacy=tier), _ling3_slot(privacy=tier), _gemma_slot(privacy=tier)]
 
 
-def build_local_reviewer_slots() -> list[ReviewerSlot]:
+def build_local_reviewer_slots(*, privacy: PrivacyTier | None = None) -> list[ReviewerSlot]:
     """The all-local roster: Ling 3 (Ant), Gemma 4 (Google), Lightning (NVIDIA) — three
     distinct families with zero cloud seats, every diff staying in the homelab, and three
     complementary failure modes (slow-but-thorough, few-FP analyst, fast-and-disciplined).
     Serves the ROUTINE lane (see ``roster_for_lane``) and the ``shadow`` pass; the frontier
     roster keeps the gates where sonnet's unique catches clustered in the shadow trial.
     Rewired 2026-08-22 from Lightning/gpt-oss/coder-next on the qualeval v2 board: gpt-oss
-    review 0.64 and coder-next 0.67 were the weakest links; both stay reachable as backups."""
-    return [_ling3_slot(), _gemma_slot(), _lightning_slot()]
+    review 0.64 and coder-next 0.67 were the weakest links; both stay reachable as backups.
+    Every seat sends ``privacy`` (default ``settings.local_privacy``, i.e. ``local``): the
+    cloud backups stay listed but the router refuses them under ``local``, so "every diff
+    staying in the homelab" is enforced on the wire, not just by the primaries' choice."""
+    tier = privacy or settings.local_privacy
+    return [_ling3_slot(privacy=tier), _gemma_slot(privacy=tier), _lightning_slot(privacy=tier)]
 
 
 def roster_for_lane(lane: str) -> list[ReviewerSlot]:

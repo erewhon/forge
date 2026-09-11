@@ -3,6 +3,7 @@ from __future__ import annotations
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from forge.shared.envfile import ENV_FILES
+from forge.shared.privacy import PrivacyTier
 
 
 class CodeAuditSettings(BaseSettings):
@@ -10,6 +11,10 @@ class CodeAuditSettings(BaseSettings):
 
     openai_base_url: str = "http://localhost:4000/v1"
     openai_api_key: str = ""
+    # X-Router-Privacy tier sent on every router call (see forge.shared.privacy). "zdr": local
+    # seats, or a cloud endpoint the router holds to zero retention on the wire (OpenRouter);
+    # the Zen member of a chain like `glm-5.1`/`qwen3.6-plus` is skipped, never used.
+    router_privacy: PrivacyTier = "zdr"
 
     # Failover pools (strongest-first): finders + the dedup consolidator run through the router.
     finder_models: list[str] = ["coder", "qwen3.6-plus", "glm-5.1"]

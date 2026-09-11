@@ -291,9 +291,19 @@ def main(argv: list[str] | None = None) -> int:
         help="Privacy lane: verify with the all-self-hosted panel — no findings leave the "
         "homelab. Trades family purity for privacy (see config); default panel stays vetted-Zen.",
     )
+    parser.add_argument(
+        "--privacy",
+        choices=["local", "zdr", "any"],
+        default=None,
+        help="X-Router-Privacy tier for every router call this run (default: derived from the "
+        "lane — local → local, otherwise zdr). 'any' admits Zen seats on the allowlist's say-so "
+        "alone, i.e. the pre-header behaviour.",
+    )
     args = parser.parse_args(argv)
     if args.local:
         settings.panel_lane = "local"
+    if args.privacy:
+        settings.panel_privacy = args.privacy
 
     topic = _load_topic_config(args.topic)
     if args.slug:

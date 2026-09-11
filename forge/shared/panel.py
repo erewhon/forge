@@ -25,6 +25,7 @@ from pydantic import BaseModel, ValidationError
 
 from forge.shared.ensemble import ApiExecutor, ExecResult, Executor, Pool, Prompt, map_items
 from forge.shared.llm import extract_json
+from forge.shared.privacy import PrivacyTier
 
 
 @dataclass
@@ -36,6 +37,11 @@ class PanelResult:
     # (label, reason) per member that produced no usable response — transport error, timeout, or
     # unparseable JSON. Callers rendering a quorum miss can say WHY a seat is absent.
     failures: list[tuple[str, str]] = field(default_factory=list)
+    # label -> the executor's routing meta for members that answered: the privacy tier sent and,
+    # when the router resolved a role/chain, which concrete model served it and under which
+    # enforced tier (``router_resolved`` / ``router_privacy`` / ``router_overflow``). The audit
+    # trail for "what did this verification actually get?".
+    routing: dict[str, dict] = field(default_factory=dict)
 
 
 def describe_participation(panel: PanelResult) -> str:
@@ -47,14 +53,30 @@ def describe_participation(panel: PanelResult) -> str:
     their failure reasons turns that from invisible into obvious. ``PanelResult.failures`` already
     carries the reasons; this is the renderer callers were missing.
     """
-    graded = ", ".join(panel.member_labels) or "none"
-    out = f"{len(panel.responses)}/{panel.attempted} lenses (graded by: {graded})"
+    graded = ", ".join(_label_with_routing(label, panel) for label in panel.member_labels)
+    out = f"{len(panel.responses)}/{panel.attempted} lenses (graded by: {graded or 'none'})"
     if not panel.quorum_met:
         out += " — BELOW FLOOR, degraded"
     if panel.failures:
         absent = "; ".join(f"{label} — {reason}" for label, reason in panel.failures)
         out += f". Absent: {absent}"
     return out
+
+
+def _label_with_routing(label: str, panel: PanelResult) -> str:
+    """``label`` decorated with what the router reported for it, e.g. ``glm/claims [served by
+    or/glm-5.2, zdr]`` — so a seat that was quietly served from a different concrete model (a
+    role failover, a chain member) is visible in the participation line."""
+    meta = panel.routing.get(label) or {}
+    bits: list[str] = []
+    if meta.get("router_resolved"):
+        bits.append(f"served by {meta['router_resolved']}")
+    tier = meta.get("router_privacy") or meta.get("privacy")
+    if tier:
+        bits.append(str(tier))
+    if meta.get("router_overflow"):
+        bits.append("OVERFLOWED")
+    return f"{label} [{', '.join(bits)}]" if bits else label
 
 
 @dataclass
@@ -68,11 +90,20 @@ class PanelMember:
 
 
 def build_router_executors(
-    models: Sequence[str], *, base_url: str, api_key: str
+    models: Sequence[str], *, base_url: str, api_key: str, privacy: PrivacyTier
 ) -> list[ApiExecutor]:
-    """One OpenAI-compatible (router) executor per model name — the panel members."""
+    """One OpenAI-compatible (router) executor per model name — the panel members. Every
+    member sends ``privacy`` as X-Router-Privacy; a seat the tier excludes is refused by the
+    router (403, terminal) and reported as such in the panel's failures."""
     return [
-        ApiExecutor(label=f"router:{m}", kind="openai", model=m, base_url=base_url, api_key=api_key)
+        ApiExecutor(
+            label=f"router:{m}",
+            kind="openai",
+            model=m,
+            privacy=privacy,
+            base_url=base_url,
+            api_key=api_key,
+        )
         for m in models
     ]
 
@@ -83,10 +114,12 @@ def build_lens_members(
     *,
     base_url: str,
     api_key: str,
+    privacy: PrivacyTier,
     base_system: str,
 ) -> list[PanelMember]:
     """One panel member per lens — each gets ``base_system`` followed by its lens directive, with
     router models assigned round-robin so the panel is diverse in *both* viewpoint and vendor.
+    ``privacy`` is the X-Router-Privacy tier every member sends.
 
     With 5 lenses and 3 models the members cycle models[0], models[1], models[2], models[0],
     models[1] — every lens still scores all dimensions, but each hunts its own failure mode hardest.
@@ -97,7 +130,12 @@ def build_lens_members(
     for i, (name, directive) in enumerate(lenses):
         model = models[i % len(models)]
         executor = ApiExecutor(
-            label=f"router:{model}", kind="openai", model=model, base_url=base_url, api_key=api_key
+            label=f"router:{model}",
+            kind="openai",
+            model=model,
+            privacy=privacy,
+            base_url=base_url,
+            api_key=api_key,
         )
         system = f"{base_system}\n\n{directive}".strip() if directive else base_system
         members.append(PanelMember(executor=executor, system=system, label=f"{model}/{name}"))
@@ -122,6 +160,7 @@ async def _run_member_panel(
     responses: list[dict] = []
     labels: list[str] = []
     failures: list[tuple[str, str]] = []
+    routing: dict[str, dict] = {}
     for member, result in zip(members, results):
         label = member.label or result.executor
         if not result.ok:
@@ -140,6 +179,8 @@ async def _run_member_panel(
         if data:  # transport-ok but unparseable JSON is dropped, like a failed member
             responses.append(data)
             labels.append(label)
+            if result.meta:
+                routing[label] = dict(result.meta)
         else:
             failures.append((label, "responded but returned no parseable JSON"))
     return PanelResult(
@@ -148,6 +189,7 @@ async def _run_member_panel(
         attempted=len(members),
         quorum_met=len(responses) >= floor,
         failures=failures,
+        routing=routing,
     )
 
 

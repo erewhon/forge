@@ -90,12 +90,14 @@ def _architect_pool() -> Pool:
             label=f"anthropic:{settings.anthropic_model}",
             kind="anthropic",
             model=settings.anthropic_model,
+            privacy="any",  # the native SDK bypasses the router; an explicit backend choice
         )
     else:
         executor = ApiExecutor(
             label=f"router:{settings.architect_model}",
             kind="openai",
             model=settings.architect_model,
+            privacy=settings.router_privacy,
             base_url=settings.openai_base_url,
             api_key=settings.openai_api_key,
         )

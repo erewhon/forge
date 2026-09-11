@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import json
 
-from forge.shared.llm import LLMConfig, complete_with_retry, extract_json
+import pytest
+
+from forge.shared.llm import LLMConfig, complete, complete_with_retry, extract_json
 
 
 def _cfg() -> LLMConfig:
-    return LLMConfig(backend="openai")
+    return LLMConfig(backend="openai", privacy="zdr")
 
 
 def test_complete_with_retry_returns_first_nonempty(monkeypatch):
@@ -47,6 +49,47 @@ def test_complete_with_retry_gives_up_after_retries(monkeypatch):
     out = complete_with_retry(_cfg(), system="s", user_message="u", model="research", retries=1)
     assert out == ""  # still empty — caller must treat as failure
     assert n["c"] == 2  # initial attempt + one retry
+
+
+# --- X-Router-Privacy on the sync helper ---
+
+
+def test_privacy_is_required() -> None:
+    with pytest.raises(TypeError):
+        LLMConfig(backend="openai")  # type: ignore[call-arg]
+
+
+def test_anthropic_backend_cannot_honour_a_strict_tier() -> None:
+    with pytest.raises(ValueError, match="cannot honour"):
+        LLMConfig(backend="anthropic", privacy="zdr")
+    assert LLMConfig(backend="anthropic", privacy="any").privacy == "any"
+
+
+def test_complete_sends_privacy_header(monkeypatch) -> None:
+    import openai
+
+    seen: dict = {}
+
+    class _Completions:
+        def create(self, **kwargs):
+            message = type("Message", (), {"content": "ok"})()
+            choice = type("Choice", (), {"message": message})()
+            return type("Response", (), {"choices": [choice]})()
+
+    class _Chat:
+        completions = _Completions()
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
+            self.chat = _Chat()
+
+    monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
+    out = complete(
+        LLMConfig(backend="openai", privacy="local"), system="s", user_message="u", model="coder"
+    )
+    assert out == "ok"
+    assert seen["default_headers"] == {"X-Router-Privacy": "local"}
 
 
 def test_plain_json_passes_through():

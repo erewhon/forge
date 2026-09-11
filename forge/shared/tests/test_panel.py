@@ -161,9 +161,16 @@ def test_build_lens_members_round_robins_models_and_prepends_base():
         ("claims", "look at claims"),
     ]
     members = build_lens_members(
-        lenses, ["m1", "m2"], base_url="http://x/v1", api_key="k", base_system="BASE"
+        lenses,
+        ["m1", "m2"],
+        base_url="http://x/v1",
+        api_key="k",
+        privacy="zdr",
+        base_system="BASE",
     )
     assert len(members) == 3
+    # every member sends the panel's tier
+    assert {m.executor.privacy for m in members} == {"zdr"}
     # models cycle m1, m2, m1
     assert [m.executor.model for m in members] == ["m1", "m2", "m1"]
     # label encodes model + lens name; system is base + the lens directive
@@ -174,7 +181,7 @@ def test_build_lens_members_round_robins_models_and_prepends_base():
 
 def test_build_lens_members_empty_models_is_empty():
     members = build_lens_members(
-        [("x", "y")], [], base_url="http://x/v1", api_key="k", base_system="BASE"
+        [("x", "y")], [], base_url="http://x/v1", api_key="k", privacy="zdr", base_system="BASE"
     )
     assert members == []
 

@@ -83,13 +83,58 @@ def test_local_roster_is_the_three_family_trio_and_fully_local(monkeypatch):
             assert ex.base_url == "http://router.internal:4010/v1"
 
 
+# --- X-Router-Privacy per roster ---
+
+
+def test_local_roster_sends_local_on_every_seat_and_backup(monkeypatch):
+    """The header is what makes 'every diff stays in the homelab' true on the wire: the cloud
+    backups (m3/kimi/glm) are still listed, but under `local` the router refuses them (403,
+    terminal) instead of quietly serving a routine-lane diff from the cloud."""
+    _route_to_router(monkeypatch)
+    for slot in providers.build_local_reviewer_slots():
+        assert {ex.privacy for ex in slot.pool.executors} == {"local"}
+
+
+def test_frontier_roster_sends_any_by_default(monkeypatch):
+    monkeypatch.setattr(settings, "anthropic_enabled", True)
+    monkeypatch.setattr(settings, "anthropic_base_url", "http://router.internal:4010/v1")
+    _route_to_router(monkeypatch)
+    for slot in providers.build_reviewer_slots():
+        assert {ex.privacy for ex in slot.pool.executors} == {"any"}
+
+
+def test_roster_tier_is_configurable_per_lane(monkeypatch):
+    monkeypatch.setattr(settings, "anthropic_enabled", True)
+    monkeypatch.setattr(settings, "anthropic_base_url", "http://router.internal:4010/v1")
+    _route_to_router(monkeypatch)
+    monkeypatch.setattr(settings, "frontier_privacy", "zdr")
+    for slot in providers.roster_for_lane("frontier"):
+        assert {ex.privacy for ex in slot.pool.executors} == {"zdr"}
+    # An explicit argument wins over the setting.
+    for slot in providers.build_reviewer_slots(privacy="local"):
+        assert {ex.privacy for ex in slot.pool.executors} == {"local"}
+
+
+def test_native_sdk_sonnet_seat_refuses_a_strict_tier(monkeypatch):
+    """With anthropic_base_url cleared the sonnet primary is the native SDK, which bypasses the
+    router — it cannot honour local/zdr, and the roster must fail loudly rather than build a
+    seat that silently ships the diff to Anthropic's retaining API."""
+    import pytest
+
+    monkeypatch.setattr(settings, "anthropic_enabled", True)
+    monkeypatch.setattr(settings, "anthropic_base_url", "")
+    monkeypatch.setattr(settings, "frontier_privacy", "zdr")
+    with pytest.raises(ValueError, match="bypasses the router"):
+        providers.build_reviewer_slots()
+
+
 def test_sonnet_primary_routes_through_router_by_default(monkeypatch):
     monkeypatch.setattr(settings, "anthropic_enabled", True)
     monkeypatch.setattr(settings, "anthropic_base_url", "http://router.internal:4010/v1")
     monkeypatch.setattr(settings, "anthropic_api_key", "test-router-key")
     monkeypatch.setattr(settings, "anthropic_model", "claude-sonnet-5")
 
-    primary = providers._sonnet_slot().pool.executors[0]
+    primary = providers._sonnet_slot(privacy="any").pool.executors[0]
 
     assert primary.kind == "openai"  # OpenAI-compat proxy path, not the native SDK
     assert primary.base_url == "http://router.internal:4010/v1"
@@ -101,7 +146,7 @@ def test_sonnet_primary_falls_back_to_native_sdk_when_base_url_empty(monkeypatch
     monkeypatch.setattr(settings, "anthropic_enabled", True)
     monkeypatch.setattr(settings, "anthropic_base_url", "")
 
-    primary = providers._sonnet_slot().pool.executors[0]
+    primary = providers._sonnet_slot(privacy="any").pool.executors[0]
 
     assert primary.kind == "anthropic"  # native SDK (reads ANTHROPIC_API_KEY from env)
     assert primary.base_url is None
@@ -110,7 +155,7 @@ def test_sonnet_primary_falls_back_to_native_sdk_when_base_url_empty(monkeypatch
 def test_sonnet_seat_skipped_when_disabled(monkeypatch):
     monkeypatch.setattr(settings, "anthropic_enabled", False)
 
-    slot = providers._sonnet_slot()
+    slot = providers._sonnet_slot(privacy="any")
 
     assert not slot.active
     assert slot.skipped_reason == "disabled in config"

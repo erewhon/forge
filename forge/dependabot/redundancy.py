@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from forge.dependabot.config import settings
 from forge.dependabot.models import BumpCandidate, RedundancyCluster, RedundancyReport
 from forge.dependabot.scan import scan_outdated
 from forge.shared.llm import LLMConfig, complete, extract_json
@@ -49,7 +50,7 @@ def call_model(
     When ``cfg`` is None the default ``LLMConfig(openai="openai")`` is used (points at the
     local LiteLLM router where the ``coder`` alias resolves).
     """
-    cfg = cfg or LLMConfig(backend="openai")
+    cfg = cfg or LLMConfig(backend="openai", privacy=settings.router_privacy)
     system, user = build_redundancy_prompt(deps)
     raw = complete(cfg, system=system, user_message=user, model="coder", max_tokens=4096)
     parsed = extract_json(raw)

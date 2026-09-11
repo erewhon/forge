@@ -20,7 +20,7 @@ from forge.radar.synthesis import (
 )
 from forge.shared.llm import LLMConfig
 
-CFG = LLMConfig(backend="openai")
+CFG = LLMConfig(backend="openai", privacy="zdr")
 D = date(2026, 7, 22)
 
 
@@ -124,15 +124,30 @@ def test_judge_chunks_large_batches():
     def fn(cfg, *, system, user_message, model, max_tokens=8192):
         calls["n"] += 1
         # Echo a keep placement for each key present in this chunk's user message.
-        keys = [ln.split("key=", 1)[1].split(",", 1)[0] for ln in user_message.splitlines()
-                if "key=" in ln]
-        return json.dumps({"placements": [
-            {"key": k, "keep": True, "name": k, "quadrant": "Infra/Tooling", "ring": "Assess",
-             "rationale": "r"} for k in keys
-        ]})
+        keys = [
+            ln.split("key=", 1)[1].split(",", 1)[0]
+            for ln in user_message.splitlines()
+            if "key=" in ln
+        ]
+        return json.dumps(
+            {
+                "placements": [
+                    {
+                        "key": k,
+                        "keep": True,
+                        "name": k,
+                        "quadrant": "Infra/Tooling",
+                        "ring": "Assess",
+                        "rationale": "r",
+                    }
+                    for k in keys
+                ]
+            }
+        )
 
-    placements = judge_candidates(entries, Radar(), complete_fn=fn, cfg=CFG, model="glm",
-                                  chunk_size=10)
+    placements = judge_candidates(
+        entries, Radar(), complete_fn=fn, cfg=CFG, model="glm", chunk_size=10
+    )
     assert calls["n"] == 3  # 10 + 10 + 5
     assert len(placements) == 25
 

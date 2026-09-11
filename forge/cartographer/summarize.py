@@ -20,6 +20,13 @@ from forge.cartographer.cache import SummaryCache, architecture_digest, rollup_d
 from forge.cartographer.config import CartographerSettings
 from forge.cartographer.models import FileEntry, MapConfig, RepoIndex, TargetConfig
 from forge.shared.llm import LLMConfig, complete_with_retry
+from forge.shared.privacy import PrivacyTier
+
+# Contract code may only reach local models — there is no cloud tier and no fallback (the URL
+# guard in guards.py says the same about the endpoint). Unconditional, not a setting: the router
+# enforces it on every call, so a role that could overflow off-box is refused (403) rather than
+# quietly served from the cloud while the guard is looking at the base URL.
+CARTOGRAPHER_PRIVACY: PrivacyTier = "local"
 
 # (system, user, max_tokens) -> completion text. Injectable so tests never touch the router.
 CompleteFn = Callable[[str, str, int], str]
@@ -69,6 +76,7 @@ def _default_complete(settings: CartographerSettings, model: str) -> CompleteFn:
         # any placeholder, and ones that do will 401 with a message naming the real problem.
         openai_api_key=settings.openai_api_key or "unset",
         timeout_seconds=settings.llm_timeout_seconds,
+        privacy=CARTOGRAPHER_PRIVACY,
     )
 
     def call(system: str, user: str, max_tokens: int) -> str:
@@ -204,8 +212,11 @@ def summarize_target(
             stats.skipped.append(f"{entry.path}: missing from mirror (re-run structure)")
             return
         stats.llm_calls += 1
-        text = sweep(_FILE_SYSTEM, _file_prompt(entry, content, settings.max_prompt_chars),
-                     settings.file_summary_max_tokens)
+        text = sweep(
+            _FILE_SYSTEM,
+            _file_prompt(entry, content, settings.max_prompt_chars),
+            settings.file_summary_max_tokens,
+        )
         if not text.strip():
             stats.failed.append(entry.path)  # uncached → retried on the next run
             return
@@ -245,8 +256,9 @@ def summarize_target(
             stats.failed.append(f"rollup:{module.name}")
             continue
         stats.llm_calls += 1
-        text = synthesis(_ROLLUP_SYSTEM, f"{header}\n\n" + "\n\n".join(sections),
-                         settings.rollup_max_tokens)
+        text = synthesis(
+            _ROLLUP_SYSTEM, f"{header}\n\n" + "\n\n".join(sections), settings.rollup_max_tokens
+        )
         if text.strip():
             SummaryCache.put(cache.rollup(digest), text)
             stats.rollups_built += 1
@@ -280,8 +292,11 @@ def summarize_target(
             text = ""
             if sections is not None:
                 stats.llm_calls += 1
-                text = synthesis(_ARCH_SYSTEM, f"{header}\n\n" + "\n\n".join(sections),
-                                 settings.architecture_max_tokens)
+                text = synthesis(
+                    _ARCH_SYSTEM,
+                    f"{header}\n\n" + "\n\n".join(sections),
+                    settings.architecture_max_tokens,
+                )
             if text.strip():
                 SummaryCache.put(cache.architecture(arch_digest), text)
                 stats.architecture_built = True

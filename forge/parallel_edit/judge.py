@@ -41,6 +41,7 @@ def _build_judge_pool() -> Pool:
                 label=f"anthropic:{settings.judge_anthropic_model}",
                 kind="anthropic",
                 model=settings.judge_anthropic_model,
+                privacy="any",  # native SDK bypasses the router; an explicit backend choice
             )
         )
     else:
@@ -49,6 +50,7 @@ def _build_judge_pool() -> Pool:
                 label=f"router:{settings.judge_openai_model}",
                 kind="openai",
                 model=settings.judge_openai_model,
+                privacy=settings.judge_privacy,
                 base_url=settings.judge_openai_base_url,
                 api_key=settings.judge_openai_api_key,
             )
@@ -60,6 +62,7 @@ def _build_judge_pool() -> Pool:
                 label=f"router:{model}",
                 kind="openai",
                 model=model,
+                privacy=settings.judge_privacy,
                 base_url=settings.judge_openai_base_url,
                 api_key=settings.judge_openai_api_key,
             )

@@ -5,6 +5,7 @@ import re
 
 from forge.code_reviewer.config import settings
 from forge.code_reviewer.models import RepoChanges, RepoReview, RepoScores, ReviewFinding
+from forge.shared.privacy import privacy_headers
 
 
 def _complete(system: str, user_message: str, max_tokens: int = 4096) -> str:
@@ -26,7 +27,11 @@ def _complete(system: str, user_message: str, max_tokens: int = 4096) -> str:
     else:
         import openai
 
-        client = openai.OpenAI(base_url=settings.openai_base_url, api_key=settings.openai_api_key)
+        client = openai.OpenAI(
+            base_url=settings.openai_base_url,
+            api_key=settings.openai_api_key,
+            default_headers=privacy_headers(settings.router_privacy),
+        )
         response = client.chat.completions.create(
             model=settings.openai_model,
             max_tokens=max_tokens,

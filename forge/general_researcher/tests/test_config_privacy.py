@@ -55,10 +55,10 @@ SELF_HOSTED_FAMILY: dict[str, str] = {
     "minimax-m2.7-reap": "minimax",
     "m2.7-local": "minimax",
     "minimax-local": "minimax",
-    # Ling (hekaton CPU)
-    "ling-flash": "ling",
-    "ling": "ling",
-    "ling-flash-local": "ling",
+    # Ling flash 2.0 aliases share Ling 3's family (both bailingmoe). (Until 2026-09-11 a
+    # duplicate "ling": "ling" key here silently overrode the "bailing" entry above.)
+    "ling-flash": "bailing",
+    "ling-flash-local": "bailing",
 }
 
 # Vetted OpenCode Zen aliases: paid, zero-retention, not trained on, and NOT an OpenAI/Anthropic
@@ -186,3 +186,43 @@ def test_active_panel_routes_by_lane() -> None:
     # Unknown lane values fall through to the vetted default panel, never an accidental mix.
     bogus = GeneralResearcherSettings(panel_lane="bogus")
     assert bogus.active_verifier_panel() == default.verifier_panel_models
+
+
+# --- X-Router-Privacy: the lane is enforced on the wire, not just by roster choice ---
+
+
+def test_privacy_tier_follows_the_lane() -> None:
+    """local lane → `local` (the router refuses any off-box candidate, overflow included); the
+    default lane → `zdr` (vetted seats served from a zero-retention-enforceable endpoint; a
+    chain's Zen member is skipped). Never `any` by default — that is the pre-header behaviour
+    and has to be asked for."""
+    assert GeneralResearcherSettings(panel_lane="local").privacy_tier() == "local"
+    assert GeneralResearcherSettings().privacy_tier() == "zdr"
+    assert GeneralResearcherSettings(panel_lane="bogus").privacy_tier() == "zdr"
+
+
+def test_privacy_override_wins_over_the_lane() -> None:
+    assert (
+        GeneralResearcherSettings(panel_lane="local", panel_privacy="any").privacy_tier() == "any"
+    )
+    assert GeneralResearcherSettings(panel_privacy="local").privacy_tier() == "local"
+
+
+def test_every_router_call_in_the_run_carries_the_tier() -> None:
+    """The research model / planner path (LLMConfig) and the panel path share one tier."""
+    local = GeneralResearcherSettings(panel_lane="local")
+    assert local.llm_cfg().privacy == "local"
+    assert GeneralResearcherSettings().llm_cfg().privacy == "zdr"
+
+
+def test_local_lane_refuses_the_native_anthropic_backend() -> None:
+    """A local-lane run on the native Anthropic backend would ship every sprint to Anthropic
+    while claiming nothing left the homelab. Fail closed; 'any' states the trade explicitly."""
+    import pytest
+
+    with pytest.raises(ValueError, match="cannot honour"):
+        GeneralResearcherSettings(panel_lane="local", llm_backend="anthropic").llm_cfg()
+    assert (
+        GeneralResearcherSettings(llm_backend="anthropic", panel_privacy="any").llm_cfg().privacy
+        == "any"
+    )

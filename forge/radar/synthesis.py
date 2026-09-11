@@ -35,6 +35,7 @@ from forge.radar.candidates import CandidateFeed, FeedEntry
 from forge.radar.models import Blip, Evidence, Quadrant, Radar, Ring
 from forge.radar.movement import DEFAULT_COOLDOWN_DAYS, propose_move
 from forge.shared.llm import LLMConfig, extract_json
+from forge.shared.privacy import check_tier
 
 #: The LLM ``complete`` shape, injectable so the judge is tested without a live router.
 CompleteFn = Callable[..., str]
@@ -61,6 +62,9 @@ def default_llm() -> tuple[LLMConfig, str]:
         backend="openai",
         openai_base_url=os.environ.get("RADAR_ROUTER_URL", "http://localhost:4000/v1"),
         openai_api_key=os.environ.get("RADAR_ROUTER_KEY", "sk-litellm-master"),
+        # X-Router-Privacy for the judgment calls; feed items are public, but "zdr" costs nothing
+        # (the `glm` chain has an OpenRouter member) and keeps the radar off the free tier.
+        privacy=check_tier(os.environ.get("RADAR_ROUTER_PRIVACY", "zdr")),
     )
     model = os.environ.get("RADAR_SYNTH_MODEL", "glm")
     return cfg, model

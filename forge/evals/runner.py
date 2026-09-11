@@ -67,6 +67,7 @@ def _build_executor(
         label=f"evals:{model}",
         kind="openai",
         model=model,
+        privacy=settings.router_privacy,
         base_url=base_url or settings.openai_base_url,
         api_key=api_key or settings.openai_api_key,
     )

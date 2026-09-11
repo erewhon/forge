@@ -85,6 +85,7 @@ def generate_tests(
                 label=f"router:{m}",
                 kind="openai",
                 model=m,
+                privacy=settings.router_privacy,
                 base_url=settings.openai_base_url,
                 api_key=settings.openai_api_key,
             )

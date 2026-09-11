@@ -173,6 +173,7 @@ def _panel_pool() -> Pool:
             settings.synthesizer_panel_models,
             base_url=settings.openai_base_url,
             api_key=settings.openai_api_key,
+            privacy=settings.privacy_tier(),
         ),
     )
 
@@ -183,6 +184,7 @@ def _generate_candidates(user_msg: str) -> tuple[list[_Candidate], list[str]]:
         settings.synthesizer_panel_models,
         base_url=settings.openai_base_url,
         api_key=settings.openai_api_key,
+        privacy=settings.privacy_tier(),
     )
     panel = run_panel(
         executors=executors,
@@ -252,6 +254,7 @@ def _single_synthesis(user_msg: str, question: str) -> _Candidate:
             [settings.synthesis_model],
             base_url=settings.openai_base_url,
             api_key=settings.openai_api_key,
+            privacy=settings.privacy_tier(),
         ),
     )
     res = structured(
