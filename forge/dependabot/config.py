@@ -4,6 +4,8 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from forge.shared.privacy import PrivacyTier
+
 
 class DependabotSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="DEPENDABOT_")
@@ -22,6 +24,9 @@ class DependabotSettings(BaseSettings):
     # unique catches clustered on security-critical code, which bumps route to the supply-chain
     # lens anyway.
     signoff_lane: str = "local"
+    # X-Router-Privacy tier for the redundancy-cluster call (`coder` via the router). The
+    # sign-off gate takes its tier from the roster it seats (signoff_lane → local/frontier).
+    router_privacy: PrivacyTier = "zdr"
     scan_timeout: int = 120
     audit_timeout: int = 300
     metadata_timeout: float = 20.0

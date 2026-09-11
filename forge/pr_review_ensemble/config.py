@@ -5,6 +5,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from forge.shared.envfile import ENV_FILES
+from forge.shared.privacy import PrivacyTier
 
 
 class PRReviewEnsembleSettings(BaseSettings):
@@ -29,6 +30,17 @@ class PRReviewEnsembleSettings(BaseSettings):
     local_api_key: str = ""
     local_model: str = "coder"  # (legacy; the roster now names models directly in providers.py)
     local_max_tokens: int = 4096
+
+    # X-Router-Privacy tier per roster (see forge.shared.privacy). The FRONTIER roster is
+    # anchored on sonnet, a 30-day-retention route by design, so it sends "any" — the router
+    # still applies each role's own local_or_zdr contract underneath. Switch it to "zdr" to have
+    # the sonnet seat served from OpenRouter's Claude endpoint with the zero-retention directive
+    # instead (the `sonnet` alias is a chain with an `or/` member); the local seats are
+    # unaffected either way. The LOCAL roster sends "local": its cloud BACKUPS (m3/kimi/glm) are
+    # then refused by the router (403, terminal) rather than quietly serving a routine-lane diff
+    # from the cloud when a local primary is down — the backstop the roster alone could not give.
+    frontier_privacy: PrivacyTier = "any"
+    local_privacy: PrivacyTier = "local"
 
     # Legacy OpenCode-Zen-direct fields — no longer used: zen models (glm/m3/kimi) now ride the
     # router above, so no separate Zen endpoint/key is needed. Kept for back-compat with old .env.

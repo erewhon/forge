@@ -5,6 +5,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from forge.shared.envfile import ENV_FILES
+from forge.shared.privacy import PrivacyTier
 
 # Gold sets are checked-in fixtures living inside this package; scorecard runs land
 # next to pipeline-runs/ at the repo root (both gitignored).
@@ -19,6 +20,10 @@ class EvalsSettings(BaseSettings):
     runs_dir: Path = _REPO_ROOT / "eval-runs"
     openai_base_url: str = "http://localhost:4000/v1"
     openai_api_key: str = ""
+    # X-Router-Privacy tier sent on every router call (see forge.shared.privacy). "zdr": local
+    # seats, or a cloud endpoint the router holds to zero retention on the wire (OpenRouter);
+    # the Zen member of a chain like `glm-5.1`/`qwen3.6-plus` is skipped, never used.
+    router_privacy: PrivacyTier = "zdr"
     model: str = "coder"
     repeats: int = 3
     temperature: float = 0.0

@@ -5,6 +5,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from forge.shared.envfile import ENV_FILES
+from forge.shared.privacy import PrivacyTier
 
 
 class ParallelEditSettings(BaseSettings):
@@ -91,6 +92,10 @@ class ParallelEditSettings(BaseSettings):
     judge_openai_base_url: str = "http://localhost:4000/v1"
     judge_openai_api_key: str = ""
     judge_openai_model: str = "coder"
+    # X-Router-Privacy tier for the router-backed judge and its failover members (candidates'
+    # diffs are the prompt). "zdr": the `qwen3.6-plus` failover chain is served from its
+    # OpenRouter member with the zero-retention directive; the Zen member is skipped.
+    judge_privacy: PrivacyTier = "zdr"
     judge_openai_max_tokens: int = 8192
 
     # Judge resilience: the judge runs through the ensemble harness's failover Pool.

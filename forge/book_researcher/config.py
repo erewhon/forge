@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from forge.shared.envfile import ENV_FILES
 from forge.shared.llm import LLMConfig
+from forge.shared.privacy import PrivacyTier, tier_for_lane
 
 
 class BookResearcherSettings(BaseSettings):
@@ -82,10 +83,23 @@ class BookResearcherSettings(BaseSettings):
     panel_lane: str = "default"
     verifier_panel_models_local: list[str] = ["gpt-oss", "lightning", "coder"]
 
+    # X-Router-Privacy (2026-09-11): the lane also picks the tier every router call in the run
+    # sends — research model, planner, panel, outline pool. See the general researcher's config
+    # for the full rationale; in short the router enforces the lane on the wire (local: no
+    # overflow off-box, cloud aliases refused; default: vetted seats served from a
+    # zero-retention-enforceable endpoint, Zen chain members skipped). `panel_privacy` overrides
+    # the lane-derived tier (BOOK_RESEARCHER_PANEL_PRIVACY / --privacy).
+    panel_privacy: PrivacyTier | None = None
+
     def active_verifier_panel(self) -> list[str]:
         if self.panel_lane == "local":
             return self.verifier_panel_models_local
         return self.verifier_panel_models
+
+    def privacy_tier(self) -> PrivacyTier:
+        """The X-Router-Privacy tier for this run: the explicit override, else lane-derived
+        (local → ``local``, anything else → ``zdr``)."""
+        return self.panel_privacy or tier_for_lane(self.panel_lane)
 
     # Outline lifecycle (`forge book lint --critic` / `revise` / `decompose`): an ordered failover
     # pool, tried first-to-last. Every outline call is evidence-in / structured-out (the schema is
@@ -122,11 +136,19 @@ class BookResearcherSettings(BaseSettings):
         return self.project_dir / "outline-framing.json"
 
     def llm_cfg(self) -> LLMConfig:
+        if self.llm_backend == "anthropic" and self.privacy_tier() != "any":
+            # The native Anthropic backend bypasses the router: nothing can hold it to a tier.
+            raise ValueError(
+                f"llm_backend='anthropic' cannot honour privacy tier {self.privacy_tier()!r} "
+                f"(lane {self.panel_lane!r}); use the router backend, or set "
+                "BOOK_RESEARCHER_PANEL_PRIVACY=any to state the trade explicitly"
+            )
         return LLMConfig(
             backend=self.llm_backend,
             openai_base_url=self.openai_base_url,
             openai_api_key=self.openai_api_key,
             anthropic_model=self.anthropic_model,
+            privacy=self.privacy_tier(),
         )
 
 

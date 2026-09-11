@@ -32,6 +32,8 @@ def outline_pool(models: list[str] | None = None) -> Pool:
                     label=f"anthropic:{settings.anthropic_model}",
                     kind="anthropic",
                     model=settings.anthropic_model,
+                    # The native SDK bypasses the router; ApiExecutor refuses any stricter tier.
+                    privacy=settings.privacy_tier(),
                 )
             ],
         )
@@ -43,6 +45,7 @@ def outline_pool(models: list[str] | None = None) -> Pool:
                 label=f"router:{alias}",
                 kind="openai",
                 model=alias,
+                privacy=settings.privacy_tier(),
                 base_url=settings.openai_base_url,
                 api_key=settings.openai_api_key,
             )

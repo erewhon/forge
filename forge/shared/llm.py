@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
+
+from forge.shared.privacy import PrivacyTier, check_tier, privacy_headers
 
 Backend = Literal["openai", "anthropic"]
 
@@ -55,6 +57,19 @@ class LLMConfig:
     # Callers sending near-context-window prompts to local seats need more — prefill alone can
     # exceed 600s there.
     timeout_seconds: float | None = None
+    # The X-Router-Privacy tier sent on every router call (see forge.shared.privacy). Required,
+    # keyword-only: an absent header means "any" to the router, so a config has to say what it
+    # wants. The native Anthropic backend bypasses the router and can only be "any".
+    privacy: PrivacyTier = field(kw_only=True)
+
+    def __post_init__(self) -> None:
+        check_tier(self.privacy)
+        if self.backend == "anthropic" and self.privacy != "any":
+            raise ValueError(
+                "LLMConfig(backend='anthropic') goes straight to Anthropic's API and cannot "
+                f"honour X-Router-Privacy: {self.privacy}; route through the router "
+                "(backend='openai') or set privacy='any' explicitly"
+            )
 
 
 def complete(
@@ -86,7 +101,10 @@ def complete(
     # default when unset.
     timeout_kwargs = {} if cfg.timeout_seconds is None else {"timeout": cfg.timeout_seconds}
     client = openai.OpenAI(
-        base_url=cfg.openai_base_url, api_key=cfg.openai_api_key, **timeout_kwargs
+        base_url=cfg.openai_base_url,
+        api_key=cfg.openai_api_key,
+        default_headers=privacy_headers(cfg.privacy),
+        **timeout_kwargs,
     )
     response = client.chat.completions.create(
         model=model,

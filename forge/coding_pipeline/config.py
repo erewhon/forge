@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from forge.shared.envfile import ENV_FILES
 from forge.shared.llm import LLMConfig
+from forge.shared.privacy import PrivacyTier
 
 
 class CodingPipelineSettings(BaseSettings):
@@ -52,6 +53,10 @@ class CodingPipelineSettings(BaseSettings):
     llm_backend: Literal["openai", "anthropic"] = "openai"
     openai_base_url: str = "http://localhost:4000/v1"
     openai_api_key: str = ""
+    # X-Router-Privacy tier sent on every router call (see forge.shared.privacy). "zdr": local
+    # seats, or a cloud endpoint the router holds to zero retention on the wire (OpenRouter);
+    # the Zen member of a chain like `glm-5.1`/`qwen3.6-plus` is skipped, never used.
+    router_privacy: PrivacyTier = "zdr"
     architect_model: str = "coder"
     anthropic_model: str = "claude-sonnet-4-6"
     architect_max_tokens: int = 8192
@@ -103,6 +108,7 @@ class CodingPipelineSettings(BaseSettings):
             openai_base_url=self.openai_base_url,
             openai_api_key=self.openai_api_key,
             anthropic_model=self.anthropic_model,
+            privacy="any" if self.llm_backend == "anthropic" else self.router_privacy,
         )
 
 

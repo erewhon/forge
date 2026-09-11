@@ -160,3 +160,41 @@ def test_outline_pool_uses_only_vetted_models() -> None:
 
 def test_outline_pool_keeps_a_self_hosted_seat() -> None:
     assert any(a in SELF_HOSTED_FAMILY for a in settings.outline_models)
+
+
+# --- X-Router-Privacy: the lane is enforced on the wire, not just by roster choice ---
+
+
+def test_privacy_tier_follows_the_lane() -> None:
+    """local lane → `local` (the router refuses any off-box candidate, overflow included); the
+    default lane → `zdr` (vetted seats served from a zero-retention-enforceable endpoint; a
+    chain's Zen member is skipped). Never `any` by default — that is the pre-header behaviour
+    and has to be asked for."""
+    assert BookResearcherSettings(panel_lane="local").privacy_tier() == "local"
+    assert BookResearcherSettings().privacy_tier() == "zdr"
+    assert BookResearcherSettings(panel_lane="bogus").privacy_tier() == "zdr"
+
+
+def test_privacy_override_wins_over_the_lane() -> None:
+    assert BookResearcherSettings(panel_lane="local", panel_privacy="any").privacy_tier() == "any"
+    assert BookResearcherSettings(panel_privacy="local").privacy_tier() == "local"
+
+
+def test_every_router_call_in_the_run_carries_the_tier() -> None:
+    """The research model / planner path (LLMConfig) and the panel path share one tier."""
+    local = BookResearcherSettings(panel_lane="local")
+    assert local.llm_cfg().privacy == "local"
+    assert BookResearcherSettings().llm_cfg().privacy == "zdr"
+
+
+def test_local_lane_refuses_the_native_anthropic_backend() -> None:
+    """A local-lane run on the native Anthropic backend would ship every sprint to Anthropic
+    while claiming nothing left the homelab. Fail closed; 'any' states the trade explicitly."""
+    import pytest
+
+    with pytest.raises(ValueError, match="cannot honour"):
+        BookResearcherSettings(panel_lane="local", llm_backend="anthropic").llm_cfg()
+    assert (
+        BookResearcherSettings(llm_backend="anthropic", panel_privacy="any").llm_cfg().privacy
+        == "any"
+    )

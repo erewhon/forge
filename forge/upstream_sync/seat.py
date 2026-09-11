@@ -43,6 +43,7 @@ def collision_verdict(
                 backend="openai",
                 openai_base_url=settings.openai_base_url,
                 openai_api_key=settings.openai_api_key,
+                privacy=settings.router_privacy,
             ),
             system=COLLISION_SEAT,
             user_message=user,

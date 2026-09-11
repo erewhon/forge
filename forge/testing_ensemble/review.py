@@ -122,6 +122,7 @@ def _router_pool(role: str, models: list[str]) -> Pool:
                 label=f"router:{m}",
                 kind="openai",
                 model=m,
+                privacy=settings.router_privacy,
                 base_url=settings.openai_base_url,
                 api_key=settings.openai_api_key,
             )
@@ -174,6 +175,7 @@ def run_review(paths: list[str], focus: str) -> TestReport:
         settings.verify_models,
         base_url=settings.openai_base_url,
         api_key=settings.openai_api_key,
+        privacy=settings.router_privacy,
         base_system=SKEPTIC_BASE,
     )
 

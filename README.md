@@ -69,6 +69,18 @@ uv tool install --editable '~/path/to/forge[nous]'  # with the Nous backend
 Machine-local settings (router URL, API key, project paths) live in a gitignored `.env` at the
 repo root — every agent's settings read it when run from the repo.
 
+**Privacy tiers.** Every forge call to the router carries `X-Router-Privacy`, and the router
+enforces it on the wire (`local`: fleet hardware only, no overflow off-box; `zdr`: local or a
+cloud endpoint held to zero data retention per request — OpenRouter, never OpenCode Zen; `any`:
+no requirement of forge's own). The tier is a required argument on every executor, so no verb
+can fall back to the permissive default by omission. Who sends what: `research`/`book` derive it
+from the lane (`--local` → `local`, otherwise `zdr`; `--privacy` overrides); `review` sends
+`any` on the frontier roster and `local` on the local roster (`PR_REVIEW_ENSEMBLE_FRONTIER_PRIVACY`
+/ `_LOCAL_PRIVACY`); `map` is `local` unconditionally; everything else defaults to `zdr` via a
+`*_ROUTER_PRIVACY` setting. A seat the tier excludes comes back from the router as a 403 the
+harness reports as "refused by privacy policy" and fails over from, never retries. See
+`forge/shared/privacy.py`.
+
 Setting up on a work machine (Bedrock strong tiers + a local model)? See
 [docs/RUNBOOK-work-install.md](docs/RUNBOOK-work-install.md) and the router recipe at
 [docs/work/litellm-work.yaml](docs/work/litellm-work.yaml).
