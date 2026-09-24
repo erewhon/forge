@@ -193,18 +193,18 @@ def test_status_mapping():
 
 def test_aggregator_rotation_excludes_inactive():
     # preferred="sonnet-5" (default) is inactive here -> rotation falls to lightning then gemma.
-    slots = [skip_slot("sonnet-5"), fake_slot("gemma"), fake_slot("lightning")]
+    slots = [skip_slot("sonnet-5"), fake_slot("gemma"), fake_slot("flashnext")]
     agg = build_aggregator(slots, pr_ref="PR", n_reviews=2)
-    assert [e.label for e in agg.pool.executors] == ["lightning:m", "gemma:m"]
+    assert [e.label for e in agg.pool.executors] == ["flashnext:m", "gemma:m"]
 
 
 def test_aggregator_promotes_configured_preferred(monkeypatch):
-    monkeypatch.setattr(settings, "aggregator_provider", "lightning")
-    slots = [fake_slot("sonnet-5"), fake_slot("gemma"), fake_slot("lightning")]
+    monkeypatch.setattr(settings, "aggregator_provider", "flashnext")
+    slots = [fake_slot("sonnet-5"), fake_slot("gemma"), fake_slot("flashnext")]
     agg = build_aggregator(slots, pr_ref="PR", n_reviews=3)
     labels = [e.label for e in agg.pool.executors]
-    assert labels[0] == "lightning:m"
-    assert set(labels) == {"lightning:m", "sonnet-5:m", "gemma:m"}
+    assert labels[0] == "flashnext:m"
+    assert set(labels) == {"flashnext:m", "sonnet-5:m", "gemma:m"}
 
 
 # --- render + log ------------------------------------------------------------

@@ -29,8 +29,13 @@ SELF_HOSTED_FAMILY: dict[str, str] = {
     # role — that staleness let a Qwen seat family-self-grade for five days in Aug 2026. Until the
     # map is derived from models.yaml (filed task), update these WITH every role flip:
     # research → qwen3-coder-next (Qwen) since 2026-08-13; thinker → Lightning (NVIDIA) 2026-08-18.
-    "research": "qwen",
-    "thinker": "nvidia",
+    # 2026-09-24 reshuffle: research and thinker both lead with GLM-5.3-Flash think (zhipu);
+    # Lightning is back on talos card 0 (research #2), Flash-Next on delphi (research #3).
+    "research": "zhipu",
+    "thinker": "zhipu",
+    "flash-next": "qwen",
+    "flashnext": "qwen",
+    "qwen3.8-flash-next": "qwen",
     # Ling 3 flash (hekaton CPU, seated 2026-08-22) and Gemma 4 26B (talos B70 card 1,
     # seated 2026-08-22) — the 2026-08-22 review-roster rewire seats
     "ling": "bailing",
