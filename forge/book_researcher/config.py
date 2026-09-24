@@ -73,7 +73,11 @@ class BookResearcherSettings(BaseSettings):
     # the Qwen `coder` seat a family self-grader while the stale family map in test_config_privacy
     # kept the guard test green. Lightning stays out: it is research's #2 failover and can BE the
     # research model. Full rationale in the general researcher's config.
-    verifier_panel_models: list[str] = ["gpt-oss", "glm", "kimi"]
+    # 2026-09-24 reshuffle: gpt-oss left delphi (Flash-Next took it) and the router's `research`
+    # role now leads with GLM-5.3-Flash (think), so "glm" would family-self-grade and "gpt-oss" no
+    # longer serves. Gemma (Google, local B70) is the self-hosted seat; m3 (MiniMax) + kimi
+    # (Moonshot) are the vetted-Zen cloud seats. Lightning stays OFF: it is research #2.
+    verifier_panel_models: list[str] = ["gemma", "m3", "kimi"]
     verifier_panel_floor: int = 2  # min members that must respond+parse, else degrade
 
     # Lane switch (2026-08-18): "local" swaps the panel to verifier_panel_models_local — nothing
@@ -81,7 +85,10 @@ class BookResearcherSettings(BaseSettings):
     # researcher's config for the full rationale). Env: BOOK_RESEARCHER_PANEL_LANE=local, or the
     # CLI's --local flag. Unknown lane values fall through to the default (vetted) panel.
     panel_lane: str = "default"
-    verifier_panel_models_local: list[str] = ["gpt-oss", "lightning", "coder"]
+    # 2026-09-24: gpt-oss (unseated) and coder (now GLM on the Sparks = the research model's
+    # family) out; Gemma (Google) and Flash-Next (Qwen) in beside Lightning (NVIDIA). Lightning and
+    # Flash-Next are research-role fallbacks (#2/#3): the accepted family-purity trade of this lane.
+    verifier_panel_models_local: list[str] = ["gemma", "lightning", "flash-next"]
 
     # X-Router-Privacy (2026-09-11): the lane also picks the tier every router call in the run
     # sends — research model, planner, panel, outline pool. See the general researcher's config

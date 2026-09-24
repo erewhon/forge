@@ -161,10 +161,10 @@ def _ling3_slot(*, privacy: PrivacyTier) -> ReviewerSlot:
     2026-09-05 T4-path re-measure (cr 0.89) matched within noise. Its known flaw (tu-07:
     fabricates instead of surfacing tool errors) never fires in a review seat — reviews use no
     tools. ~16 t/s decode with depth-sensitive prefill (see module docstring): diffs past ~25K
-    tokens exceed the 300s timeout, so Lightning (local, fast, review 0.84) is the first backup,
-    then kimi."""
+    tokens exceed the 300s timeout, so Flash-Next (local, delphi, review 0.91; replaced Lightning
+    here 2026-09-24) is the first backup, then kimi."""
     primary = _router_executor("ling3", "ling", privacy=privacy)
-    return _failover_slot("ling3", primary, "ling", ["lightning", "kimi"], privacy=privacy)
+    return _failover_slot("ling3", primary, "ling", ["flash-next", "kimi"], privacy=privacy)
 
 
 def _gemma_slot(*, privacy: PrivacyTier) -> ReviewerSlot:
@@ -172,44 +172,50 @@ def _gemma_slot(*, privacy: PrivacyTier) -> ReviewerSlot:
     gemma-server :5392, ~62 t/s Vulkan — diffs stay in the homelab). qualeval v2 board #1
     (0.93): code_review 0.84 (ties Lightning), adversarial 0.90 / research 0.92 — the panel's
     analyst. Sampling params are held server-side; the 16k completion budget is NOT — callers
-    must keep max_tokens generous (review_max_tokens 16384 does). gpt-oss (local, the demoted
-    executor) is the first backup, then glm (family-diverse cloud)."""
+    must keep max_tokens generous (review_max_tokens 16384 does). Lightning (local NVIDIA, fast;
+    took gpt-oss's backup slot 2026-09-24 when delphi became Flash-Next) is the first backup,
+    then glm (family-diverse cloud)."""
     primary = _router_executor("gemma", "gemma", privacy=privacy)
-    return _failover_slot("gemma", primary, "gemma", ["gpt-oss", "glm"], privacy=privacy)
+    return _failover_slot("gemma", primary, "gemma", ["lightning", "glm"], privacy=privacy)
 
 
-def _lightning_slot(*, privacy: PrivacyTier) -> ReviewerSlot:
-    """Local NVIDIA seat: primary is Nemotron 3.5 Lightning on the talos B70 (router alias
-    `lightning`, ~100 t/s — this seat's diffs stay in the homelab). The serving side carries the
-    load-bearing flags (reasoning-budget 3000, temp 0.6, MTP), so a bare alias gets the tuned
-    0.91/0.84-review config. Zen-hosted MiniMax m3 then kimi as cloud backups (family-diverse)."""
-    primary = _router_executor("lightning", "lightning", privacy=privacy)
-    return _failover_slot("lightning", primary, "lightning", ["m3", "kimi"], privacy=privacy)
+def _flashnext_slot(*, privacy: PrivacyTier) -> ReviewerSlot:
+    """Local Qwen seat: primary is Qwen3.8-Flash-Next on delphi's Strix Halo (router alias
+    `flash-next`, flashnext-server :5391, ~23 t/s Vulkan — this seat's diffs stay in the homelab).
+    Seated 2026-09-24 in place of Lightning: qualeval v2 0.96 at model-card sampling with
+    code_review 0.91 (ties Ling 3 as the best local reviewer), while Lightning scored 0.22 on the
+    ensemble_review lane of real PRs (it reproduced the patch instead of reviewing it). Flash-Next's
+    own ensemble_review lane is not yet measured. The serving side carries the load-bearing flags
+    (reasoning-budget 3000, temp 1.0 / top_p 0.95 / top_k 20); review_max_tokens 16384 stays well
+    above the budget. Zen-hosted MiniMax m3 then kimi as cloud backups (family-diverse)."""
+    primary = _router_executor("flashnext", "flash-next", privacy=privacy)
+    return _failover_slot("flashnext", primary, "flash-next", ["m3", "kimi"], privacy=privacy)
 
 
 def build_reviewer_slots(*, privacy: PrivacyTier | None = None) -> list[ReviewerSlot]:
     """The frontier roster, in a stable order: sonnet (anchor) plus the two strongest local
     reviewers on the 2026-08-22 board — Ling 3 (review 0.91) and Gemma 4 (review 0.84 + the
-    analyst profile). Each seat is a router-backed failover chain; Lightning covers the ling3
-    seat's failover so a hekaton outage degrades to a fast local reviewer, not a cloud seat.
+    analyst profile). Each seat is a router-backed failover chain; Flash-Next covers the ling3
+    seat's failover so a hekaton outage degrades to a local reviewer, not a cloud seat.
     Every seat sends ``privacy`` (default ``settings.frontier_privacy``) as X-Router-Privacy."""
     tier = privacy or settings.frontier_privacy
     return [_sonnet_slot(privacy=tier), _ling3_slot(privacy=tier), _gemma_slot(privacy=tier)]
 
 
 def build_local_reviewer_slots(*, privacy: PrivacyTier | None = None) -> list[ReviewerSlot]:
-    """The all-local roster: Ling 3 (Ant), Gemma 4 (Google), Lightning (NVIDIA) — three
+    """The all-local roster: Ling 3 (Ant), Gemma 4 (Google), Flash-Next (Qwen) — three
     distinct families with zero cloud seats, every diff staying in the homelab, and three
     complementary failure modes (slow-but-thorough, few-FP analyst, fast-and-disciplined).
     Serves the ROUTINE lane (see ``roster_for_lane``) and the ``shadow`` pass; the frontier
     roster keeps the gates where sonnet's unique catches clustered in the shadow trial.
     Rewired 2026-08-22 from Lightning/gpt-oss/coder-next on the qualeval v2 board: gpt-oss
     review 0.64 and coder-next 0.67 were the weakest links; both stay reachable as backups.
+    2026-09-24: the NVIDIA seat became the Qwen seat (Flash-Next, review 0.91, on delphi).
     Every seat sends ``privacy`` (default ``settings.local_privacy``, i.e. ``local``): the
     cloud backups stay listed but the router refuses them under ``local``, so "every diff
     staying in the homelab" is enforced on the wire, not just by the primaries' choice."""
     tier = privacy or settings.local_privacy
-    return [_ling3_slot(privacy=tier), _gemma_slot(privacy=tier), _lightning_slot(privacy=tier)]
+    return [_ling3_slot(privacy=tier), _gemma_slot(privacy=tier), _flashnext_slot(privacy=tier)]
 
 
 def roster_for_lane(lane: str) -> list[ReviewerSlot]:
@@ -223,11 +229,11 @@ def roster_for_lane(lane: str) -> list[ReviewerSlot]:
 
 # Capability-ordered rotation for the aggregator/digest failover pool. All seats route through the
 # router, so ordering is by synthesis capability; a `preferred` seat is promoted to the front.
-# After sonnet: Lightning first among locals for synthesis duty (instruction 0.99, disciplined,
-# ~100 t/s), then Ling 3 (instruction 1.00, best reviewer, but slow hekaton CPU decode), then
-# Gemma (instruction 1.00 but the most verbose thinker — fine work, slow synthesis). Only
-# providers actually present in the given slots are used, so this order spans both rosters.
-ROTATION_ORDER = ("sonnet-5", "lightning", "ling3", "gemma")
+# After sonnet: Flash-Next first among locals for synthesis duty (instruction 1.00, ~23 t/s on
+# delphi; took Lightning's place 2026-09-24), then Ling 3 (instruction 1.00, best reviewer, but
+# slow hekaton decode), then Gemma (instruction 1.00 but the most verbose thinker — fine work,
+# slow synthesis). Only providers actually present in the given slots are used, so this order spans both rosters.
+ROTATION_ORDER = ("sonnet-5", "flashnext", "ling3", "gemma")
 
 
 def rotation_pool(slots: list[ReviewerSlot], *, role: str, preferred: str | None = None) -> Pool:
