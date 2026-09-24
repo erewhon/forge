@@ -232,7 +232,8 @@ def roster_for_lane(lane: str) -> list[ReviewerSlot]:
 # After sonnet: Flash-Next first among locals for synthesis duty (instruction 1.00, ~23 t/s on
 # delphi; took Lightning's place 2026-09-24), then Ling 3 (instruction 1.00, best reviewer, but
 # slow hekaton decode), then Gemma (instruction 1.00 but the most verbose thinker — fine work,
-# slow synthesis). Only providers actually present in the given slots are used, so this order spans both rosters.
+# slow synthesis). Only providers actually present in the given slots are used, so this
+# order spans both rosters.
 ROTATION_ORDER = ("sonnet-5", "flashnext", "ling3", "gemma")
 
 
