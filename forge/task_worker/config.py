@@ -21,7 +21,10 @@ class TaskWorkerSettings(BaseSettings):
     daemon_api_key: str = ""  # PAT for a remote daemon; empty = local key-file discovery
 
     # Task execution
-    task_timeout_seconds: int = 1800  # 30 min max per task
+    # 60 min max per task (was 30 until 2026-09-27). Sized for the local `coder` seat: on the
+    # Harbor tb2 lane the GLM-5.3-Flash pair (~12 t/s per stream) needed more than 30 minutes of
+    # agent time on 5 of 12 tasks, and passed 4 of those 5.
+    task_timeout_seconds: int = 3600
     default_max_files: int = 5  # used when task has no max_files set
     model_tier_default: str = "auto"  # router alias
     sandbox: str = "gaol-dx"  # default sandbox kind: "gaol-dx" or "gaol-run-once"

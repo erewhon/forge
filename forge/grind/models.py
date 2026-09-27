@@ -66,7 +66,12 @@ class GrindConfig(BaseModel):
     )
     max_iterations: int = Field(default=20, ge=1)
     step_timeout: int = Field(default=600, ge=1, description="Per-step timeout, seconds.")
-    edit_timeout: int = Field(default=1800, ge=1, description="Per model-edit timeout, seconds.")
+    edit_timeout: int = Field(
+        default=3600,
+        ge=1,
+        description="Per model-edit timeout, seconds. 60 min since 2026-09-27: sized for the "
+        "local coder seat (~12 t/s per stream), where 30 min cut off edits that would have passed.",
+    )
     no_progress_window: int = Field(
         default=3,
         ge=2,
