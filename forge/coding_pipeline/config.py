@@ -60,7 +60,11 @@ class CodingPipelineSettings(BaseSettings):
     architect_model: str = "coder"
     anthropic_model: str = "claude-sonnet-4-6"
     architect_max_tokens: int = 8192
-    architect_timeout: float = 240.0
+    # Sized for the local `coder` seat, not a cloud one (2026-09-27): the GLM-5.3-Flash pair
+    # delivers ~12 t/s under load and ~28 single-stream, and these calls are non-streaming, so
+    # the ceiling has to cover decompose_max_tokens at the slow end (16k / 12 t/s ~ 22 min).
+    # 240 s fit the ~120 t/s seat `coder` used to be.
+    architect_timeout: float = 1500.0
     decompose_max_tokens: int = 16_000  # trees are big: N leaves x full worker specs
     default_auto_max_files: int = 5  # every Auto-* leaf gets a max_files cap, no exceptions
     # Floor for autonomous leaves whose tier is unset/"auto": the router's bare "auto"
@@ -70,7 +74,9 @@ class CodingPipelineSettings(BaseSettings):
 
     # Wave verification (advisory review pass over the wave diff)
     review_max_tokens: int = 4096
-    review_timeout: float = 180.0
+    # 600 s since 2026-09-27 (was 180): review_max_tokens at the local seats' ~12 t/s is ~6 min
+    # before prefill. Also the ceiling for the epic-gate map and sign-off calls.
+    review_timeout: float = 600.0
     # Epic-gate seat budget. Thinking models spend reasoning tokens INSIDE max_tokens: at
     # 4096 the anthropic seat (sonnet-5 via the router) burned the whole budget on a
     # 140k-char epic diff and returned ok + ZERO text — "no verdict", gate blocked
