@@ -309,7 +309,15 @@ def publish_radar(
         existing = None
 
     if existing and existing.get("id"):
-        client.update_page(notebook_id, existing["id"], blocks=blocks, tags=["radar"])
+        # The page is regenerated whole, so a render much shorter than the last is expected;
+        # without this the daemon refuses it as a destructive write.
+        client.update_page(
+            notebook_id,
+            existing["id"],
+            blocks=blocks,
+            tags=["radar"],
+            allow_destructive=True,
+        )
         return {"page_id": existing["id"], "created": False}
     page = client.create_page(notebook_id, page_title, blocks=blocks, tags=["radar"])
     return {"page_id": page.get("id"), "created": True}

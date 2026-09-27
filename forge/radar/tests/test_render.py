@@ -144,6 +144,7 @@ class FakePageDaemon:
     def update_page(self, notebook_id, page_id, *, blocks=None, tags=None, **kw):
         self.pages[page_id]["blocks"] = blocks
         self.updated.append(page_id)
+        self.update_kwargs = kw
         return self.pages[page_id]
 
 
@@ -184,6 +185,8 @@ def test_publish_updates_the_same_page_in_place():
     )
     assert r2["created"] is False and r2["page_id"] == r1["page_id"]
     assert daemon.updated == [r1["page_id"]]  # updated in place, no second page
+    # A shorter re-render must not be refused by the daemon's destructive-write guard.
+    assert daemon.update_kwargs == {"allow_destructive": True}
 
 
 def test_publish_creates_notebook_when_absent():
