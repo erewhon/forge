@@ -83,6 +83,37 @@ router is the identical wiring to the home setup. Point opencode at the router i
 credentials makes `claude -p` executor seats work without the router. Documented for completeness;
 OpenCode-through-router is the default work path.
 
+## One strong reviewer, cheap workers
+
+For a metered strong model that plans and reviews while cheap or local models do the work.
+Every name below is an alias on the router forge talks to; forge never names a model.
+
+```bash
+# The architect: framing, decomposition, replan.
+CODING_PIPELINE_ARCHITECT_MODEL=opus
+# Leaves tagged auto (or untagged) run on this alias.
+CODING_PIPELINE_LEAF_MODEL_TIER=coder
+
+# The reviewer roster: one seat. Replaces the built-in seats, whose aliases are home-only.
+PR_REVIEW_ENSEMBLE_ROSTER='[{"provider": "opus", "model": "opus", "backups": []}]'
+PR_REVIEW_ENSEMBLE_QUORUM_FLOOR=1              # `forge review` with one seat
+CODING_PIPELINE_SINGLE_SEAT_CONFIRM=trust      # no per-finding re-vote by the same model
+CODING_PIPELINE_EPIC_GATE_MIN_SEATS=1          # the gate accepts the one seat
+CODING_PIPELINE_EPIC_TOKEN_BUDGET=2000000      # architect + review tokens per epic
+
+# A router that fronts another gateway has no seat that qualifies as local or zdr.
+CODING_PIPELINE_ROUTER_PRIVACY=any
+```
+
+On the router, make `coder` fail over from the gateway's models to the local one, and leave
+`opus` with no fallback: a planner that silently becomes a small model is worse than one
+that fails. The decomposer may tag leaves `auto-free` or `auto-full`, so both aliases must
+exist; point `auto-full` at a worker model unless leaves should spend strong-model tokens.
+
+What this gives up: a one-seat roster has no cross-check. `forge testing --auto` and
+`forge deps --auto-merge` keep their two-seat floor and will block rather than merge on one
+reviewer's word. On a local model, run `forge build run --concurrency 1`.
+
 ## Run
 
 ```bash

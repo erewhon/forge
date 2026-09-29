@@ -123,6 +123,50 @@ def test_gate_passes_framing_context_and_fails_closed(monkeypatch, tmp_path):
     assert calls["system"] == ve.EPIC_SIGNOFF_SYSTEM
 
 
+def test_gate_seat_floor_defaults_to_two_and_follows_the_setting(monkeypatch, tmp_path):
+    seen: list[int] = []
+
+    def fake_signoff(diff, **kwargs):
+        seen.append(kwargs["min_seats"])
+        return SignoffResult(approved=True, attempted=1, approvals=1, providers=["opus"])
+
+    monkeypatch.setattr(ve, "epic_diff", lambda repo, slug, main="main": "THE-EPIC-DIFF")
+    monkeypatch.setattr(ve, "full_quorum_signoff", fake_signoff)
+
+    ve.run_epic_gate(tmp_path, "toy", _framing(), seats=[object()])
+    monkeypatch.setattr(ve.settings, "epic_gate_min_seats", 1)
+    ve.run_epic_gate(tmp_path, "toy", _framing(), seats=[object()])
+    assert seen == [2, 1]
+
+
+def test_single_seat_gate_blocks_until_the_floor_is_lowered(monkeypatch, tmp_path):
+    """End to end through the real sign-off: one seat is refused at the default floor without
+    an LLM call, and approves at a floor of one only because that seat approved."""
+    from forge.shared import signoff as so
+    from forge.shared.panel import PanelResult
+    from forge.shared.signoff import SignoffSeat
+
+    asked: list[int] = []
+
+    def fake_panel(**kwargs):
+        asked.append(len(kwargs["members"]))
+        return PanelResult(
+            responses=[{"approve": True}], member_labels=["opus"], attempted=1, quorum_met=True
+        )
+
+    monkeypatch.setattr(ve, "epic_diff", lambda repo, slug, main="main": "THE-EPIC-DIFF")
+    monkeypatch.setattr(so, "run_member_panel", fake_panel)
+    seats = [SignoffSeat(provider="opus", executor=object())]
+
+    blocked = ve.run_epic_gate(tmp_path, "toy", _framing(), seats=seats)
+    assert not blocked.approved and asked == []
+    assert "need >=2" in blocked.reason
+
+    monkeypatch.setattr(ve.settings, "epic_gate_min_seats", 1)
+    approved = ve.run_epic_gate(tmp_path, "toy", _framing(), seats=seats)
+    assert approved.approved and asked == [1]
+
+
 def test_gate_blocks_empty_diff_without_any_llm_call(monkeypatch, tmp_path):
     def boom(*a, **k):
         raise AssertionError("no sign-off call for an empty diff")

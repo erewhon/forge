@@ -8,8 +8,10 @@ fully router-local — no Anthropic executor anywhere in its chains.
 
 from __future__ import annotations
 
+import pytest
+
 from forge.pr_review_ensemble import providers
-from forge.pr_review_ensemble.config import settings
+from forge.pr_review_ensemble.config import PRReviewEnsembleSettings, RosterSeat, settings
 
 
 def _route_to_router(monkeypatch):
@@ -119,8 +121,6 @@ def test_native_sdk_sonnet_seat_refuses_a_strict_tier(monkeypatch):
     """With anthropic_base_url cleared the sonnet primary is the native SDK, which bypasses the
     router — it cannot honour local/zdr, and the roster must fail loudly rather than build a
     seat that silently ships the diff to Anthropic's retaining API."""
-    import pytest
-
     monkeypatch.setattr(settings, "anthropic_enabled", True)
     monkeypatch.setattr(settings, "anthropic_base_url", "")
     monkeypatch.setattr(settings, "frontier_privacy", "zdr")
@@ -162,3 +162,110 @@ def test_sonnet_seat_skipped_when_disabled(monkeypatch):
     # Still in the roster (attempted-but-skipped for quorum accounting); local seats stay active.
     labels = [(s.provider, s.active) for s in providers.build_reviewer_slots()]
     assert labels == [("sonnet-5", False), ("ling3", True), ("gemma", True)]
+
+
+# --- configured roster (PR_REVIEW_ENSEMBLE_ROSTER) ---
+
+_OPUS_ONLY = [RosterSeat(provider="opus", model="opus")]
+
+
+def test_configured_roster_replaces_the_builtin_seats(monkeypatch):
+    _route_to_router(monkeypatch)
+    monkeypatch.setattr(
+        settings,
+        "roster",
+        [
+            RosterSeat(provider="opus", model="opus"),
+            RosterSeat(provider="glm", model="glm-flash", backups=["qwen-local"]),
+        ],
+    )
+
+    opus, glm = providers.build_reviewer_slots()
+
+    assert [(s.provider, s.model, s.active) for s in (opus, glm)] == [
+        ("opus", "opus", True),
+        ("glm", "glm-flash", True),
+    ]
+    assert [e.model for e in opus.pool.executors] == ["opus"]
+    assert [e.model for e in glm.pool.executors] == ["glm-flash", "qwen-local"]
+    for slot in (opus, glm):
+        for ex in slot.pool.executors:
+            assert ex.kind == "openai"
+            assert ex.base_url == "http://router.internal:4010/v1"
+            assert ex.privacy == "any"  # the frontier tier, same as the built-in seats
+
+
+def test_configured_roster_ignores_the_sonnet_seat_settings(monkeypatch):
+    """A configured roster is the whole roster: no built-in seat rides along, disabled or not."""
+    monkeypatch.setattr(settings, "anthropic_enabled", False)
+    monkeypatch.setattr(settings, "roster", _OPUS_ONLY)
+    assert [s.provider for s in providers.build_reviewer_slots()] == ["opus"]
+
+
+def test_rosters_are_overridden_independently(monkeypatch):
+    monkeypatch.setattr(settings, "anthropic_enabled", True)
+    monkeypatch.setattr(settings, "roster", _OPUS_ONLY)
+    assert [s.provider for s in providers.roster_for_lane("frontier")] == ["opus"]
+    assert [s.provider for s in providers.roster_for_lane("local")] == [
+        "ling3",
+        "gemma",
+        "flashnext",
+    ]
+
+    monkeypatch.setattr(settings, "roster", None)
+    monkeypatch.setattr(settings, "local_roster", [RosterSeat(provider="qwen", model="qwen")])
+    local = providers.roster_for_lane("local")
+    assert [s.provider for s in local] == ["qwen"]
+    assert {ex.privacy for ex in local[0].pool.executors} == {"local"}
+    assert [s.provider for s in providers.roster_for_lane("frontier")][0] == "sonnet-5"
+
+
+def test_rotation_pool_covers_seats_outside_the_rotation_order(monkeypatch):
+    """ROTATION_ORDER names the built-in seats only. A configured roster's labels are unknown to
+    it, and the consolidator/aggregator must still get a pool to run on."""
+    monkeypatch.setattr(settings, "anthropic_enabled", True)
+    monkeypatch.setattr(
+        settings,
+        "roster",
+        [RosterSeat(provider="opus", model="opus"), RosterSeat(provider="glm", model="glm-flash")],
+    )
+    slots = providers.build_reviewer_slots()
+
+    pool = providers.rotation_pool(slots, role="aggregator", preferred="sonnet-5")
+    assert [e.model for e in pool.executors] == ["opus", "glm-flash"]
+
+    pool = providers.rotation_pool(slots, role="aggregator", preferred="glm")
+    assert [e.model for e in pool.executors] == ["glm-flash", "opus"]
+
+
+def test_rotation_pool_keeps_the_builtin_order(monkeypatch):
+    monkeypatch.setattr(settings, "anthropic_enabled", True)
+    monkeypatch.setattr(settings, "roster", None)
+    slots = providers.build_reviewer_slots()
+    pool = providers.rotation_pool(slots, role="aggregator", preferred="gemma")
+    assert [e.model for e in pool.executors] == ["gemma", settings.anthropic_model, "ling"]
+
+
+def test_roster_parses_from_the_environment(monkeypatch):
+    monkeypatch.setenv(
+        "PR_REVIEW_ENSEMBLE_ROSTER",
+        '[{"provider": "opus", "model": "opus-5.5", "backups": ["glm-flash"]}]',
+    )
+    parsed = PRReviewEnsembleSettings(_env_file=None)
+    assert parsed.roster == [RosterSeat(provider="opus", model="opus-5.5", backups=["glm-flash"])]
+    assert parsed.local_roster is None
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "[]",  # an empty roster is a misconfiguration, not "no reviewers"
+        '[{"provider": "a", "model": "x"}, {"provider": "a", "model": "y"}]',  # duplicate label
+        '[{"provider": "", "model": "x"}]',
+        '[{"provider": "a"}]',
+    ],
+)
+def test_unusable_roster_is_refused_at_load(monkeypatch, raw):
+    monkeypatch.setenv("PR_REVIEW_ENSEMBLE_ROSTER", raw)
+    with pytest.raises(ValueError):
+        PRReviewEnsembleSettings(_env_file=None)
