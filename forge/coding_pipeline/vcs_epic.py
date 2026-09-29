@@ -369,6 +369,7 @@ def _map_reduce_gate(
         system=EPIC_REDUCE_SYSTEM,
         ref=epic_branch(epic_slug),
         context=_gate_context(framing),
+        min_seats=settings.epic_gate_min_seats,
         max_tokens=settings.epic_gate_signoff_max_tokens,
         timeout=settings.review_timeout,
     )
@@ -406,6 +407,7 @@ def run_epic_gate(
         system=EPIC_SIGNOFF_SYSTEM,
         ref=epic_branch(epic_slug),
         context=_gate_context(framing),
+        min_seats=settings.epic_gate_min_seats,
         max_tokens=settings.epic_gate_signoff_max_tokens,
         timeout=settings.review_timeout,
     )

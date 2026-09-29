@@ -12,7 +12,8 @@ Two gates, per dry-run design input #2 (gates are mandatory regardless of doer t
   canonical finding faces a **confirm vote** across the roster: it is ``confirmed`` only when a
   strict majority of *responding* providers judge it real. Zero responders = unconfirmed
   (advisory stays advisory; only confirmed findings become fix-up leaves, so the action path
-  fails closed).
+  fails closed). A one-seat roster under ``single_seat_confirm = "trust"`` skips the vote and
+  takes that seat's findings as confirmed.
 
 Dedup layers (dry-run Q2): the deterministic stable slug catches near-verbatim twins and keys
 the fix-up leaf's external_ref (``pipeline:{epic}:fix:{finding_slug}``) for exact cross-replan
@@ -347,6 +348,11 @@ def confirm_findings(
     members = _roster_members(CONFIRM_SYSTEM)
     if not members:
         return findings  # nobody to vote: everything stays unconfirmed (advisory only)
+    if len(members) == 1 and settings.single_seat_confirm == "trust":
+        # The lone seat already asserted these; re-asking it costs a call per finding.
+        for finding in findings:
+            finding.confirmed = True
+        return findings
     verdicts = verify_each(
         findings,
         members=members,

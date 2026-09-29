@@ -126,6 +126,52 @@ def test_confirm_without_roster_leaves_all_unconfirmed(monkeypatch):
     assert out and all(not f.confirmed for f in out)
 
 
+def _no_vote(*a, **k):
+    raise AssertionError("no confirm vote expected")
+
+
+def test_single_seat_trust_confirms_without_a_vote(monkeypatch):
+    monkeypatch.setattr(v, "_roster_members", lambda system: [_member("opus")])
+    monkeypatch.setattr(v.settings, "single_seat_confirm", "trust")
+    monkeypatch.setattr(v, "verify_each", _no_vote)
+    out = v.confirm_findings("DIFF", [_finding("bug A", "a.py"), _finding("bug B", "b.py")])
+    assert [f.confirmed for f in out] == [True, True]
+
+
+def test_single_seat_votes_by_default(monkeypatch):
+    monkeypatch.setattr(v, "_roster_members", lambda system: [_member("opus")])
+    monkeypatch.setattr(v.settings, "single_seat_confirm", "vote")
+    calls = []
+
+    def fake_verify_each(items, **kwargs):
+        calls.append(len(kwargs["members"]))
+        panel = _panel([{"real": False}])
+        return [
+            SimpleNamespace(item=i, panel=panel, verdict=kwargs["aggregate"](i, panel))
+            for i in items
+        ]
+
+    monkeypatch.setattr(v, "verify_each", fake_verify_each)
+    out = v.confirm_findings("DIFF", [_finding()])
+    assert calls == [1]
+    assert [f.confirmed for f in out] == [False]
+
+
+def test_trust_never_applies_to_a_multi_seat_roster(roster, monkeypatch):
+    monkeypatch.setattr(v.settings, "single_seat_confirm", "trust")
+
+    def fake_verify_each(items, **kwargs):
+        panel = _panel([{"real": False}, {"real": False}])
+        return [
+            SimpleNamespace(item=i, panel=panel, verdict=kwargs["aggregate"](i, panel))
+            for i in items
+        ]
+
+    monkeypatch.setattr(v, "verify_each", fake_verify_each)
+    out = v.confirm_findings("DIFF", [_finding()])
+    assert [f.confirmed for f in out] == [False]
+
+
 # --- verify_wave ---------------------------------------------------------------
 
 

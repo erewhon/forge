@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from forge.shared.envfile import ENV_FILES
@@ -84,6 +85,19 @@ class CodingPipelineSettings(BaseSettings):
     epic_gate_signoff_max_tokens: int = 16_000
     review_max_findings: int = 12  # cap the candidate pool before the confirm vote
     confirm_concurrency: int = 4
+    # What the confirm vote does when the roster has exactly ONE active seat. "vote" asks that
+    # seat to re-judge each of its own findings — one call per finding, each carrying the whole
+    # wave diff. "trust" marks them confirmed without the vote: for a deliberate single strong
+    # reviewer, where the second pass costs N metered calls to ask the same model again. It gives
+    # up the confirm seat's file-content ground truth, so "X is missing" phantoms reach replan.
+    # Rosters of two or more seats always vote.
+    single_seat_confirm: Literal["vote", "trust"] = "vote"
+
+    # Seats the epic gate needs before it will ask anyone. The gate stays unanimous and
+    # fail-closed at any value; 2 is the cross-family floor. 1 admits a single-reviewer roster,
+    # which is defensible here only because this gate never merges — a human does. The
+    # auto-merge gates (autotest, the bumper) do not read this and keep their floor of 2.
+    epic_gate_min_seats: int = Field(default=2, ge=1)
 
     # Epic gate size guard. A diff at or under epic_gate_max_diff_chars is signed off in one
     # call per seat; a larger one goes map-reduce — deterministic per-file split, one gatekeeper

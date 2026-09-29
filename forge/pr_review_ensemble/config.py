@@ -2,16 +2,51 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from forge.shared.envfile import ENV_FILES
 from forge.shared.privacy import PrivacyTier
 
 
+class RosterSeat(BaseModel):
+    """One configured reviewer seat: a display label, the router alias that serves it, and the
+    aliases tried in order when that one is down."""
+
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    backups: list[str] = []
+
+
 class PRReviewEnsembleSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="PR_REVIEW_ENSEMBLE_", env_file=ENV_FILES, extra="ignore"
     )
+
+    # Roster override. Unset (the default) keeps the built-in seats in providers.py, whose
+    # aliases only exist on the home router. Set, it REPLACES that roster for every consumer
+    # (review, wave-verify, the epic gate, autotest, the bumper) — a JSON list, e.g.
+    #   PR_REVIEW_ENSEMBLE_ROSTER='[{"provider": "opus", "model": "opus", "backups": []}]'
+    # Every seat resolves on local_base_url and sends the roster's privacy tier. `roster`
+    # replaces the frontier seats, `local_roster` the all-local ones; they are independent, so
+    # a host that overrides one and still reaches the other's lane gets the built-in seats there.
+    # A roster below two seats cannot pass a full-quorum sign-off: the auto-merge gates keep
+    # their two-seat floor and block, and the epic gate needs
+    # CODING_PIPELINE_EPIC_GATE_MIN_SEATS lowered to match.
+    roster: list[RosterSeat] | None = None
+    local_roster: list[RosterSeat] | None = None
+
+    @field_validator("roster", "local_roster")
+    @classmethod
+    def _roster_is_usable(cls, seats: list[RosterSeat] | None) -> list[RosterSeat] | None:
+        if seats is None:
+            return None
+        if not seats:
+            raise ValueError("a configured roster needs at least one seat; unset it instead")
+        labels = [s.provider for s in seats]
+        if len(set(labels)) != len(labels):
+            raise ValueError(f"roster seat labels must be unique, got {labels}")
+        return seats
 
     # Anthropic provider — routed through the local LiteLLM router by default (real Claude,
     # proxied), so no per-shell ANTHROPIC_API_KEY is needed and creds live once, server-side.

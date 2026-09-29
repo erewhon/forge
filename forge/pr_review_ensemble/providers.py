@@ -15,6 +15,9 @@ but stays reachable as a backup; cheaper cloud backups: GLM, MiniMax M3, Kimi. D
 (distinct model families) over count. A disabled seat becomes a ``SkipExecutor`` slot:
 attempted-but-never-ok for quorum accounting, without a doomed network call.
 
+Both rosters below are defaults. ``settings.roster`` / ``settings.local_roster`` replace them
+seat for seat on a host whose router serves different aliases (see ``_configured_slots``).
+
 ``build_local_reviewer_slots`` is the all-local roster (Ling 3 / Gemma 4 / Lightning — three
 families, Ant/Google/NVIDIA, zero cloud seats), serving the ROUTINE lane and the ``shadow``
 pass run side by side with production to decide whether sonnet can be unseated.
@@ -37,7 +40,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from forge.pr_review_ensemble.config import settings
+from forge.pr_review_ensemble.config import RosterSeat, settings
 from forge.shared.ensemble import (
     ApiExecutor,
     ExecResult,
@@ -192,13 +195,31 @@ def _flashnext_slot(*, privacy: PrivacyTier) -> ReviewerSlot:
     return _failover_slot("flashnext", primary, "flash-next", ["m3", "kimi"], privacy=privacy)
 
 
+def _configured_slots(seats: list[RosterSeat], *, privacy: PrivacyTier) -> list[ReviewerSlot]:
+    """The roster a host configured (``settings.roster`` / ``local_roster``), seat for seat:
+    each one a router-backed failover chain exactly like the built-in seats."""
+    return [
+        _failover_slot(
+            seat.provider,
+            _router_executor(seat.provider, seat.model, privacy=privacy),
+            seat.model,
+            seat.backups,
+            privacy=privacy,
+        )
+        for seat in seats
+    ]
+
+
 def build_reviewer_slots(*, privacy: PrivacyTier | None = None) -> list[ReviewerSlot]:
     """The frontier roster, in a stable order: sonnet (anchor) plus the two strongest local
     reviewers on the 2026-08-22 board — Ling 3 (review 0.91) and Gemma 4 (review 0.84 + the
     analyst profile). Each seat is a router-backed failover chain; Flash-Next covers the ling3
     seat's failover so a hekaton outage degrades to a local reviewer, not a cloud seat.
-    Every seat sends ``privacy`` (default ``settings.frontier_privacy``) as X-Router-Privacy."""
+    Every seat sends ``privacy`` (default ``settings.frontier_privacy``) as X-Router-Privacy.
+    ``settings.roster``, when set, replaces these seats outright."""
     tier = privacy or settings.frontier_privacy
+    if settings.roster is not None:
+        return _configured_slots(settings.roster, privacy=tier)
     return [_sonnet_slot(privacy=tier), _ling3_slot(privacy=tier), _gemma_slot(privacy=tier)]
 
 
@@ -213,8 +234,11 @@ def build_local_reviewer_slots(*, privacy: PrivacyTier | None = None) -> list[Re
     2026-09-24: the NVIDIA seat became the Qwen seat (Flash-Next, review 0.91, on delphi).
     Every seat sends ``privacy`` (default ``settings.local_privacy``, i.e. ``local``): the
     cloud backups stay listed but the router refuses them under ``local``, so "every diff
-    staying in the homelab" is enforced on the wire, not just by the primaries' choice."""
+    staying in the homelab" is enforced on the wire, not just by the primaries' choice.
+    ``settings.local_roster``, when set, replaces these seats outright."""
     tier = privacy or settings.local_privacy
+    if settings.local_roster is not None:
+        return _configured_slots(settings.local_roster, privacy=tier)
     return [_ling3_slot(privacy=tier), _gemma_slot(privacy=tier), _flashnext_slot(privacy=tier)]
 
 
@@ -241,11 +265,14 @@ def rotation_pool(slots: list[ReviewerSlot], *, role: str, preferred: str | None
     """A failover Pool over the *active* seats in capability-rotation order.
 
     Shared by the aggregator (synthesize N reviews) and the digest (one resilient pass). Inactive
-    (skipped) seats are excluded; `preferred` (if active) leads, then ROTATION_ORDER fills in. Each
-    seat's primary executor is reused (ApiExecutor is stateless), so the pool rotates over the same
-    models the ensemble reviewed with.
+    (skipped) seats are excluded; `preferred` (if active) leads, then ROTATION_ORDER fills in,
+    then any seat ROTATION_ORDER does not know (a configured roster's own labels) in roster order —
+    without that a custom roster would rotate over nothing. Each seat's primary executor is reused
+    (ApiExecutor is stateless), so the pool rotates over the same models the ensemble reviewed
+    with.
     """
     active = {s.provider: s for s in slots if s.active}
     order = [preferred] if preferred in active else []
     order += [p for p in ROTATION_ORDER if p in active and p not in order]
+    order += [p for p in active if p not in order]
     return Pool(role=role, executors=[active[p].pool.executors[0] for p in order])

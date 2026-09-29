@@ -106,6 +106,13 @@ retry) — see [`../task_worker/README.md`](../task_worker/README.md).
   Only confirmed findings can become fix-up leaves. The journal's review line
   shows the funnel: `N confirmed of M canonical (raw R, D covered by open fixups)`.
 
+The reviewers are the pr_review roster. `PR_REVIEW_ENSEMBLE_ROSTER` (a JSON list of
+`{"provider", "model", "backups"}` seats) replaces the built-in seats for wave-verify and the
+epic gate alike. For one strong reviewer over cheap workers, set a one-seat roster with
+`CODING_PIPELINE_SINGLE_SEAT_CONFIRM=trust` and `CODING_PIPELINE_EPIC_GATE_MIN_SEATS=1`: one
+review call per wave and one at the gate. The cost is the cross-check. A lone reviewer's
+false positive becomes a fix-up leaf, and its miss reaches the human merge.
+
 ## Replan
 
 Deterministic pre-rules never touch a model: a failed leaf at the attempt cap
@@ -161,6 +168,9 @@ A gitignored `.env` at the repo root is also read when running from the repo.
 | `REVIEW_TIMEOUT` | `180` | Review call timeout (s) |
 | `REVIEW_MAX_FINDINGS` | `12` | Candidate cap before consolidation |
 | `CONFIRM_CONCURRENCY` | `4` | Parallel confirm votes |
+| `SINGLE_SEAT_CONFIRM` | `vote` | One-seat roster only: `trust` takes its findings as confirmed, no vote |
+| `EPIC_GATE_MIN_SEATS` | `2` | Seats the epic gate requires; still unanimous and fail-closed |
+| `EPIC_TOKEN_BUDGET` | unset | Ceiling on the pipeline's own tokens per epic (not worker spend) |
 
 Worker knobs (`TASK_WORKER_*`: sandbox, timeouts, degenerate-session retry,
 commit prefix) are documented in [`../task_worker/README.md`](../task_worker/README.md).
