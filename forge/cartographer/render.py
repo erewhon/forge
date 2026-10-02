@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -23,7 +24,13 @@ from forge.cartographer.config import CartographerSettings
 from forge.cartographer.models import MapConfig, TargetConfig, TargetInfo
 from forge.cartographer.structural import StructuralResult, build_index, render_map, write_outputs
 from forge.cartographer.summarize import CompleteFn, SummarizeStats, load_index, summarize_target
-from forge.cartographer.sync import Runner, _default_runner, read_sync_state, sync_target
+from forge.cartographer.sync import (
+    Runner,
+    _default_runner,
+    read_sync_detail,
+    read_sync_state,
+    sync_target,
+)
 
 
 def _slug(name: str) -> str:
@@ -36,6 +43,33 @@ class RenderStats:
     files_with_summary: int = 0
     files_missing_summary: list[str] = field(default_factory=list)
     architecture_written: bool = False
+
+
+@dataclass
+class TargetReport:
+    name: str
+    ok: bool = True
+    error: str = ""
+    sync_ok: bool = True
+    stale: bool = False
+    parsed: int = 0
+    summarize: SummarizeStats | None = None
+    render: RenderStats | None = None
+    wall_seconds: float = 0.0
+    consecutive_failures: int = 0
+    returncode: int | None = None
+    stderr_tail: str = ""
+    synced_at: datetime | None = None
+
+
+def _mirror_age_label(synced_at: datetime | None) -> str:
+    """How old a stale mirror is, for the run report: the last successful sync."""
+    if synced_at is None:
+        return "never synced"
+    age_days = (datetime.now(UTC) - synced_at).days
+    if age_days == 0:
+        return "stale mirror, synced today"
+    return f"stale mirror, {age_days} days old"
 
 
 def _load_manifest(config: MapConfig, target: TargetConfig) -> dict:
@@ -110,19 +144,6 @@ def render_target(config: MapConfig, target: TargetConfig) -> RenderStats:
 # --- full pipeline -------------------------------------------------------------------------------
 
 
-@dataclass
-class TargetReport:
-    name: str
-    ok: bool = True
-    error: str = ""
-    sync_ok: bool = True
-    stale: bool = False
-    parsed: int = 0
-    summarize: SummarizeStats | None = None
-    render: RenderStats | None = None
-    wall_seconds: float = 0.0
-
-
 def run_all(
     config: MapConfig,
     settings: CartographerSettings,
@@ -138,15 +159,28 @@ def run_all(
         try:
             sync = sync_target(config, target, runner)
             report.sync_ok = sync.ok
-            synced_at, stale = read_sync_state(config, target)
-            report.stale = stale
-            if not sync.ok and synced_at is None:
+            report.returncode = sync.returncode
+            report.stderr_tail = sync.stderr_tail
+            if not sync.ok:
+                # The run report is read later; the journal is where a failing nightly is noticed.
+                print(
+                    f"WARN: sync failed for {target.name} (exit {sync.returncode}): {sync.message}",
+                    file=sys.stderr,
+                )
+            detail = read_sync_detail(config, target)
+            report.stale = detail.stale
+            report.consecutive_failures = detail.consecutive_failures
+            report.synced_at = detail.synced_at
+            if not sync.ok and detail.synced_at is None:
                 # Never synced successfully: the mirror dir exists but is empty — an "OK" empty
                 # map here would silently read as coverage. Fail the target instead.
                 raise RuntimeError(f"sync failed and no previous mirror exists ({sync.message})")
             info = TargetInfo(
-                name=target.name, host=target.host, path=target.path,
-                synced_at=synced_at, stale=stale,
+                name=target.name,
+                host=target.host,
+                path=target.path,
+                synced_at=detail.synced_at,
+                stale=detail.stale,
             )
             structural = build_index(config, target, info)
             write_outputs(config, target, structural)
@@ -165,6 +199,16 @@ def run_all(
 
 def _write_report(config: MapConfig, reports: list[TargetReport]) -> None:
     lines = [f"# forge map run — {datetime.now(UTC):%Y-%m-%d %H:%M UTC}", ""]
+
+    # Check for attention: any target with >= 2 consecutive failures
+    attention_targets = [r for r in reports if r.consecutive_failures >= 2]
+    if attention_targets:
+        for r in attention_targets:
+            lines.append(
+                f"ATTENTION: {r.name} has failed sync {r.consecutive_failures} runs in a row"
+            )
+        lines.append("")
+
     for r in reports:
         status = "OK" if r.ok else f"FAILED — {r.error}"
         lines.append(f"## {r.name}: {status}")
@@ -172,7 +216,17 @@ def _write_report(config: MapConfig, reports: list[TargetReport]) -> None:
             lines.append("")
             continue
         if not r.sync_ok:
-            lines.append("- ⚠ sync failed — mapped from the previous (stale) mirror")
+            lines.append(
+                f"- ⚠ sync failed — mapped from the previous mirror "
+                f"({_mirror_age_label(r.synced_at)})"
+            )
+            if r.returncode is not None:
+                lines.append(f"- rsync exit code: {r.returncode}")
+            if r.stderr_tail:
+                lines.append("- stderr tail:")
+                lines.append("  ```")
+                lines.extend(f"  {line}" for line in r.stderr_tail.splitlines())
+                lines.append("  ```")
         s = r.summarize
         lines.append(f"- files parsed: {r.parsed}")
         if s:

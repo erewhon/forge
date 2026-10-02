@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import configparser
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from forge.cartographer.models import MapConfig, TargetConfig
-from forge.cartographer.render import render_target, run_all
+from forge.cartographer.render import (
+    TargetReport,
+    _mirror_age_label,
+    _write_report,
+    render_target,
+    run_all,
+)
 from forge.cartographer.summarize import summarize_target
 from forge.cartographer.tests.test_summarize import (
     _SHAS,
@@ -104,3 +111,44 @@ def test_systemd_units_parse(unit: str) -> None:
         assert parser["Timer"]["OnCalendar"] == "*-*-* 03:30:00"
         assert parser["Timer"]["Persistent"] == "true"
     assert "Install" in parser
+
+
+def test_report_attention_header_when_consecutive_failures_ge_2(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+    reports = [
+        TargetReport(name="target-a", consecutive_failures=2),
+        TargetReport(name="target-b", consecutive_failures=0),
+    ]
+    config.output_root = tmp_path / "out"
+    _write_report(config, reports)
+    report_text = (config.output_root / "report.md").read_text()
+    assert report_text.splitlines()[2] == "ATTENTION: target-a has failed sync 2 runs in a row"
+    assert "target-b has failed" not in report_text
+
+
+def test_report_states_mirror_age_only_when_sync_failed(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+    five_days = datetime.now(UTC) - timedelta(days=5)
+    reports = [
+        TargetReport(name="fresh", sync_ok=True, synced_at=datetime.now(UTC)),
+        TargetReport(
+            name="stale", sync_ok=False, stale=True, synced_at=five_days,
+            returncode=255, stderr_tail="ssh: connect to host x port 22: No route to host",
+        ),
+        TargetReport(name="never", sync_ok=False, stale=True, synced_at=None),
+    ]
+    config.output_root = tmp_path / "out"
+    _write_report(config, reports)
+    text = (config.output_root / "report.md").read_text()
+    assert "stale mirror, 5 days old" in text
+    assert "rsync exit code: 255" in text
+    assert "No route to host" in text
+    assert "never synced" in text
+    assert text.count("sync failed") == 2
+    assert "ATTENTION" not in text
+
+
+def test_mirror_age_label() -> None:
+    assert _mirror_age_label(None) == "never synced"
+    assert _mirror_age_label(datetime.now(UTC)) == "stale mirror, synced today"
+    assert _mirror_age_label(datetime.now(UTC) - timedelta(days=5)) == "stale mirror, 5 days old"

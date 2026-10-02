@@ -25,7 +25,16 @@ Runner = Callable[[list[str]], subprocess.CompletedProcess]
 class SyncResult:
     key: str
     ok: bool
+    returncode: int | None = None
     message: str = ""
+    stderr_tail: str = ""
+
+
+@dataclass
+class SyncDetail:
+    synced_at: datetime | None
+    stale: bool
+    consecutive_failures: int
 
 
 def _default_runner(cmd: list[str]) -> subprocess.CompletedProcess:
@@ -59,6 +68,22 @@ def read_sync_state(config: MapConfig, target: TargetConfig) -> tuple[datetime |
         return None, True
 
 
+def read_sync_detail(config: MapConfig, target: TargetConfig) -> SyncDetail:
+    """Return synced_at, stale, and consecutive_failures for a target."""
+    try:
+        raw = json.loads(_state_path(config, target).read_text())
+        synced_at = datetime.fromisoformat(raw["synced_at"]) if raw.get("synced_at") else None
+        stale = not raw.get("ok", False)
+        consecutive_failures = raw.get("consecutive_failures", 0)
+        return SyncDetail(
+            synced_at=synced_at,
+            stale=stale,
+            consecutive_failures=consecutive_failures,
+        )
+    except (OSError, ValueError, KeyError):
+        return SyncDetail(synced_at=None, stale=True, consecutive_failures=0)
+
+
 def sync_target(
     config: MapConfig, target: TargetConfig, runner: Runner = _default_runner
 ) -> SyncResult:
@@ -68,19 +93,29 @@ def sync_target(
     ok = proc.returncode == 0
     state = _state_path(config, target)
     state.parent.mkdir(parents=True, exist_ok=True)
-    previous, _ = read_sync_state(config, target)
+    detail = read_sync_detail(config, target)
+    consecutive_failures = (detail.consecutive_failures + 1) if not ok else 0
     state.write_text(
         json.dumps(
             {
                 # A failed sync keeps the previous timestamp: the mirror content is that old.
                 "synced_at": datetime.now(UTC).isoformat() if ok else
-                (previous.isoformat() if previous else None),
+                (detail.synced_at.isoformat() if detail.synced_at else None),
                 "ok": ok,
+                "consecutive_failures": consecutive_failures,
             }
         )
     )
+    stderr_lines = (proc.stderr or "").splitlines()
+    stderr_tail = "\n".join(stderr_lines[-5:]) if stderr_lines else ""
     message = "" if ok else (proc.stderr or proc.stdout or "rsync failed").strip().splitlines()[-1]
-    return SyncResult(key=target.key, ok=ok, message=message)
+    return SyncResult(
+        key=target.key,
+        ok=ok,
+        returncode=proc.returncode,
+        message=message,
+        stderr_tail=stderr_tail,
+    )
 
 
 def sync_all(

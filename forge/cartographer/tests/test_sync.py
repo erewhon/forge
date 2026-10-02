@@ -5,7 +5,7 @@ from __future__ import annotations
 import subprocess
 
 from forge.cartographer.models import MapConfig
-from forge.cartographer.sync import _rsync_command, read_sync_state, sync_target
+from forge.cartographer.sync import _rsync_command, read_sync_detail, read_sync_state, sync_target
 
 
 def _proc(returncode: int, stderr: str = "") -> subprocess.CompletedProcess:
@@ -69,3 +69,42 @@ def test_target_selection_unknown_name(config: MapConfig) -> None:
 def test_target_keys_differ_per_host(config: MapConfig) -> None:
     a, b = config.targets
     assert a.key != b.key  # same path, different VM → different checkouts
+
+
+def test_sync_returncode_recorded(config: MapConfig) -> None:
+    """Returncode is captured in SyncResult."""
+    target = config.targets[0]
+    result = sync_target(config, target, runner=lambda cmd: _proc(42))
+    assert result.returncode == 42
+    assert not result.ok
+
+
+def test_sync_stderr_tail_recorded(config: MapConfig) -> None:
+    """stderr tail (last 5 lines) is captured in SyncResult."""
+    target = config.targets[0]
+    stderr_input = "line1\nline2\nline3\nline4\nline5\nline6\nline7\n"
+    result = sync_target(config, target, runner=lambda cmd: _proc(1, stderr_input))
+    assert result.stderr_tail == "\n".join(stderr_input.strip().splitlines()[-5:])
+
+
+def test_sync_consecutive_failures_counter(config: MapConfig) -> None:
+    """consecutive_failures increments on failure and resets on success."""
+    target = config.targets[0]
+
+    # First failure
+    result = sync_target(config, target, runner=lambda cmd: _proc(1, "error1\n"))
+    assert not result.ok
+    detail = read_sync_detail(config, target)
+    assert detail.consecutive_failures == 1
+
+    # Second failure - counter should increment
+    result = sync_target(config, target, runner=lambda cmd: _proc(1, "error2\n"))
+    assert not result.ok
+    detail = read_sync_detail(config, target)
+    assert detail.consecutive_failures == 2
+
+    # Success - counter should reset to 0
+    result = sync_target(config, target, runner=lambda cmd: _proc(0))
+    assert result.ok
+    detail = read_sync_detail(config, target)
+    assert detail.consecutive_failures == 0
