@@ -402,6 +402,31 @@ def _resolve_task_page(daemon: NousDaemonClient, task_name: str) -> dict:
         return daemon.resolve_page(settings.notebook_id, task_name)
 
 
+def _status_cells(
+    status: str, db_content: dict, execution_mode: str | None = None
+) -> dict[str, Any]:
+    """The row cells a status change writes.
+
+    Done also stamps Completed and, when the column exists, Implemented By = worker —
+    the Forge Tree view counts worker-built tasks from it, and the Nous MCP stamps
+    "agent session" for interactive agents. The daemon stores a cell under the literal key
+    when the property name is unknown, so the stamp is skipped on a database that has not
+    grown the column yet rather than leaving an orphan cell.
+    """
+    cells: dict[str, Any] = {"Status": status}
+    if status.lower() == "done":
+        cells["Completed"] = date.today().isoformat()
+        has_implemented_by = any(
+            str(p.get("name", "")).strip().lower() == "implemented by"
+            for p in db_content.get("properties", [])
+        )
+        if has_implemented_by:
+            cells["Implemented By"] = "worker"
+    if execution_mode is not None:
+        cells["Execution Mode"] = execution_mode
+    return cells
+
+
 def update_task_status(
     task: str, status: str, notes: str = "", execution_mode: str | None = None
 ) -> None:
@@ -435,15 +460,10 @@ def update_task_status(
     db_content = _read_db_content()
     row, _, _ = _find_task_row(db_content, name)
     if row is not None:
-        update_cells: dict[str, Any] = {"Status": status}
-        if status.lower() == "done":
-            update_cells["Completed"] = date.today().isoformat()
-        if execution_mode is not None:
-            update_cells["Execution Mode"] = execution_mode
         daemon.update_database_rows(
             notebook_id,
             settings.database_id,
-            [{"row": row["id"], "cells": update_cells}],
+            [{"row": row["id"], "cells": _status_cells(status, db_content, execution_mode)}],
         )
 
     # 3. Append implementation notes. H3-only on purpose: every append used to emit its
