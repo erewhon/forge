@@ -13,6 +13,7 @@ EXPECTED_VERBS = {
     "research",
     "book",
     "edit",
+    "fanout",
     "review",
     "audit",
     "testing",

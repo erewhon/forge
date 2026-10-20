@@ -49,6 +49,13 @@ REGISTRY: list[AgentCommand] = [
         exposes_mcp=False,
     ),
     AgentCommand(
+        name="fanout",
+        summary="One analysis prompt → N agentic seats (claude/pi) → interactive Claude judge.",
+        module="forge.fanout.main",
+        # CLI-only: spawns model subprocesses and `judge` execs an interactive claude session.
+        exposes_mcp=False,
+    ),
+    AgentCommand(
         name="review",
         summary="PR review ensemble (review / digest / supply-chain lenses).",
         module="forge.pr_review_ensemble.main",
