@@ -10,7 +10,7 @@ import re
 import shlex
 import string
 import sys
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 
 from forge.fanout.config import settings
@@ -93,7 +93,7 @@ async def _sweep(args: argparse.Namespace) -> int:
     if not repo.is_dir():
         raise SystemExit(f"error: {repo} is not a directory")
     seats = parse_seats(args.models)
-    now = datetime.now(UTC)
+    now = datetime.now().astimezone()  # local time: the dir name is for a human
     if args.timeout is not None and args.timeout <= 0:
         raise SystemExit("error: --timeout must be a positive number of seconds")
     out_dir = Path(args.out).resolve() if args.out else default_out_dir(repo, now)
