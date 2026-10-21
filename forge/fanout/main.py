@@ -15,6 +15,7 @@ from pathlib import Path
 
 from forge.fanout.config import settings
 from forge.fanout.models import SeatRun, SeatSpec, SweepManifest
+from forge.fanout.profiles import BUILTIN, Profile, builtin_names, load_profile
 from forge.fanout.prompts import build_judge_prompt, wrap_sweep_prompt
 from forge.fanout.runner import run_all
 
@@ -38,8 +39,11 @@ def parse_one_seat(raw: str, label: str) -> SeatSpec:
     return SeatSpec(label=label, kind=kind, model=model, display=display)  # type: ignore[arg-type]
 
 
-def parse_seats(raw: str | None) -> list[SeatSpec]:
-    tokens = settings.default_models if raw is None else raw.split(",")
+def parse_seats(raw: str | None, defaults: list[str] | None = None) -> list[SeatSpec]:
+    if raw is None:
+        tokens = list(defaults) if defaults is not None else list(settings.default_models)
+    else:
+        tokens = raw.split(",")
     tokens = [t.strip() for t in tokens if t.strip()]
     if not 1 <= len(tokens) <= _MAX_SEATS:
         raise SystemExit(f"error: --models must list 1 to {_MAX_SEATS} seats, got {len(tokens)}")
@@ -47,8 +51,8 @@ def parse_seats(raw: str | None) -> list[SeatSpec]:
     return [parse_one_seat(tok, lab) for lab, tok in zip(labels, tokens, strict=True)]
 
 
-def default_out_dir(repo: Path, now: datetime) -> Path:
-    name = re.sub(r"[^A-Za-z0-9._-]+", "-", repo.name) or "repo"
+def default_out_dir(target: Path, now: datetime) -> Path:
+    name = re.sub(r"[^A-Za-z0-9._-]+", "-", target.name) or "sweep"
     return settings.out_base / f"{name}-{now.strftime('%Y%m%d-%H%M%S')}"
 
 
@@ -85,18 +89,36 @@ def judge_cmd(model: str, prompt: str) -> list[str]:
     return [settings.claude_binary, "--model", model, prompt]
 
 
+def _split_tools(raw: str | None) -> list[str] | None:
+    if raw is None:
+        return None
+    return [t.strip() for t in raw.split(",") if t.strip()]
+
+
+def resolve_profile(args: argparse.Namespace) -> Profile:
+    """The sweep's profile: built-in or file, with --claude-tools / --pi-tools overrides."""
+    profile = load_profile(args.profile)
+    overrides: dict[str, list[str]] = {}
+    if (ct := _split_tools(getattr(args, "claude_tools", None))) is not None:
+        overrides["claude_allowed_tools"] = ct
+    if (pt := _split_tools(getattr(args, "pi_tools", None))) is not None:
+        overrides["pi_tools"] = pt
+    return profile.model_copy(update=overrides) if overrides else profile
+
+
 async def _sweep(args: argparse.Namespace) -> int:
     user_prompt = _read_prompt(args)
     if not user_prompt.strip():
         raise SystemExit("error: prompt is empty")
-    repo = Path(args.repo).resolve()
-    if not repo.is_dir():
-        raise SystemExit(f"error: {repo} is not a directory")
-    seats = parse_seats(args.models)
+    target = Path(args.target).resolve()
+    if not target.is_dir():
+        raise SystemExit(f"error: {target} is not a directory")
+    profile = resolve_profile(args)
+    seats = parse_seats(args.models, profile.default_models)
     now = datetime.now().astimezone()  # local time: the dir name is for a human
     if args.timeout is not None and args.timeout <= 0:
         raise SystemExit("error: --timeout must be a positive number of seconds")
-    out_dir = Path(args.out).resolve() if args.out else default_out_dir(repo, now)
+    out_dir = Path(args.out).resolve() if args.out else default_out_dir(target, now)
     if out_dir.exists() and not out_dir.is_dir():
         raise SystemExit(f"error: {out_dir} exists and is not a directory")
     if out_dir.is_dir() and any(out_dir.iterdir()):
@@ -105,12 +127,15 @@ async def _sweep(args: argparse.Namespace) -> int:
 
     user_prompt_path = out_dir / "question.md"
     user_prompt_path.write_text(user_prompt, encoding="utf-8")
-    prompt = wrap_sweep_prompt(user_prompt, repo)
+    prompt = wrap_sweep_prompt(user_prompt, target, profile)
     prompt_path = out_dir / "prompt.md"
     prompt_path.write_text(prompt, encoding="utf-8")
 
     roster = ", ".join(f"{s.label}={s.display}" for s in seats)
-    print(f"Fanout sweep @ {repo} → {out_dir}\n  seats: {roster}", file=sys.stderr)
+    print(
+        f"Fanout sweep [{profile.name}] @ {target} → {out_dir}\n  seats: {roster}",
+        file=sys.stderr,
+    )
 
     # The manifest is checkpointed after every seat (and in the finally on Ctrl-C), so a sweep
     # that is interrupted or crashes mid-way still leaves a judgeable directory behind.
@@ -119,8 +144,9 @@ async def _sweep(args: argparse.Namespace) -> int:
     def manifest_now() -> SweepManifest:
         seats_now = [done.get(s.label) or _pending(s) for s in seats]
         return SweepManifest(
-            repo_path=repo,
+            target=target,
             out_dir=out_dir,
+            profile=profile,
             timestamp=now,
             user_prompt_path=user_prompt_path,
             prompt_path=prompt_path,
@@ -136,10 +162,11 @@ async def _sweep(args: argparse.Namespace) -> int:
         await run_all(
             specs=seats,
             prompt=prompt,
-            repo=repo,
+            repo=target,
             findings_dir=out_dir / "findings",
             timeout=args.timeout,
             on_done=checkpoint,
+            profile=profile,
         )
     finally:
         manifest = manifest_now()
@@ -191,20 +218,31 @@ def _exec_judge(manifest: SweepManifest, model: str, *, print_only: bool) -> int
     prompt = build_judge_prompt(manifest)
     cmd = judge_cmd(model, prompt)
     if print_only:
-        print(f"cd {shlex.quote(str(manifest.repo_path))} && {shlex.join(cmd)}")
+        print(f"cd {shlex.quote(str(manifest.target))} && {shlex.join(cmd)}")
         return 0
-    print(f"Opening judge session ({model}) in {manifest.repo_path}", file=sys.stderr)
-    os.chdir(manifest.repo_path)
+    print(f"Opening judge session ({model}) in {manifest.target}", file=sys.stderr)
+    os.chdir(manifest.target)
     os.execvp(cmd[0], cmd)  # replaces this process; the session is the user's from here
     return 0  # unreachable
 
 
 def _judge(args: argparse.Namespace) -> int:
     manifest = load_manifest(Path(args.dir).resolve())
-    if not manifest.repo_path.is_dir():
-        raise SystemExit(f"error: repo {manifest.repo_path} from the manifest no longer exists")
+    if not manifest.target.is_dir():
+        raise SystemExit(f"error: target {manifest.target} from the manifest no longer exists")
     write_judge_prompt(manifest)
     return _exec_judge(manifest, args.model, print_only=args.print_only)
+
+
+def _profiles(args: argparse.Namespace) -> int:
+    for name in builtin_names():
+        prof = BUILTIN[name]()  # type: ignore[operator]
+        print(f"{name:8s} {prof.description}")
+        print(f"         seats: {', '.join(prof.default_models)}")
+        print(f"         claude tools: {' '.join(prof.claude_allowed_tools)}")
+        print(f"         pi tools: {','.join(prof.pi_tools)}")
+    print("\nA TOML file path also works: it overrides fields of its `base` (default code).")
+    return 0
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -221,16 +259,37 @@ def _build_parser() -> argparse.ArgumentParser:
     pg = sweep.add_mutually_exclusive_group()
     pg.add_argument("--prompt", help="The question, inline")
     pg.add_argument("--prompt-file", help="The question, from a file (stdin if neither)")
-    sweep.add_argument("--repo", default=".", help="Repository to analyze (default: cwd)")
+    sweep.add_argument(
+        "--dir",
+        "--repo",
+        dest="target",
+        default=".",
+        help="Directory the seats work in: a repo, a folder of papers, ... (default: cwd)",
+    )
+    sweep.add_argument(
+        "--profile",
+        default="code",
+        help="Kind of sweep: " + ", ".join(builtin_names()) + ", or a TOML profile file "
+        "(see `forge fanout profiles`). Default: code",
+    )
     sweep.add_argument(
         "--models",
         default=None,
         help="Comma-separated seats as '[kind:]model'. Bare or 'claude:<id>' runs claude -p; "
-        "'pi:<id>' runs pi -p over the router (local models only). Default: "
-        + ",".join(settings.default_models),
+        "'pi:<id>' runs pi -p over the router (local models only). Default: the profile's.",
     )
     sweep.add_argument(
-        "--out", default=None, help="Sweep directory (default: ~/fanout/<repo>-<ts>)"
+        "--claude-tools",
+        default=None,
+        help="Override the profile's claude --allowedTools (comma-separated)",
+    )
+    sweep.add_argument(
+        "--pi-tools",
+        default=None,
+        help="Override the profile's pi --tools (comma-separated; e.g. add bash for web access)",
+    )
+    sweep.add_argument(
+        "--out", default=None, help="Sweep directory (default: ~/fanout/<dir-name>-<ts>)"
     )
     sweep.add_argument(
         "--timeout", type=float, default=None, help="Per-seat timeout in seconds (default 1800)"
@@ -254,6 +313,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Write judge-prompt.md and print the command instead of exec'ing claude",
     )
     judge.set_defaults(func=_judge)
+
+    profiles = sub.add_parser("profiles", help="List the built-in sweep profiles")
+    profiles.set_defaults(func=_profiles)
     return parser
 
 

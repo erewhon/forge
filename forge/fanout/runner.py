@@ -14,6 +14,7 @@ from pathlib import Path
 
 from forge.fanout.config import settings
 from forge.fanout.models import SeatRun, SeatSpec
+from forge.fanout.profiles import Profile, load_profile
 
 _TAIL_CHARS = 2000
 _DRAIN_SECONDS = 10.0
@@ -27,14 +28,15 @@ def _tail(data: bytes, limit: int = _TAIL_CHARS) -> str:
     return decoded[-limit:] if len(decoded) > limit else decoded
 
 
-def build_cmd(spec: SeatSpec, prompt: str) -> list[str]:
-    """Construct the seat CLI invocation.
+def build_cmd(spec: SeatSpec, prompt: str, profile: Profile | None = None) -> list[str]:
+    """Construct the seat CLI invocation; the profile supplies the read-only tool allowlists.
 
     claude: ``claude -p PROMPT --model M --allowedTools … --disallowedTools … --output-format text``
     pi:     ``pi -p --no-session --no-skills --provider P --model M --tools … -- PROMPT``
 
-    Both run with cwd set to the repo and may only read; findings are whatever they print.
+    Both run with cwd set to the target and may only read; findings are whatever they print.
     """
+    profile = profile or load_profile(None)
     if spec.kind == "pi":
         return [
             settings.pi_binary,
@@ -46,15 +48,15 @@ def build_cmd(spec: SeatSpec, prompt: str) -> list[str]:
             "--model",
             spec.model,
             "--tools",
-            ",".join(settings.pi_tools),
+            ",".join(profile.pi_tools),
             "--",
             prompt,
         ]
     cmd = [settings.claude_binary, "-p", prompt, "--model", spec.model]
-    if settings.claude_allowed_tools:
-        cmd += ["--allowedTools", *settings.claude_allowed_tools]
-    if settings.claude_disallowed_tools:
-        cmd += ["--disallowedTools", *settings.claude_disallowed_tools]
+    if profile.claude_allowed_tools:
+        cmd += ["--allowedTools", *profile.claude_allowed_tools]
+    if profile.claude_disallowed_tools:
+        cmd += ["--disallowedTools", *profile.claude_disallowed_tools]
     cmd += ["--output-format", "text"]
     return cmd
 
@@ -155,6 +157,7 @@ async def run_seat(
     findings_dir: Path,
     timeout: float | None = None,
     on_done: SeatCallback | None = None,
+    profile: Profile | None = None,
 ) -> SeatRun:
     """Run one seat in the repo and write whatever it printed to findings_dir.
 
@@ -162,7 +165,7 @@ async def run_seat(
     reported and then re-raised as CancelledError — so a caller can checkpoint incrementally.
     """
     effective_timeout = timeout if timeout is not None else settings.per_seat_timeout_seconds
-    cmd = build_cmd(spec, prompt)
+    cmd = build_cmd(spec, prompt, profile)
     start = time.monotonic()
     res = await _exec(cmd, cwd=repo, timeout=effective_timeout, env=seat_env(spec, repo))
     run = _classify(spec, cmd, res, findings_dir, latency_ms=int((time.monotonic() - start) * 1000))
@@ -239,6 +242,7 @@ async def run_all(
     findings_dir: Path,
     timeout: float | None,
     on_done: SeatCallback | None = None,
+    profile: Profile | None = None,
 ) -> list[SeatRun]:
     """Run every seat concurrently. One seat blowing up never loses the others' results."""
     findings_dir.mkdir(parents=True, exist_ok=True)
@@ -251,6 +255,7 @@ async def run_all(
                 findings_dir=findings_dir,
                 timeout=timeout,
                 on_done=on_done,
+                profile=profile,
             )
             for s in specs
         ),

@@ -16,6 +16,7 @@ import pytest
 from forge.fanout import main as fanout_main
 from forge.fanout.config import settings
 from forge.fanout.models import SeatRun, SeatSpec, SweepManifest
+from forge.fanout.profiles import builtin_names, load_profile
 from forge.fanout.prompts import build_judge_prompt, wrap_sweep_prompt
 from forge.fanout.runner import (
     build_cmd,
@@ -139,8 +140,8 @@ def test_run_all_writes_findings_and_classifies_statuses(tmp_path, monkeypatch):
     crash = SeatSpec(label="C", kind="claude", model="x", display="claude:x")
     monkeypatch.setattr(
         "forge.fanout.runner.build_cmd",
-        lambda spec, prompt: (
-            [str(bins / "fake-crash")] if spec.label == "C" else build_cmd(spec, prompt)
+        lambda spec, prompt, profile=None: (
+            [str(bins / "fake-crash")] if spec.label == "C" else build_cmd(spec, prompt, profile)
         ),
     )
     runs = asyncio.run(
@@ -198,10 +199,10 @@ def test_one_seat_crashing_does_not_lose_the_others(tmp_path, monkeypatch):
     specs = fanout_main.parse_seats("claude:opus,pi:x")
     real = build_cmd
 
-    def exploding(spec, prompt):
+    def exploding(spec, prompt, profile=None):
         if spec.kind == "pi":
             raise RuntimeError("kaboom")
-        return real(spec, prompt)
+        return real(spec, prompt, profile)
 
     monkeypatch.setattr("forge.fanout.runner.build_cmd", exploding)
     runs = asyncio.run(
@@ -241,8 +242,9 @@ def _manifest(tmp_path: Path) -> SweepManifest:
         ),
     ]
     return SweepManifest(
-        repo_path=tmp_path / "repo",
+        target=tmp_path / "repo",
         out_dir=out,
+        profile=load_profile("code"),
         timestamp=datetime(2026, 10, 20, 12, 0, tzinfo=UTC),
         user_prompt_path=out / "question.md",
         prompt_path=out / "prompt.md",
@@ -268,13 +270,13 @@ def test_judge_prompt_lists_findings_and_failed_seats(tmp_path):
 
 def test_judge_print_only_writes_prompt_and_prints_command(tmp_path, capsys):
     m = _manifest(tmp_path)
-    m.repo_path.mkdir()
+    m.target.mkdir()
     fanout_main.write_manifest(m)
     rc = fanout_main.main(["judge", str(m.out_dir), "--model", "fable", "--print-only"])
     assert rc == 0
     assert (m.out_dir / "judge-prompt.md").is_file()
     out = capsys.readouterr().out
-    assert out.startswith(f"cd {m.repo_path} && ")
+    assert out.startswith(f"cd {m.target} && ")
     assert "--model fable" in out
 
 
@@ -422,3 +424,119 @@ def test_pi_seat_env_lifts_the_guardrails_tool_budget(tmp_path):
     assert env["PI_GUARD_BUDGET"] == str(settings.pi_tool_budget)
     assert env["PWD"] == str(tmp_path)
     assert "PI_GUARD_BUDGET" not in seat_env(fanout_main.parse_one_seat("opus", "B"), tmp_path)
+
+
+# ----------------------------------------------------------------------------------- profiles
+
+
+def test_builtin_profiles_resolve_and_differ_in_tools_and_wording():
+    assert builtin_names() == ["code", "papers", "refs"]
+    code, papers, refs = (load_profile(n) for n in builtin_names())
+    assert code.claude_allowed_tools == settings.claude_allowed_tools
+    assert "WebFetch" in refs.claude_allowed_tools and "WebSearch" in refs.claude_allowed_tools
+    assert "WebFetch" not in papers.claude_allowed_tools
+    assert "**Where:**" in code.sweep_template and "**Source:**" in papers.sweep_template
+    assert "**Resolves:**" in refs.sweep_template
+    assert "MISREAD" in papers.judge_template and "SUSPICIOUS" in refs.judge_template
+    assert papers.default_models[0] == "claude:fable"
+
+
+def test_profile_sets_seat_tools_in_build_cmd():
+    refs = load_profile("refs")
+    cmd = build_cmd(fanout_main.parse_one_seat("claude:fable", "A"), "Q", refs)
+    i = cmd.index("--allowedTools")
+    assert "WebFetch" in cmd[i + 1 : cmd.index("--disallowedTools")]
+    pi_cmd = build_cmd(fanout_main.parse_one_seat("pi:gemma4-26b", "B"), "Q", refs)
+    assert pi_cmd[pi_cmd.index("--tools") + 1] == "read,grep,find,ls"
+
+
+def test_wrap_sweep_prompt_uses_the_profile_template(tmp_path):
+    text = wrap_sweep_prompt("What do the papers say about X?", tmp_path, load_profile("papers"))
+    assert "documents under " + str(tmp_path) in text
+    assert "**Quote:**" in text and "path:line" not in text
+
+
+def test_judge_prompt_uses_the_manifest_profile(tmp_path):
+    m = _manifest(tmp_path).model_copy(update={"profile": load_profile("papers")})
+    text = build_judge_prompt(m)
+    assert "reading sweep" in text and "MISREAD" in text
+    assert str(m.seats[0].findings_path) in text
+
+
+def test_unknown_profile_is_an_error():
+    with pytest.raises(SystemExit, match="unknown profile"):
+        load_profile("nope")
+
+
+def test_toml_profile_overrides_its_base(tmp_path):
+    f = tmp_path / "cites.toml"
+    f.write_text(
+        'base = "refs"\n'
+        'description = "my cites"\n'
+        'pi_tools = ["read", "bash"]\n'
+        'sweep_template = "Target {target}. Q: {prompt}. Literal {{braces}} ok."\n'
+    )
+    prof = load_profile(str(f))
+    assert prof.name == "cites"  # from the file stem
+    assert prof.description == "my cites"
+    assert prof.pi_tools == ["read", "bash"]
+    assert "WebFetch" in prof.claude_allowed_tools  # inherited from refs
+    assert "SUSPICIOUS" in prof.judge_template  # inherited
+    assert (
+        wrap_sweep_prompt("why", tmp_path, prof)
+        == f"Target {tmp_path}. Q: why. Literal {{braces}} ok."
+    )
+
+
+def test_toml_profile_rejects_bad_base_and_bad_toml(tmp_path):
+    f = tmp_path / "p.toml"
+    f.write_text('base = "nope"\n')
+    with pytest.raises(SystemExit, match="base must be one of"):
+        load_profile(str(f))
+    f.write_text("this is = not toml = at all\n")
+    with pytest.raises(SystemExit, match="not valid TOML"):
+        load_profile(str(f))
+
+
+def test_sweep_records_profile_and_honours_tool_overrides(tmp_path, monkeypatch, capsys):
+    bins = tmp_path / "bin"
+    bins.mkdir()
+    # the fake seat echoes its argv so the test can see which tools it was given
+    _fake_bin(bins, "fake-claude", 'echo "# Findings"; echo "argv: $*" | cut -c1-400\n')
+    monkeypatch.setattr(settings, "claude_binary", str(bins / "fake-claude"))
+    docs = tmp_path / "papers"
+    docs.mkdir()
+    out = tmp_path / "sweep"
+    rc = fanout_main.main(
+        [
+            "sweep",
+            "--prompt",
+            "Q?",
+            "--dir",
+            str(docs),
+            "--out",
+            str(out),
+            "--profile",
+            "papers",
+            "--models",
+            "claude:fable",
+            "--claude-tools",
+            "Read,Glob",
+        ]
+    )
+    assert rc == 0
+    m = fanout_main.load_manifest(out)
+    assert m.profile.name == "papers" and m.target == docs
+    assert m.profile.claude_allowed_tools == ["Read", "Glob"]
+    findings = (out / "findings" / "A-claude-fable.md").read_text()
+    assert "--allowedTools Read Glob" in findings
+    assert "**Quote:**" in (out / "prompt.md").read_text()
+    assert "MISREAD" in (out / "judge-prompt.md").read_text()
+    assert "[papers]" in capsys.readouterr().err
+
+
+def test_profiles_subcommand_lists_builtins(capsys):
+    assert fanout_main.main(["profiles"]) == 0
+    out = capsys.readouterr().out
+    for name in builtin_names():
+        assert name in out
