@@ -4,7 +4,8 @@ A profile bundles everything that differs between auditing code, reading a stack
 checking a bibliography: the schema wrapper every seat gets, the judge's kickoff text, the
 read-only tool allowlists, and the default seats. The runner does not change between profiles.
 
-Built-ins: ``code`` (today's behaviour), ``papers``, ``refs``. A TOML file passed to
+Built-ins: ``code`` (today's behaviour), ``papers``, ``refs``, and ``raw`` — no wrapper at all:
+the seats get the prompt exactly as written. A TOML file passed to
 ``--profile`` overrides any field of the ``base`` it names (default ``code``), so a one-off sweep
 can bring its own templates without a code change.
 
@@ -34,6 +35,9 @@ class Profile(BaseModel):
     claude_disallowed_tools: list[str]
     pi_tools: list[str]
     default_models: list[str]
+    # Replaces the seat CLI's own default system prompt (claude/pi ``--system-prompt``). None keeps
+    # each tool's default. ``--system-prompt`` on the command line overrides this per sweep.
+    system_prompt: str | None = None
 
 
 # ---------------------------------------------------------------------------------------- code
@@ -233,6 +237,29 @@ Your job:
 Do not edit anything else under {target}. Start with step 1.
 """
 
+_RAW_JUDGE = """\
+You are the judge for a multi-model sweep run from {target}.
+
+{n} independent seats were given the same prompt, verbatim, with no wrapper (it is at
+{user_prompt_path}; {prompt_path} holds the identical text). Their answers are in:
+
+{findings_list}
+{failed_block}
+Sweep manifest (models, timings, exit codes): {manifest_path}
+
+Your job:
+1. Read the prompt and every answer in full.
+2. Pull out the distinct claims. Verify each one where you can — against the files here, with
+   your tools, or against what you know — and label it CONFIRMED, FALSE, UNVERIFIABLE, or
+   DUPLICATE-of-<id>. Note which seats made it and whether they agree.
+3. Show me a compact table (claim, label, seats, one-line reason) before writing anything, and
+   flag what you could not settle so I can weigh in.
+4. Then write {collated_path}: the collated answer with seat attribution, the claims you
+   rejected and why, and where the seats disagree.
+
+Do not edit anything else under {target}. Start with step 1.
+"""
+
 _READ_ONLY_CLAUDE = ["Read", "Grep", "Glob", "Bash(rg:*)"]
 _NO_WRITE_CLAUDE = ["Edit", "Write", "NotebookEdit"]
 _READ_ONLY_PI = ["read", "grep", "find", "ls"]
@@ -285,10 +312,28 @@ def _refs_profile() -> Profile:
     )
 
 
+def _raw_profile() -> Profile:
+    return Profile(
+        name="raw",
+        description=(
+            "No wrapper: seats get your prompt verbatim (bring your own output format); the judge "
+            "collates whatever came back. --system-prompt replaces the tools' own system prompt."
+        ),
+        target_noun="directory",
+        sweep_template="{prompt}",
+        judge_template=_RAW_JUDGE,
+        claude_allowed_tools=list(_READ_ONLY_CLAUDE),
+        claude_disallowed_tools=list(_NO_WRITE_CLAUDE),
+        pi_tools=list(_READ_ONLY_PI),
+        default_models=["claude:fable", "pi:gemma4-26b"],
+    )
+
+
 BUILTIN: dict[str, object] = {
     "code": _code_profile,
     "papers": _papers_profile,
     "refs": _refs_profile,
+    "raw": _raw_profile,
 }
 
 

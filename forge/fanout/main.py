@@ -98,11 +98,15 @@ def _split_tools(raw: str | None) -> list[str] | None:
 def resolve_profile(args: argparse.Namespace) -> Profile:
     """The sweep's profile: built-in or file, with --claude-tools / --pi-tools overrides."""
     profile = load_profile(args.profile)
-    overrides: dict[str, list[str]] = {}
+    overrides: dict[str, object] = {}
     if (ct := _split_tools(getattr(args, "claude_tools", None))) is not None:
         overrides["claude_allowed_tools"] = ct
     if (pt := _split_tools(getattr(args, "pi_tools", None))) is not None:
         overrides["pi_tools"] = pt
+    raw_sys = getattr(args, "system_prompt", None)
+    if raw_sys is not None:
+        text = Path(raw_sys[1:]).read_text(encoding="utf-8") if raw_sys.startswith("@") else raw_sys
+        overrides["system_prompt"] = text
     return profile.model_copy(update=overrides) if overrides else profile
 
 
@@ -241,6 +245,8 @@ def _profiles(args: argparse.Namespace) -> int:
         print(f"         seats: {', '.join(prof.default_models)}")
         print(f"         claude tools: {' '.join(prof.claude_allowed_tools)}")
         print(f"         pi tools: {','.join(prof.pi_tools)}")
+        if prof.sweep_template.strip() == "{prompt}":
+            print("         wrapper: none (prompt passed verbatim)")
     print("\nA TOML file path also works: it overrides fields of its `base` (default code).")
     return 0
 
@@ -287,6 +293,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--pi-tools",
         default=None,
         help="Override the profile's pi --tools (comma-separated; e.g. add bash for web access)",
+    )
+    sweep.add_argument(
+        "--system-prompt",
+        default=None,
+        metavar="TEXT|@FILE",
+        help="Replace each seat CLI's own default system prompt (claude/pi --system-prompt). "
+        "Pairs with --profile raw when the prompt file should be the whole conversation.",
     )
     sweep.add_argument(
         "--out", default=None, help="Sweep directory (default: ~/fanout/<dir-name>-<ts>)"

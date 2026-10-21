@@ -31,12 +31,15 @@ def _tail(data: bytes, limit: int = _TAIL_CHARS) -> str:
 def build_cmd(spec: SeatSpec, prompt: str, profile: Profile | None = None) -> list[str]:
     """Construct the seat CLI invocation; the profile supplies the read-only tool allowlists.
 
-    claude: ``claude -p PROMPT --model M --allowedTools … --disallowedTools … --output-format text``
-    pi:     ``pi -p --no-session --no-skills --provider P --model M --tools … -- PROMPT``
+    claude: ``claude -p PROMPT --model M [--system-prompt S] --allowedTools … --disallowedTools …
+            --output-format text``
+    pi:     ``pi -p --no-session --no-skills --provider P --model M --tools … [--system-prompt S]
+            -- PROMPT``
 
     Both run with cwd set to the target and may only read; findings are whatever they print.
     """
     profile = profile or load_profile(None)
+    system = ["--system-prompt", profile.system_prompt] if profile.system_prompt is not None else []
     if spec.kind == "pi":
         return [
             settings.pi_binary,
@@ -49,10 +52,11 @@ def build_cmd(spec: SeatSpec, prompt: str, profile: Profile | None = None) -> li
             spec.model,
             "--tools",
             ",".join(profile.pi_tools),
+            *system,
             "--",
             prompt,
         ]
-    cmd = [settings.claude_binary, "-p", prompt, "--model", spec.model]
+    cmd = [settings.claude_binary, "-p", prompt, "--model", spec.model, *system]
     if profile.claude_allowed_tools:
         cmd += ["--allowedTools", *profile.claude_allowed_tools]
     if profile.claude_disallowed_tools:

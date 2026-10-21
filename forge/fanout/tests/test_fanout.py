@@ -430,8 +430,9 @@ def test_pi_seat_env_lifts_the_guardrails_tool_budget(tmp_path):
 
 
 def test_builtin_profiles_resolve_and_differ_in_tools_and_wording():
-    assert builtin_names() == ["code", "papers", "refs"]
-    code, papers, refs = (load_profile(n) for n in builtin_names())
+    assert builtin_names() == ["code", "papers", "refs", "raw"]
+    code, papers, refs, raw = (load_profile(n) for n in builtin_names())
+    assert raw.sweep_template == "{prompt}" and raw.system_prompt is None
     assert code.claude_allowed_tools == settings.claude_allowed_tools
     assert "WebFetch" in refs.claude_allowed_tools and "WebSearch" in refs.claude_allowed_tools
     assert "WebFetch" not in papers.claude_allowed_tools
@@ -540,3 +541,56 @@ def test_profiles_subcommand_lists_builtins(capsys):
     out = capsys.readouterr().out
     for name in builtin_names():
         assert name in out
+
+
+def test_raw_profile_passes_the_prompt_verbatim_and_no_system_prompt_by_default(tmp_path):
+    raw = load_profile("raw")
+    assert wrap_sweep_prompt("  exactly this  ", tmp_path, raw) == "exactly this"
+    cmd = build_cmd(fanout_main.parse_one_seat("pi:gemma4-26b", "A"), "P", raw)
+    assert "--system-prompt" not in cmd
+    assert "--system-prompt" not in build_cmd(fanout_main.parse_one_seat("opus", "B"), "P", raw)
+
+
+def test_system_prompt_override_reaches_both_clis(tmp_path):
+    prof = load_profile("raw").model_copy(update={"system_prompt": "You are terse."})
+    claude_cmd = build_cmd(fanout_main.parse_one_seat("opus", "A"), "P", prof)
+    assert claude_cmd[claude_cmd.index("--system-prompt") + 1] == "You are terse."
+    pi_cmd = build_cmd(fanout_main.parse_one_seat("pi:gemma4-26b", "B"), "P", prof)
+    i = pi_cmd.index("--system-prompt")
+    assert pi_cmd[i + 1] == "You are terse." and pi_cmd[i + 2 :] == ["--", "P"]
+
+
+def test_sweep_system_prompt_flag_reads_at_file_and_is_recorded(tmp_path, monkeypatch):
+    bins = tmp_path / "bin"
+    bins.mkdir()
+    _fake_bin(bins, "fake-claude", 'echo "argv: $*" | cut -c1-600\n')
+    monkeypatch.setattr(settings, "claude_binary", str(bins / "fake-claude"))
+    sysf = tmp_path / "sys.md"
+    sysf.write_text("Answer in Latin.")
+    docs = tmp_path / "d"
+    docs.mkdir()
+    out = tmp_path / "sweep"
+    rc = fanout_main.main(
+        [
+            "sweep",
+            "--profile",
+            "raw",
+            "--prompt",
+            "Why?",
+            "--dir",
+            str(docs),
+            "--out",
+            str(out),
+            "--models",
+            "claude:fable",
+            "--system-prompt",
+            f"@{sysf}",
+        ]
+    )
+    assert rc == 0
+    m = fanout_main.load_manifest(out)
+    assert m.profile.name == "raw" and m.profile.system_prompt == "Answer in Latin."
+    assert (out / "prompt.md").read_text() == "Why?"  # verbatim, no wrapper
+    findings = (out / "findings" / "A-claude-fable.md").read_text()
+    assert "--system-prompt Answer in Latin." in findings
+    assert "no wrapper" in (out / "judge-prompt.md").read_text()
